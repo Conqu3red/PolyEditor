@@ -1,3 +1,6 @@
 .idea/
 venv/
 PolyConverter.exe
+*.layout
+*.json
+*.backup
