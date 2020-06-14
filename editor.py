@@ -2,6 +2,7 @@ import pygame
 import math
 import re
 import json
+from sys import exit
 from uuid import uuid4
 from copy import deepcopy
 from squaternion import Quaternion
@@ -92,6 +93,7 @@ def save(shapes, anchors, layout):
 	print("Converting...")
 	program = run(f"{POLYCONVERTER} {jsonfile}", capture_output=True)
 	if program.returncode == SUCCESS_CODE:
+		pygame.quit()
 		if program.stdout is None or len(program.stdout) < 6:
 			print("No changes to apply.")
 		else:
@@ -154,18 +156,18 @@ class Shape:
 		for pin in self.static_pins:
 			pins.append([(pin["x"] + camera[0]) * zoom, -(pin["y"] + camera[1]) * zoom])
 		for pin in pins:
-			pygame.draw.ellipse(DISPLAY, (165, 42, 42),
-			                    (int(c) for c in (pin[0] - zoom / 2, pin[1] - zoom / 2, zoom, zoom)))
+			pygame.draw.ellipse(DISPLAY, (165, 42, 42), (int(pin[0] - zoom / 2), int(pin[1] - zoom / 2), int(zoom), int(zoom)))
 		# Draw dynamic anchors
 		for anchor_id in self.dynamic_anchors:
 			for anchor in anchors:
 				if anchor_id == anchor["m_Guid"]:
 					# print(anchor)
 					# print((anchor["m_Pos"]["x"]+camera[0])*zoom,(anchor["m_Pos"]["y"]+camera[1])*zoom)
-					pygame.draw.rect(DISPLAY, (255, 255, 255), (int(c) for c in
-					                 ((anchor["m_Pos"]["x"] + camera[0]) * zoom - zoom / 4,
-					                  -(anchor["m_Pos"]["y"] + camera[1]) * zoom - zoom / 4,
-					                  zoom / 2, int(zoom / 2))))
+					rect = (int((anchor["m_Pos"]["x"] + camera[0]) * zoom - zoom / 4),
+					        int(-(anchor["m_Pos"]["y"] + camera[1]) * zoom - zoom / 4),
+					        int(zoom / 2),
+							int(zoom / 2))
+					pygame.draw.rect(DISPLAY, (255, 255, 255), rect)
 		if hitboxes:
 			pygame.draw.rect(DISPLAY, (0, 255, 0), self.hitbox, 1)
 		if self.highlighted:
