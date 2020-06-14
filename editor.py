@@ -108,8 +108,8 @@ def save(shapes, anchors, layout):
 
 class Shape:
 	def __init__(self, color, position, points, scale, rotation, static_pins,
-				 dynamic, collides_with_road, collides_with_nodes, flipped, rotation_degrees,
-				 mass, bounciness, pin_motor_strength, pin_target_velocity, dynamic_anchors):
+	             dynamic, collides_with_road, collides_with_nodes, flipped, rotation_degrees,
+	             mass, bounciness, pin_motor_strength, pin_target_velocity, dynamic_anchors):
 		self.position = position
 		self.hitbox = None
 		self.points = []
@@ -145,7 +145,7 @@ class Shape:
 		# Translate points to camera location, zoom etc
 		for point in self.points:
 			self.offset_points.append([(point[0] + self.position["x"] + camera[0]) * zoom,
-										-((point[1]) + self.position["y"] + camera[1]) * zoom])
+			                           -((point[1]) + self.position["y"] + camera[1]) * zoom])
 		offset_points_pixels = [[int(n) for n in p] for p in self.offset_points]
 		self.hitbox = pygame.draw.polygon(DISPLAY, self.fill_color, offset_points_pixels)
 
@@ -155,20 +155,20 @@ class Shape:
 			pins.append([(pin["x"] + camera[0]) * zoom, -(pin["y"] + camera[1]) * zoom])
 		for pin in pins:
 			pygame.draw.ellipse(DISPLAY, (165, 42, 42),
-								(int(pin[0] - zoom / 2), int(pin[1] - zoom / 2), int(zoom), int(zoom)))
+			                    (int(c) for c in (pin[0] - zoom / 2, pin[1] - zoom / 2, zoom, zoom)))
 		# Draw dynamic anchors
 		for anchor_id in self.dynamic_anchors:
 			for anchor in anchors:
 				if anchor_id == anchor["m_Guid"]:
 					# print(anchor)
 					# print((anchor["m_Pos"]["x"]+camera[0])*zoom,(anchor["m_Pos"]["y"]+camera[1])*zoom)
-					pygame.draw.rect(DISPLAY, (255, 255, 255), ((anchor["m_Pos"]["x"] + camera[0]) * zoom - zoom / 4,
-																-(anchor["m_Pos"]["y"] + camera[1]) * zoom - zoom / 4,
-																zoom / 2, zoom / 2))
+					pygame.draw.rect(DISPLAY, (255, 255, 255), (int(c) for c in
+					                 ((anchor["m_Pos"]["x"] + camera[0]) * zoom - zoom / 4,
+					                  -(anchor["m_Pos"]["y"] + camera[1]) * zoom - zoom / 4,
+					                  zoom / 2, int(zoom / 2))))
 		if hitboxes:
 			pygame.draw.rect(DISPLAY, (0, 255, 0), self.hitbox, 1)
 		if self.highlighted:
-			offset_points_pixels = [[int(n) for n in p] for p in self.offset_points]
 			pygame.draw.polygon(DISPLAY, (255, 255, 0), offset_points_pixels, 1)
 		# print(self.color)
 
@@ -271,9 +271,9 @@ for shape in layout["m_CustomShapes"]:
 		color.append(item * 255)
 	custom_shapes.append(
 		Shape(color, shape["m_Pos"], shape["m_PointsLocalSpace"], shape["m_Scale"], q, shape["m_StaticPins"],
-			  shape["m_Dynamic"], shape["m_CollidesWithRoad"], shape["m_CollidesWithNodes"], shape["m_Flipped"],
-			  shape["m_RotationDegrees"], shape["m_Mass"], shape["m_Bounciness"], shape["m_PinMotorStrength"],
-			  shape["m_PinTargetVelocity"], shape["m_DynamicAnchorGuids"]))
+		      shape["m_Dynamic"], shape["m_CollidesWithRoad"], shape["m_CollidesWithNodes"], shape["m_Flipped"],
+		      shape["m_RotationDegrees"], shape["m_Mass"], shape["m_Bounciness"], shape["m_PinMotorStrength"],
+		      shape["m_PinTargetVelocity"], shape["m_DynamicAnchorGuids"]))
 
 DISPLAY = pygame.display.set_mode(SIZE)
 pygame.init()
@@ -390,7 +390,7 @@ while not done:
 	if selecting:
 		# print(f"True mouse position: {(mouse_x/zoom-camera[0])},{(-mouse_y/zoom-camera[1])}")
 		select_box = pygame.draw.rect(DISPLAY, (0, 255, 0),
-									  pygame.Rect(start_x, start_y, mouse_x - start_x, mouse_y - start_y), 1)
+		                              pygame.Rect(start_x, start_y, mouse_x - start_x, mouse_y - start_y), 1)
 		true_current = (mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])
 		# print(true_start,true_current)
 		selected_shapes = []
