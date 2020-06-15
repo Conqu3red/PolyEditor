@@ -2,6 +2,13 @@ import pygame
 import math
 from squaternion import Quaternion
 
+DYNAMIC_ANCHOR_COLOR = (222, 168, 62)
+DYNAMIC_ANCHOR_BORDER = (0, 0, 0)
+ANCHOR_SIZE = 0.15
+STATIC_PIN_COLOR = (0, 0, 0)
+STATIC_PIN_BORDER = (50, 50, 50)
+PIN_SIZE = 0.12
+
 
 def centroid(vertexes):
 	_x_list = [vertex[0] for vertex in vertexes]
@@ -79,22 +86,23 @@ class CustomShape(LayoutObject):
 		self.hitbox = pygame.draw.polygon(display, self.color, points_pixels)
 
 		# Draw static pins
-		pins = [[int(zoom * (pin["x"] + camera[0]) - zoom / 8),
-		         int(zoom * -(pin["y"] + camera[0]) - zoom / 8)]
-		        for pin in self.static_pins]
-		for pin in pins:
-			pygame.draw.ellipse(display, (165, 42, 42), (pin[0], pin[1], int(zoom / 4), int(zoom / 4)))
+		for pin in self.static_pins:
+			rect = (round(zoom * (pin["x"] + camera[0] - PIN_SIZE)),
+			        round(zoom * -(pin["y"] + camera[1] + PIN_SIZE)),
+			        round(zoom * PIN_SIZE * 2),
+			        round(zoom * PIN_SIZE * 2))
+			pygame.draw.ellipse(display, STATIC_PIN_COLOR, rect)
+			pygame.draw.ellipse(display, STATIC_PIN_BORDER, rect, round(rect[2] / 15))
 		# Draw dynamic anchors
 		for anchor_id in self.dynamic_anchors:
 			for anchor in anchors:
 				if anchor_id == anchor["m_Guid"]:
-					# print(anchor)
-					# print((anchor["m_Pos"]["x"]+camera[0])*zoom,(anchor["m_Pos"]["y"]+camera[1])*zoom)
-					rect = (int((anchor["m_Pos"]["x"] + camera[0]) * zoom - zoom / 8),
-							int(-(anchor["m_Pos"]["y"] + camera[1]) * zoom - zoom / 8),
-							int(zoom / 4),
-							int(zoom / 4))
-					pygame.draw.rect(display, (255, 255, 255), rect)
+					rect = (round(zoom * (anchor["m_Pos"]["x"] + camera[0] - ANCHOR_SIZE)),
+					        round(zoom * -(anchor["m_Pos"]["y"] + camera[1] + ANCHOR_SIZE)),
+					        round(zoom * ANCHOR_SIZE * 2),
+					        round(zoom * ANCHOR_SIZE * 2))
+					pygame.draw.rect(display, DYNAMIC_ANCHOR_COLOR, rect)
+					pygame.draw.rect(display, DYNAMIC_ANCHOR_BORDER, rect, max(1, round(rect[2] / 15)))
 		if draw_hitbox:
 			pygame.draw.rect(display, (0, 255, 0), self.hitbox, 1)
 		if self.highlighted:
@@ -150,7 +158,7 @@ class CustomShape(LayoutObject):
 
 	@property
 	def dynamic_anchors(self):
-		return self._dict["m_StaticPins"]
+		return self._dict["m_DynamicAnchorGuids"]
 	@dynamic_anchors.setter
 	def dynamic_anchors(self, values):
 		self._dict["m_DynamicAnchorGuids"] = values
