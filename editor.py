@@ -43,7 +43,7 @@ def centroid(vertexes):
 
 def rotate(origin, point, angle):
 	"""Rotate a point counterclockwise by a given angle around a given origin.
-	The angle should be given in radians.
+	The angle should be given in degrees.
 	"""
 	angle = math.radians(angle)
 
@@ -55,37 +55,8 @@ def rotate(origin, point, angle):
 	return [qx, qy]
 
 
-def save(shapes, anchors, layout):
-	global jsonfile, layoutfile, backupfile
-	print(f"Saving changes to {jsonfile}...")
-
-	layout["m_CustomShapes"] = [shape._dict for shape in shapes]
-	layout["m_Anchors"] = anchors
-	layout["m_Bridge"]["m_Anchors"] = anchors
-
-	with open(jsonfile, 'w') as openfile:
-		json.dump(layout, openfile)
-	print(f"Applied changes to {jsonfile}!")
-	print("Converting...")
-	program = run(f"{POLYCONVERTER} {jsonfile}", capture_output=True)
-	if program.returncode == SUCCESS_CODE:
-		pygame.quit()
-		if program.stdout is None or len(program.stdout) < 6:
-			print("No changes to apply.")
-		else:
-			if "backup" in str(program.stdout):
-				print(f"Created backup {backupfile}")
-			print(f"Applied changes to {layoutfile}!")
-		print("Done!")
-		entertoexit()
-	elif program.returncode == FILE_ERROR_CODE:  # Failed to save?
-		print(program.stdout)
-	else:
-		print(f"Unexpected error:\n{program.stdout}")
-
-
 class CustomShape:
-	"""Acts as a wrapper for a m_CustomShape dictionary"""
+	"""Acts as a wrapper for a dictionary in m_CustomShapes"""
 	def __init__(self, dict):
 		self._dict = deepcopy(dict)
 		points = [[p["x"] * self.scale["x"], p["y"] * self.scale["y"]]
@@ -94,20 +65,20 @@ class CustomShape:
 		self.highlighted = False
 		self.hitbox = None
 
-	def render(self, camera, zoom, anchors, draw_hitbox):
+	def render(self, display, camera, zoom, anchors, draw_hitbox):
 		# Add base position and adjust for the camera position
 		points_pixels = [[int(zoom * (self.position["x"] + point[0] + camera[0])),
 		                  int(zoom * -(self.position["y"] + (point[1]) + camera[1]))]
 		                 for point in self.points]
 
-		self.hitbox = pygame.draw.polygon(DISPLAY, self.color, points_pixels)
+		self.hitbox = pygame.draw.polygon(display, self.color, points_pixels)
 
 		# Draw static pins
 		pins = [[int(zoom * (pin["x"] + camera[0]) - zoom / 8),
 		         int(zoom * -(pin["y"] + camera[0]) - zoom / 8)]
 		        for pin in self.static_pins]
 		for pin in pins:
-			pygame.draw.ellipse(DISPLAY, (165, 42, 42), (pin[0], pin[1], int(zoom / 4), int(zoom / 4)))
+			pygame.draw.ellipse(display, (165, 42, 42), (pin[0], pin[1], int(zoom / 4), int(zoom / 4)))
 		# Draw dynamic anchors
 		for anchor_id in self.dynamic_anchors:
 			for anchor in anchors:
@@ -118,11 +89,11 @@ class CustomShape:
 							int(-(anchor["m_Pos"]["y"] + camera[1]) * zoom - zoom / 8),
 							int(zoom / 4),
 							int(zoom / 4))
-					pygame.draw.rect(DISPLAY, (255, 255, 255), rect)
+					pygame.draw.rect(display, (255, 255, 255), rect)
 		if draw_hitbox:
-			pygame.draw.rect(DISPLAY, (0, 255, 0), self.hitbox, 1)
+			pygame.draw.rect(display, (0, 255, 0), self.hitbox, 1)
 		if self.highlighted:
-			pygame.draw.polygon(DISPLAY, (255, 255, 0), points_pixels, 1)
+			pygame.draw.polygon(display, (255, 255, 0), points_pixels, 1)
 		# print(self.color)
 
 	@property
@@ -242,8 +213,7 @@ if (layoutfile in filelist and
 with open(jsonfile) as openfile:
 	try:
 		layout = json.load(openfile)
-		_ = layout["m_CustomShapes"]
-		_ = layout["m_Anchors"]
+		layout["m_Bridge"]["m_Anchors"] = layout["m_Anchors"] # both should update together in real-time
 	except json.JSONDecodeError as error:
 		print(f"Syntax error in line {error.lineno}, column {error.colno} of {jsonfile}")
 		entertoexit()
@@ -262,24 +232,22 @@ zoom = 1
 hitboxes = False
 dragging = False
 selecting = False
-custom_shapes = []
 selected_shapes = []
-anchors = deepcopy(layout["m_Anchors"])
 
-for shape in layout["m_CustomShapes"]:
-	custom_shapes.append(CustomShape(shape))
+custom_shapes = [CustomShape(s) for s in layout["m_CustomShapes"]]
+anchors = layout["m_Anchors"]
 
-DISPLAY = pygame.display.set_mode(SIZE)
+display = pygame.display.set_mode(SIZE)
 pygame.init()
-pygame.draw.rect(DISPLAY, BLUE, (200, 150, 100, 50))
+pygame.draw.rect(display, BLUE, (200, 150, 100, 50))
 for shape in custom_shapes:
-	shape.render(camera, zoom, anchors, hitboxes)
+	shape.render(display, camera, zoom, anchors, hitboxes)
 print()
 
 done = False
 while not done:
 	for event in pygame.event.get():
-		DISPLAY.fill((0, 0, 0))
+		display.fill((0, 0, 0))
 		if event.type == pygame.QUIT:
 			done = True
 			pygame.quit()
@@ -314,16 +282,15 @@ while not done:
 				old_mouse_x, old_mouse_y = mouse_x, mouse_y
 			if selecting:
 				mouse_x, mouse_y = event.pos
-				# pygame.draw.rect(DISPLAY,(0,255,0),pygame.Rect(start_x,start_y,mouse_x-start_x,mouse_y-start_y),1)
 		elif event.type == pygame.KEYDOWN:
 			if event.key == ord('h'):
 				hitboxes = not hitboxes
 			if event.key == ord('d'):
-				# delete selected
-				for shape in custom_shapes[:]:
+				# Delete selected
+				for shape in custom_shapes:
 					if shape.highlighted:
+						layout["m_CustomShapes"].remove(shape._dict)
 						custom_shapes.remove(shape)
-						shape.highlighted = False
 			# Moving selection
 			x_change, y_change = 0, 0
 			move = False
@@ -348,43 +315,57 @@ while not done:
 						for c, pin in enumerate(shape.static_pins):
 							shape.static_pins[c]["x"] += x_change
 							shape.static_pins[c]["y"] += y_change
-
 						for anchor_id in shape.dynamic_anchors:
 							for c, anchor in enumerate(anchors[:]):
 								if anchor["m_Guid"] == anchor_id:
-									# print(shape.dynamic_anchors)
 									anchors[c]["m_Pos"]["x"] += x_change
 									anchors[c]["m_Pos"]["y"] += y_change
 				move = False
 			if event.key == ord("c"):
-				# print("copy")
 				for shape in custom_shapes:
 					if shape.highlighted:
-						old = deepcopy(shape)
-						old.highlighted = False
-						custom_shapes.append(old)
-						current_shape_anchors = deepcopy(shape).dynamic_anchors
-						duplicate_anchors = deepcopy(anchors)
-						shape.dynamic_anchors = []
-						for anchor_id in current_shape_anchors:
-							for anchor in duplicate_anchors:
-								# DOESNT WORK
+						new_shape = deepcopy(shape)
+						shape.highlighted = False
+						new_shape.dynamic_anchors = [uuid4() for _ in new_shape.dynamic_anchors] # assign new guids
+						# Add to shapes list
+						custom_shapes.append(new_shape)
+						layout["m_CustomShapes"].append(new_shape._dict)
+						# Add to anchors list
+						new_anchors = []
+						for i, anchor_id in enumerate(shape.dynamic_anchors):
+							for anchor in anchors:
 								if anchor["m_Guid"] == anchor_id:
-									# print(anchor)
-									anchors.append(anchor)
-									new_id = str(uuid4())
-									anchors[len(anchors) - 1]["m_Guid"] = new_id
-									shape.dynamic_anchors.append(new_id)
-
-									print(len(shape.dynamic_anchors))
+									new_anchor = deepcopy(anchor)
+									new_anchor["m_Guid"] = new_shape.dynamic_anchors[i]
+									new_anchors.append(new_anchor)
+						anchors.extend(new_anchors)
 			if event.key == ord("s"):
-				save(custom_shapes, anchors, layout)
+				print(f"Saving changes to {jsonfile}...")
+				with open(jsonfile, 'w') as openfile:
+					json.dump(layout, openfile)
+				print(f"Applied changes to {jsonfile}!")
+				print("Converting...")
+				program = run(f"{POLYCONVERTER} {jsonfile}", capture_output=True)
+				if program.returncode == SUCCESS_CODE:
+					pygame.quit()
+					if program.stdout is None or len(program.stdout) < 6:
+						print("No changes to apply.")
+					else:
+						if "backup" in str(program.stdout):
+							print(f"Created backup {backupfile}")
+						print(f"Applied changes to {layoutfile}!")
+					print("Done!")
+					entertoexit()
+				elif program.returncode == FILE_ERROR_CODE:  # Failed to save?
+					print(program.stdout)
+				else:
+					print(f"Unexpected error:\n{program.stdout}")
 
 	# Selecting shapes
 	if selecting:
 		# print(f"True mouse position: {(mouse_x/zoom-camera[0])},{(-mouse_y/zoom-camera[1])}")
-		select_box = pygame.draw.rect(DISPLAY, (0, 255, 0),
-		                              pygame.Rect(start_x, start_y, mouse_x - start_x, mouse_y - start_y), 1)
+		select_box = pygame.draw.rect(display, (0, 255, 0),
+									  pygame.Rect(start_x, start_y, mouse_x - start_x, mouse_y - start_y), 1)
 		true_current = (mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])
 		# print(true_start,true_current)
 		selected_shapes = []
@@ -393,7 +374,7 @@ while not done:
 
 	# Render Shapes
 	for shape in custom_shapes:
-		shape.render(camera, zoom, anchors, hitboxes)
+		shape.render(display, camera, zoom, anchors, hitboxes)
 
 	pygame.display.flip()
 	clock.tick(fps)
