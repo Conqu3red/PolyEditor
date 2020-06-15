@@ -55,10 +55,45 @@ def rotate(origin, point, angle):
 	return [qx, qy]
 
 
-class CustomShape:
-	"""Acts as a wrapper for a dictionary in m_CustomShapes"""
-	def __init__(self, dict):
-		self._dict = deepcopy(dict)
+class LayoutObject:
+	"""Acts as a wrapper for the dictionary that represents an object in the layout."""
+	_dict = None
+
+	def __init__(self, dictionary):
+		self._dict = dictionary
+
+	@property
+	def dictionary(self):
+		return self._dict
+
+
+class LayoutList:
+	"""Acts a wrapper for the list of dictionaries that represents a list of objects in the layout."""
+	def __init__(self, type, objects):
+		if not issubclass(type, LayoutObject):
+			raise ValueError()
+		self._dictlist = objects
+		self._objlist = [type(o) for o in objects]
+
+	def append(self, elem):
+		self._dictlist.append(elem.dictionary)
+		self._objlist.append(elem)
+
+	def extend(self, elems):
+		self._dictlist.extend([e.dictionary for e in elems])
+		self._objlist.extend(elems)
+
+	def remove(self, elem):
+		self._dictlist.remove(elem.dictionary)
+		self._objlist.remove(elem)
+
+	def __iter__(self):
+		return self._objlist.__iter__()
+
+
+class CustomShape(LayoutObject):
+	def __init__(self, dictionary):
+		super().__init__(dictionary)
 		points = [[p["x"] * self.scale["x"], p["y"] * self.scale["y"]]
 				  for p in self._dict["m_PointsLocalSpace"]]
 		self._center = centroid(points)
@@ -234,7 +269,9 @@ dragging = False
 selecting = False
 selected_shapes = []
 
-custom_shapes = [CustomShape(s) for s in layout["m_CustomShapes"]]
+
+
+custom_shapes = LayoutList(CustomShape, layout["m_CustomShapes"])
 anchors = layout["m_Anchors"]
 
 display = pygame.display.set_mode(SIZE)
@@ -287,10 +324,8 @@ while not done:
 				hitboxes = not hitboxes
 			if event.key == ord('d'):
 				# Delete selected
-				for shape in custom_shapes:
-					if shape.highlighted:
-						layout["m_CustomShapes"].remove(shape._dict)
-						custom_shapes.remove(shape)
+				for shape in [s for s in custom_shapes if s.highlighted]:
+					custom_shapes.remove(shape)
 			# Moving selection
 			x_change, y_change = 0, 0
 			move = False
@@ -331,7 +366,6 @@ while not done:
 						new_shape.dynamic_anchors = [str(uuid4()) for _ in new_shape.dynamic_anchors]
 						# Add to shapes list
 						new_shapes.append(new_shape)
-						layout["m_CustomShapes"].append(new_shape._dict)
 						# Add to anchors list
 						new_anchors = []
 						for i, anchor_id in enumerate(shape.dynamic_anchors):
@@ -344,8 +378,11 @@ while not done:
 				custom_shapes.extend(new_shapes)
 			if event.key == ord("s"):
 				print(f"Saving changes to {jsonfile}...")
+				jsonstr = json.dumps(layout, indent=2)
+				jsonstr = re.sub(r"(\r\n|\r|\n)( ){6,}", r" ", jsonstr) # limit depth to 3 levels
+				jsonstr = re.sub(r"(\r\n|\r|\n)( ){4,}([}\]])", r" \3", jsonstr)
 				with open(jsonfile, 'w') as openfile:
-					json.dump(layout, openfile, indent=2)
+					openfile.write(jsonstr)
 				print(f"Applied changes to {jsonfile}!")
 				print("Converting...")
 				program = run(f"{POLYCONVERTER} {jsonfile}", capture_output=True)
@@ -368,7 +405,7 @@ while not done:
 	if selecting:
 		# print(f"True mouse position: {(mouse_x/zoom-camera[0])},{(-mouse_y/zoom-camera[1])}")
 		select_box = pygame.draw.rect(display, (0, 255, 0),
-									  pygame.Rect(start_x, start_y, mouse_x - start_x, mouse_y - start_y), 1)
+		                              pygame.Rect(start_x, start_y, mouse_x - start_x, mouse_y - start_y), 1)
 		true_current = (mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])
 		# print(true_start,true_current)
 		selected_shapes = []
