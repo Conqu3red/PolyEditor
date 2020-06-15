@@ -58,35 +58,11 @@ def rotate(origin, point, angle):
 def save(shapes, anchors, layout):
 	global jsonfile, layoutfile, backupfile
 	print(f"Saving changes to {jsonfile}...")
-	layout["m_CustomShapes"] = []
 
-	for shape in shapes:
-		q = Quaternion.from_euler(*shape.rotation, degrees=True)
-		localpoints = []
-		for point in shape.points:
-			localpoints.append({"x": point[0], "y": point[1]})
-		shapedict = {
-			"m_Pos": shape.position,
-			"m_Rot": {"x": q[1], "y": q[2], "z": q[3], "w": q[0]},
-			"m_Scale": {"x": 1, "y": 1, "z": 1},
-			"m_Dynamic": shape.dynamic,
-			"m_CollidesWithRoad": shape.collides_with_road,
-			"m_CollidesWithNodes": shape.collides_with_nodes,
-			"m_Flipped": shape.flipped,
-			"m_RotationDegrees": shape.rotation_degrees,
-			"m_Mass": shape.mass,
-			"m_Bounciness": shape.bounciness,
-			"m_PinMotorStrength": shape.pin_motor_strength,
-			"m_PinTargetVelocity": shape.pin_target_velocity,
-			"m_Color": {"r": shape.color[0] / 255, "g": shape.color[1] / 255, "b": shape.color[2] / 255, "a": 1},
-			"m_PointsLocalSpace": localpoints,
-			"m_StaticPins": shape.static_pins,
-			"m_DynamicAnchorGuids": shape.dynamic_anchors,
-			"m_UndoGuid": None}
-		layout["m_CustomShapes"].append(shapedict)
-
+	layout["m_CustomShapes"] = [shape._dict for shape in shapes]
 	layout["m_Anchors"] = anchors
 	layout["m_Bridge"]["m_Anchors"] = anchors
+
 	with open(jsonfile, 'w') as openfile:
 		json.dump(layout, openfile)
 	print(f"Applied changes to {jsonfile}!")
@@ -108,75 +84,101 @@ def save(shapes, anchors, layout):
 		print(f"Unexpected error:\n{program.stdout}")
 
 
-class Shape:
-	def __init__(self, color, position, points, scale, rotation, static_pins,
-	             dynamic, collides_with_road, collides_with_nodes, flipped, rotation_degrees,
-	             mass, bounciness, pin_motor_strength, pin_target_velocity, dynamic_anchors):
-		self.position = position
-		self.hitbox = None
-		self.points = []
-		self.offset_points = []
+class CustomShape:
+	"""Acts as a wrapper for a m_CustomShape dictionary"""
+	def __init__(self, dict):
+		self._dict = deepcopy(dict)
+		points = [[p["x"] * self.scale["x"], p["y"] * self.scale["y"]]
+				  for p in self._dict["m_PointsLocalSpace"]]
+		self._center = centroid(points)
 		self.highlighted = False
-		self.color = tuple(list(color)[:-1])
-		self.fill_color = color
-		self.scale = scale
-		self.rotation = rotation
-		self.static_pins = static_pins
-		self.dynamic = dynamic
-		self.collides_with_road = collides_with_road
-		self.collides_with_nodes = collides_with_nodes
-		self.flipped = flipped
-		self.rotation_degrees = rotation_degrees
-		self.mass = mass
-		self.bounciness = bounciness
-		self.pin_motor_strength = pin_motor_strength
-		self.pin_target_velocity = pin_target_velocity
-		self.dynamic_anchors = dynamic_anchors
+		self.hitbox = None
 
-		for point in points:
-			self.points.append([point["x"] * scale["x"], point["y"] * scale["y"]])
-		points = []
-		center = centroid(self.points)
-		for point in self.points:
-			points.append(rotate(center, point, self.rotation[2]))
-		self.points = points
+	def render(self, camera, zoom, anchors, draw_hitbox):
+		# Add base position and adjust for the camera position
+		points_pixels = [[int(zoom * (self.position["x"] + point[0] + camera[0])),
+		                  int(zoom * -(self.position["y"] + (point[1]) + camera[1]))]
+		                 for point in self.points]
 
-	def render(self, camera, zoom):
-		global DISPLAY, hitboxes, anchors
-		self.offset_points = []
-		# Translate points to camera location, zoom etc
-		for point in self.points:
-			self.offset_points.append([(point[0] + self.position["x"] + camera[0]) * zoom,
-			                           -((point[1]) + self.position["y"] + camera[1]) * zoom])
-		offset_points_pixels = [[int(n) for n in p] for p in self.offset_points]
-		self.hitbox = pygame.draw.polygon(DISPLAY, self.fill_color, offset_points_pixels)
+		self.hitbox = pygame.draw.polygon(DISPLAY, self.color, points_pixels)
 
 		# Draw static pins
-		pins = []
-		for pin in self.static_pins:
-			pins.append([(pin["x"] + camera[0]) * zoom, -(pin["y"] + camera[1]) * zoom])
+		pins = [[int(zoom * (pin["x"] + camera[0]) - zoom / 8),
+		         int(zoom * -(pin["y"] + camera[0]) - zoom / 8)]
+		        for pin in self.static_pins]
 		for pin in pins:
-			pygame.draw.ellipse(DISPLAY, (165, 42, 42), (int(pin[0] - zoom / 2), int(pin[1] - zoom / 2), int(zoom), int(zoom)))
+			pygame.draw.ellipse(DISPLAY, (165, 42, 42), (pin[0], pin[1], int(zoom / 4), int(zoom / 4)))
 		# Draw dynamic anchors
 		for anchor_id in self.dynamic_anchors:
 			for anchor in anchors:
 				if anchor_id == anchor["m_Guid"]:
 					# print(anchor)
 					# print((anchor["m_Pos"]["x"]+camera[0])*zoom,(anchor["m_Pos"]["y"]+camera[1])*zoom)
-					rect = (int((anchor["m_Pos"]["x"] + camera[0]) * zoom - zoom / 4),
-					        int(-(anchor["m_Pos"]["y"] + camera[1]) * zoom - zoom / 4),
-					        int(zoom / 2),
-							int(zoom / 2))
+					rect = (int((anchor["m_Pos"]["x"] + camera[0]) * zoom - zoom / 8),
+							int(-(anchor["m_Pos"]["y"] + camera[1]) * zoom - zoom / 8),
+							int(zoom / 4),
+							int(zoom / 4))
 					pygame.draw.rect(DISPLAY, (255, 255, 255), rect)
-		if hitboxes:
+		if draw_hitbox:
 			pygame.draw.rect(DISPLAY, (0, 255, 0), self.hitbox, 1)
 		if self.highlighted:
-			pygame.draw.polygon(DISPLAY, (255, 255, 0), offset_points_pixels, 1)
+			pygame.draw.polygon(DISPLAY, (255, 255, 0), points_pixels, 1)
 		# print(self.color)
 
-	def highlight(self, status):
-		self.highlighted = status
-		# pygame.draw.rect(DISPLAY,(0,0,255),(self.offset_points[0][0],self.offset_points[0][1],20,20))
+	@property
+	def position(self):
+		return self._dict["m_Pos"]
+	@position.setter
+	def position(self, value):
+		self._dict["m_Pos"] = value
+
+	@property
+	def rotation(self):
+		rot = self._dict["m_Rot"]
+		return Quaternion(rot["w"], rot["x"], rot["y"], rot["z"]).to_euler(degrees=True)
+	@rotation.setter
+	def rotation(self, value):
+		q = Quaternion.from_euler(*value, degrees=True)
+		self._dict["m_Rot"] = {"x": q[1], "y": q[2], "z": q[3], "w": q[0]}
+		self._dict["m_RotationDegrees"] = value[2]
+
+	@property
+	def scale(self):
+		return self._dict["m_Scale"]
+	@scale.setter
+	def scale(self, value):
+		self._dict["m_Scale"] = value
+
+	@property
+	def color(self):
+		return [v*255 for v in self._dict["m_Color"].values()]
+	@color.setter
+	def color(self, value):
+		self._dict["m_Color"] = {"r": value[0]/255, "g": value[1]/255, "b": value[2]/255, "a": value[3]/255}
+
+	@property
+	def points(self):
+		return [rotate(self._center, [p["x"] * self.scale["x"], p["y"] * self.scale["y"]], self.rotation[2])
+				  for p in self._dict["m_PointsLocalSpace"]]
+	@points.setter
+	def points(self, values):
+		values = [rotate(self._center, p, -self.rotation[2]) for p in values]
+		self._dict["m_PointsLocalSpace"] = [{"x": p[0], "y": p[1]} for p in values]
+
+	@property
+	def static_pins(self):
+		return self._dict["m_StaticPins"]
+	@static_pins.setter
+	def static_pins(self, values):
+		self._dict["m_StaticPins"] = values
+
+	@property
+	def dynamic_anchors(self):
+		return self._dict["m_StaticPins"]
+	@dynamic_anchors.setter
+	def dynamic_anchors(self, values):
+		self._dict["m_DynamicAnchorGuids"] = values
+
 
 
 if __name__ != "__main__":
@@ -265,23 +267,13 @@ selected_shapes = []
 anchors = deepcopy(layout["m_Anchors"])
 
 for shape in layout["m_CustomShapes"]:
-	q = Quaternion(shape["m_Rot"]["w"], shape["m_Rot"]["x"], shape["m_Rot"]["y"], shape["m_Rot"]["z"])
-	q = q.to_euler(degrees=True)
-	points = []
-	color = []
-	for item in list(shape["m_Color"].values()):
-		color.append(item * 255)
-	custom_shapes.append(
-		Shape(color, shape["m_Pos"], shape["m_PointsLocalSpace"], shape["m_Scale"], q, shape["m_StaticPins"],
-		      shape["m_Dynamic"], shape["m_CollidesWithRoad"], shape["m_CollidesWithNodes"], shape["m_Flipped"],
-		      shape["m_RotationDegrees"], shape["m_Mass"], shape["m_Bounciness"], shape["m_PinMotorStrength"],
-		      shape["m_PinTargetVelocity"], shape["m_DynamicAnchorGuids"]))
+	custom_shapes.append(CustomShape(shape))
 
 DISPLAY = pygame.display.set_mode(SIZE)
 pygame.init()
 pygame.draw.rect(DISPLAY, BLUE, (200, 150, 100, 50))
 for shape in custom_shapes:
-	shape.render(camera, zoom)
+	shape.render(camera, zoom, anchors, hitboxes)
 print()
 
 done = False
@@ -331,7 +323,7 @@ while not done:
 				for shape in custom_shapes[:]:
 					if shape.highlighted:
 						custom_shapes.remove(shape)
-						shape.highlight(False)
+						shape.highlighted = False
 			# Moving selection
 			x_change, y_change = 0, 0
 			move = False
@@ -369,7 +361,7 @@ while not done:
 				for shape in custom_shapes:
 					if shape.highlighted:
 						old = deepcopy(shape)
-						old.highlight(False)
+						old.highlighted = False
 						custom_shapes.append(old)
 						current_shape_anchors = deepcopy(shape).dynamic_anchors
 						duplicate_anchors = deepcopy(anchors)
@@ -397,18 +389,11 @@ while not done:
 		# print(true_start,true_current)
 		selected_shapes = []
 		for shape in custom_shapes:
-
-			if shape.hitbox.colliderect(select_box):
-				# print(shape.position)
-				shape.highlight(True)
-			elif shape.highlighted:
-				shape.highlight(False)
+			shape.highlighted = shape.hitbox.colliderect(select_box)
 
 	# Render Shapes
 	for shape in custom_shapes:
-		shape.render(camera, zoom)
-	# for shape in selected_shapes:
-	# 	current = shape.render(camera,zoom)
+		shape.render(camera, zoom, anchors, hitboxes)
 
 	pygame.display.flip()
 	clock.tick(fps)
