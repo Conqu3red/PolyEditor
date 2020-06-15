@@ -322,13 +322,15 @@ while not done:
 									anchors[c]["m_Pos"]["y"] += y_change
 				move = False
 			if event.key == ord("c"):
+				new_shapes = []
 				for shape in custom_shapes:
 					if shape.highlighted:
 						new_shape = deepcopy(shape)
 						shape.highlighted = False
-						new_shape.dynamic_anchors = [uuid4() for _ in new_shape.dynamic_anchors] # assign new guids
+						# Assing new guids
+						new_shape.dynamic_anchors = [str(uuid4()) for _ in new_shape.dynamic_anchors]
 						# Add to shapes list
-						custom_shapes.append(new_shape)
+						new_shapes.append(new_shape)
 						layout["m_CustomShapes"].append(new_shape._dict)
 						# Add to anchors list
 						new_anchors = []
@@ -339,10 +341,11 @@ while not done:
 									new_anchor["m_Guid"] = new_shape.dynamic_anchors[i]
 									new_anchors.append(new_anchor)
 						anchors.extend(new_anchors)
+				custom_shapes.extend(new_shapes)
 			if event.key == ord("s"):
 				print(f"Saving changes to {jsonfile}...")
 				with open(jsonfile, 'w') as openfile:
-					json.dump(layout, openfile)
+					json.dump(layout, openfile, indent=2)
 				print(f"Applied changes to {jsonfile}!")
 				print("Converting...")
 				program = run(f"{POLYCONVERTER} {jsonfile}", capture_output=True)
