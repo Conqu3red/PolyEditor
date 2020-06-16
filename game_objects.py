@@ -72,7 +72,7 @@ class CustomShape(LayoutObject):
 	def __init__(self, dictionary):
 		super().__init__(dictionary)
 		points = [[p["x"] * self.scale["x"], p["y"] * self.scale["y"]]
-				  for p in self._dict["m_PointsLocalSpace"]]
+		          for p in self._dict["m_PointsLocalSpace"]]
 		self._center = centroid(points)
 		self.highlighted = False
 		self.hitbox = None
@@ -142,7 +142,7 @@ class CustomShape(LayoutObject):
 	@property
 	def points(self):
 		return [rotate(self._center, [p["x"] * self.scale["x"], p["y"] * self.scale["y"]], self.rotation[2])
-				  for p in self._dict["m_PointsLocalSpace"]]
+		        for p in self._dict["m_PointsLocalSpace"]]
 	@points.setter
 	def points(self, values):
 		values = [rotate(self._center, p, -self.rotation[2]) for p in values]

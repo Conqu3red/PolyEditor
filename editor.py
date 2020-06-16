@@ -7,11 +7,10 @@ import json
 from uuid import uuid4
 from copy import deepcopy
 from os import getcwd, listdir
-from os.path import exists, isfile, join as pathjoin, getmtime as lastmodified
+from os.path import isfile, join as pathjoin, getmtime as lastmodified
 from subprocess import run
 
 from game_objects import LayoutList, CustomShape
-
 
 SIZE = [1200, 600]
 ZOOM_MULT = 1.1
@@ -20,7 +19,7 @@ BLACK = (0, 0, 0)
 BACKGROUND_BLUE = (43, 70, 104)
 BACKGROUND_GRAY = (162, 154, 194)
 
-try: # when bundled as single executable
+try:  # when bundled as single executable
 	POLYCONVERTER = pathjoin(sys._MEIPASS, "PolyConverter.exe")
 except AttributeError:
 	POLYCONVERTER = "PolyConverter.exe"
@@ -35,9 +34,6 @@ FILE_ERROR_CODE = 3
 GAMEPATH_ERROR_CODE = 4
 
 
-class ExitMain(BaseException):
-	pass
-
 def main():
 	currentdir = getcwd()
 	filelist = [f for f in listdir(currentdir) if isfile(pathjoin(currentdir, f))]
@@ -46,12 +42,13 @@ def main():
 
 	if len(levellist) == 0:
 		print("[>] There are no levels to edit in the current folder")
-		raise ExitMain()
+		return
 	elif len(levellist) == 1:
 		leveltoedit = levellist[0]
 	else:
 		print("[#] Enter the number of the level you want to edit:")
 		print("\n".join([f" ({i + 1}) {s}" for (i, s) in enumerate(levellist)]))
+		index = -1
 		while True:
 			try:
 				index = int(input())
@@ -76,23 +73,24 @@ def main():
 			print(f"[Error] There was a problem converting {layoutfile} to json")
 			outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
 			print("\n".join([o for o in outputs if len(o) > 0]))
-			raise ExitMain()
+			return
 
 	with open(jsonfile) as openfile:
 		try:
 			layout = json.load(openfile)
-			layout["m_Bridge"]["m_Anchors"] = layout["m_Anchors"] # both should update together in real-time
+			layout["m_Bridge"]["m_Anchors"] = layout["m_Anchors"]  # both should update together in real-time
 		except json.JSONDecodeError as error:
 			print(f"[Error] Invalid syntax in line {error.lineno}, column {error.colno} of {jsonfile}")
-			raise ExitMain()
+			return
 		except ValueError:
 			print(f"[Error] {jsonfile} is either incomplete or not a valid level")
-			raise ExitMain()
+			return
 
 	print(f"[>] Opening {leveltoedit} in the editor")
 
 	start_x, start_y = 0, 0
 	mouse_x, mouse_y = 0, 0
+	old_mouse_x, old_mouse_y = 0, 0
 	zoom = 20
 	camera = [SIZE[0] / zoom / 2, -(SIZE[1] / zoom / 2 + 5)]
 	clock = pygame.time.Clock()
@@ -110,8 +108,8 @@ def main():
 	pygame.display.set_caption("PolyEditor")
 	pygame.init()
 
-	done = False
-	while not done:
+	# Main loop
+	while True:
 		display.fill(bg_color)
 		# Mouse position
 		font = pygame.font.SysFont('Courier', 20)
@@ -131,40 +129,39 @@ def main():
 		display.blit(help_text, (5, SIZE[1] - font_size - 5))
 		# Mark 0,0 for reference
 		pygame.draw.line(display, extras_color, (round(zoom * (-1 + camera[0])), round(-zoom * camera[1])),
-											 (round(zoom * (1 + camera[0])), round(-zoom * camera[1])), 1)
+		                                        (round(zoom * (1 + camera[0])), round(-zoom * camera[1])), 1)
 		pygame.draw.line(display, extras_color, (round(zoom * camera[0]), round(-zoom * (-1 + camera[1]))),
-											 (round(zoom * camera[0]), round(-zoom * (1 + camera[1]))), 1)
+		                                        (round(zoom * camera[0]), round(-zoom * (1 + camera[1]))), 1)
 		# Render Custom Shapes
 		for shape in custom_shapes:
 			shape.render(display, camera, zoom, anchors, hitboxes)
 
 		for event in pygame.event.get():
 			if event.type == pygame.QUIT:
-				done = True
-				pygame.quit()
+				return
 			elif event.type == pygame.MOUSEBUTTONDOWN:
 				start_x, start_y = 0, 0
-				if event.button == 1: # left click
+				if event.button == 1:  # left click
 					dragging = True
 					old_mouse_x, old_mouse_y = event.pos
-				if event.button == 3: # right click
+				if event.button == 3:  # right click
 					start_x, start_y = event.pos
 					mouse_x, mouse_y = event.pos
 					selecting = True
-				if event.button == 4: # mousewheel up
+				if event.button == 4:  # mousewheel up
 					oldtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
 					zoom *= ZOOM_MULT
 					newtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
 					camera = [camera[0] + newtruepos[0] - oldtruepos[0], camera[1] + newtruepos[1] - oldtruepos[1]]
-				if event.button == 5: # mousewheel down
+				if event.button == 5:  # mousewheel down
 					oldtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
 					zoom /= ZOOM_MULT
 					newtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
 					camera = [camera[0] + newtruepos[0] - oldtruepos[0], camera[1] + newtruepos[1] - oldtruepos[1]]
 			elif event.type == pygame.MOUSEBUTTONUP:
-				if event.button == 1: # left click
+				if event.button == 1:  # left click
 					dragging = False
-				if event.button == 3: # right click
+				if event.button == 3:  # right click
 					selecting = False
 					start_x, start_y = 0, 0
 			elif event.type == pygame.MOUSEMOTION:
@@ -237,12 +234,12 @@ def main():
 					custom_shapes.extend(new_shapes)
 				elif event.key == ord('0'):
 					pygame.quit()
-					print("[>] Closed without saving")
-					raise ExitMain()
+					print("[#] Closed without saving")
+					return
 				elif event.key == ord("s"):
 					print("[>] Saving...")
 					jsonstr = json.dumps(layout, indent=2)
-					jsonstr = re.sub(r"(\r\n|\r|\n)( ){6,}", r" ", jsonstr) # limit depth to 3 levels
+					jsonstr = re.sub(r"(\r\n|\r|\n)( ){6,}", r" ", jsonstr)  # limit depth to 3 levels
 					jsonstr = re.sub(r"(\r\n|\r|\n)( ){4,}([}\]])", r" \3", jsonstr)
 					with open(jsonfile, 'w') as openfile:
 						openfile.write(jsonstr)
@@ -257,8 +254,8 @@ def main():
 								print(f"[>] Created backup {backupfile}")
 							print(f"[>] Applied changes to {layoutfile}")
 						print("[#] Done!")
-						raise ExitMain()
-					elif program.returncode == FILE_ERROR_CODE:  # Failed to save?
+						return
+					elif program.returncode == FILE_ERROR_CODE:  # failed to save?
 						print(program.stdout.decode().strip())
 					else:
 						outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
@@ -281,7 +278,7 @@ def main():
 		# Selecting shapes
 		if selecting:
 			select_box = pygame.draw.rect(display, (0, 255, 0),
-										  pygame.Rect(start_x, start_y, mouse_x - start_x, mouse_y - start_y), 1)
+			                              pygame.Rect(start_x, start_y, mouse_x - start_x, mouse_y - start_y), 1)
 			for shape in custom_shapes:
 				shape.highlighted = shape.hitbox.colliderect(select_box)
 
@@ -307,13 +304,10 @@ if __name__ == "__main__":
 		input("\nPress Enter to exit...")
 		sys.exit()
 
-	# Main loop
-	while True:
-		try:
-			try:
-				print()
-				main()
-			except ExitMain:
-				input("\n[#] Press Enter to run the program again or Ctrl+C to exit")
-		except KeyboardInterrupt: # Ctrl+C
-			sys.exit()
+	# Meta loop
+	try:
+		while True:
+			main()
+			input("\n[#] Press Enter to run the program again or Ctrl+C to exit\n")
+	except KeyboardInterrupt:  # Ctrl+C
+		pass
