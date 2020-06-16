@@ -13,6 +13,10 @@ from subprocess import run
 from game_objects import LayoutList, CustomShape
 
 
+def entertoexit():
+	input("\nPress Enter to exit...")
+	sys.exit()
+
 SIZE = [1200, 600]
 ZOOM_MULT = 1.1
 WHITE = (255, 255, 255)
@@ -24,32 +28,26 @@ JSON_EXTENSION = ".layout.json"
 LAYOUT_EXTENSION = ".layout"
 BACKUP_EXTENSION = ".layout.backup"
 FILE_REGEX = re.compile(f"^(.+)({JSON_EXTENSION}|{LAYOUT_EXTENSION})$")
-
-try: # bundled as single executable
-	POLYCONVERTER = pathjoin(sys._MEIPASS, "PolyConverter.exe")
-	if not exists(POLYCONVERTER):
-		POLYCONVERTER = pathjoin(sys._MEIPASS, "PolyConverterNet.exe")
-except AttributeError:
-	POLYCONVERTER = "PolyConverter.exe"
 SUCCESS_CODE = 0
 JSON_ERROR_CODE = 1
 CONVERSION_ERROR_CODE = 2
 FILE_ERROR_CODE = 3
 GAMEPATH_ERROR_CODE = 4
-
-def entertoexit():
-	input("\nPress Enter to exit...")
-	sys.exit()
+try: # when bundled as single executable
+	POLYCONVERTER = pathjoin(sys._MEIPASS, "PolyConverter.exe")
+	if not exists(POLYCONVERTER):
+		POLYCONVERTER = pathjoin(sys._MEIPASS, "PolyConverterNet.exe")
+except AttributeError:
+	POLYCONVERTER = "PolyConverter.exe"
+	if not exists(POLYCONVERTER):
+		print(f"Error: Cannot find {POLYCONVERTER}")
+		entertoexit()
 
 
 if __name__ != "__main__":
 	sys.exit()
 
 print("Booted up PolyEditor")
-
-if not exists(POLYCONVERTER):
-	print(f"Error: Cannot find {POLYCONVERTER} in this folder")
-	entertoexit()
 
 program = run(f"{POLYCONVERTER} test", capture_output=True)
 if program.returncode == GAMEPATH_ERROR_CODE:  # game install not found
