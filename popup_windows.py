@@ -21,7 +21,7 @@ class Popup:
 					b = Label(self.root,text=values[i][j])
 				else:	
 					var = DoubleVar(value=values[i][j])
-					b = Spinbox(self.root, from_= -500, to = 500,textvariable=var) 
+					b = Spinbox(self.root, from_= -500, to = 500, textvariable=var, format='%4.17f') 
 				b.grid(row=i, column=j)
 				self.table[i].append(b)
 
