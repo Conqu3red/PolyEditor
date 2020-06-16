@@ -224,7 +224,6 @@ while not done:
 			if event.key == pygame.K_DOWN:
 				y_change = -1
 				move = True
-
 			if move:
 				for shape in custom_shapes:
 					if shape.highlighted:
@@ -258,6 +257,17 @@ while not done:
 									new_anchor["m_Guid"] = new_shape.dynamic_anchors[i]
 									new_anchors.append(new_anchor)
 						anchors.extend(new_anchors)
+						# Shift down-right
+						new_shape.position["x"] += 1
+						new_shape.position["y"] -= 1
+						for c, pin in enumerate(new_shape.static_pins):
+							new_shape.static_pins[c]["x"] += 1
+							new_shape.static_pins[c]["y"] -= 1
+						for anchor_id in new_shape.dynamic_anchors:
+							for c, anchor in enumerate(anchors[:]):
+								if anchor["m_Guid"] == anchor_id:
+									anchors[c]["m_Pos"]["x"] += 1
+									anchors[c]["m_Pos"]["y"] -= 1
 				custom_shapes.extend(new_shapes)
 			if event.key == ord("s"):
 				print("Saving...")
