@@ -57,9 +57,14 @@ if program.returncode == GAMEPATH_ERROR_CODE:  # game install not found
 	entertoexit()
 elif program.returncode == FILE_ERROR_CODE:  # as "test" is not a valid file
 	pass
-else:  # .NET not installed?
+else:
 	outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
-	print(f"Unexpected error:\n" + "\n".join([o for o in outputs if len(o) > 0]))
+	if "dotnet" in outputs[1] or "framework" in outputs[1]:
+		print("It appears you don't have .NET installed, so this program can't run.")
+		print("Please download PolyEditorNet.exe, which includes .NET, and use that one instead.")
+	else:
+		print(f"Unexpected error:\n" + "\n".join([o for o in outputs if len(o) > 0]))
+	entertoexit()
 
 currentdir = getcwd()
 filelist = [f for f in listdir(currentdir) if isfile(pathjoin(currentdir, f))]
