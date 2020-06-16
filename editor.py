@@ -1,9 +1,9 @@
 import os
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
+import sys
 import pygame
 import re
 import json
-from sys import exit
 from uuid import uuid4
 from copy import deepcopy
 from os import getcwd, listdir
@@ -25,7 +25,12 @@ LAYOUT_EXTENSION = ".layout"
 BACKUP_EXTENSION = ".layout.backup"
 FILE_REGEX = re.compile(f"^(.+)({JSON_EXTENSION}|{LAYOUT_EXTENSION})$")
 
-POLYCONVERTER = "PolyConverter.exe"
+try: # bundled as single executable
+	POLYCONVERTER = pathjoin(sys._MEIPASS, "PolyConverter.exe")
+	if not exists(POLYCONVERTER):
+		POLYCONVERTER = pathjoin(sys._MEIPASS, "PolyConverterNet.exe")
+except AttributeError:
+	POLYCONVERTER = "PolyConverter.exe"
 SUCCESS_CODE = 0
 JSON_ERROR_CODE = 1
 CONVERSION_ERROR_CODE = 2
@@ -34,11 +39,11 @@ GAMEPATH_ERROR_CODE = 4
 
 def entertoexit():
 	input("\nPress Enter to exit...")
-	exit()
+	sys.exit()
 
 
 if __name__ != "__main__":
-	exit()
+	sys.exit()
 
 print("Booted up PolyEditor")
 

@@ -4,9 +4,9 @@
 
 # Instructions
 
-1. Download `PolyEditor.rar` in the Releases tab.
-2. Place both `PolyEditor.exe` and `PolyConverter.exe` (both are inside the rar) in the same folder as the levels you want to edit. The game stores Sandbox levels in `Documents/Dry Cactus/Poly Bridge 2/Sandbox`.
-3. Run `PolyEditor.exe` and wait for it to load.
+1. Download `PolyEditor.exe` in the Releases tab.
+2. Place it in the same folder as the levels you want to edit. The game stores Sandbox levels in `Documents/Dry Cactus/Poly Bridge 2/Sandbox`.
+3. Run it and wait for it to load.
 
 ### Keybinds
 - scroll wheel - zoom
