@@ -1,6 +1,6 @@
 # Poly Bridge 2 Sandbox Editor
  A python sandbox for modifying PolyBridge 2 sandbox files! Enhance your level creation with features not available in the Official Sandbox.  
- Utilizes [PolyConverter](https://github.com/orchidalloy/PolyConverter)
+ Utilizes [PolyConverter](https://github.com/orchidalloy/PolyConverter) to be able to edit the game's files.
 
 # Keybinds
 - scroll wheel - zoom
@@ -11,7 +11,7 @@
 - d - delete selection
 - s - save and close the program
 - h - toggle hitboxes display
-- b - toggle
+- b - toggle color scheme
 
 # Instructions
 
