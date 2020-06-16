@@ -92,7 +92,6 @@ class CustomShape(LayoutObject):
 			        round(zoom * PIN_SIZE * 2),
 			        round(zoom * PIN_SIZE * 2))
 			pygame.draw.ellipse(display, STATIC_PIN_COLOR, rect)
-			pygame.draw.ellipse(display, STATIC_PIN_BORDER, rect, round(rect[2] / 15))
 		# Draw dynamic anchors
 		for anchor_id in self.dynamic_anchors:
 			for anchor in anchors:
@@ -106,7 +105,7 @@ class CustomShape(LayoutObject):
 		if draw_hitbox:
 			pygame.draw.rect(display, (0, 255, 0), self.hitbox, 1)
 		if self.highlighted:
-			pygame.draw.polygon(display, (255, 255, 0), points_pixels, 1)
+			pygame.draw.polygon(display, (255, 255, 0), points_pixels, 2)
 		# print(self.color)
 
 	@property
