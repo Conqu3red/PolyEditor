@@ -24,6 +24,10 @@ BLACK = (0, 0, 0)
 BACKGROUND_BLUE = (43, 70, 104)
 BACKGROUND_GRAY = (162, 154, 194)
 
+try: # when bundled as single executable
+	POLYCONVERTER = pathjoin(sys._MEIPASS, "PolyConverter.exe")
+except AttributeError:
+	POLYCONVERTER = "PolyConverter.exe"
 JSON_EXTENSION = ".layout.json"
 LAYOUT_EXTENSION = ".layout"
 BACKUP_EXTENSION = ".layout.backup"
@@ -33,22 +37,15 @@ JSON_ERROR_CODE = 1
 CONVERSION_ERROR_CODE = 2
 FILE_ERROR_CODE = 3
 GAMEPATH_ERROR_CODE = 4
-try: # when bundled as single executable
-	POLYCONVERTER = pathjoin(sys._MEIPASS, "PolyConverter.exe")
-	if not exists(POLYCONVERTER):
-		POLYCONVERTER = pathjoin(sys._MEIPASS, "PolyConverterNet.exe")
-except AttributeError:
-	POLYCONVERTER = "PolyConverter.exe"
-	if not exists(POLYCONVERTER):
-		print(f"Error: Cannot find {POLYCONVERTER}")
-		entertoexit()
 
 
 if __name__ != "__main__":
 	sys.exit()
 
-print("Booted up PolyEditor")
+os.system("title PolyEditor Console")
+print("[#] Booted up PolyEditor")
 
+# Test run
 program = run(f"{POLYCONVERTER} test", capture_output=True)
 if program.returncode == GAMEPATH_ERROR_CODE:  # game install not found
 	print(program.stdout.decode().strip())
@@ -57,11 +54,7 @@ elif program.returncode == FILE_ERROR_CODE:  # as "test" is not a valid file
 	pass
 else:
 	outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
-	if "dotnet" in outputs[1] or "framework" in outputs[1]:
-		print("It appears you don't have .NET installed, so this program can't run.")
-		print("Please download PolyEditorNet.exe, which includes .NET, and use that one instead.")
-	else:
-		print(f"Unexpected error:\n" + "\n".join([o for o in outputs if len(o) > 0]))
+	print(f"Unexpected error:\n" + "\n".join([o for o in outputs if len(o) > 0]))
 	entertoexit()
 
 currentdir = getcwd()
@@ -72,13 +65,13 @@ levellist = list(dict.fromkeys(levellist))  # remove duplicates
 leveltoedit = None
 
 if len(levellist) == 0:
-	print("There are no levels to edit in the current folder")
+	print("[>] There are no levels to edit in the current folder")
 	entertoexit()
 elif len(levellist) == 1:
 	leveltoedit = levellist[0]
 else:
 	print("[#] Enter the number of the level you want to edit:")
-	print("\n".join([f" ({i + 1}). {s}" for (i, s) in enumerate(levellist)]))
+	print("\n".join([f" ({i + 1}) {s}" for (i, s) in enumerate(levellist)]))
 	while True:
 		try:
 			index = int(input())
@@ -96,10 +89,11 @@ if (layoutfile in filelist and
 		(jsonfile not in filelist or lastmodified(layoutfile) > lastmodified(jsonfile))):
 	program = run(f"{POLYCONVERTER} {layoutfile}", capture_output=True)
 	if program.returncode == SUCCESS_CODE:
-		if program.stdout is not None and len(program.stdout) >= 6:
-			print(f"{'Created' if 'Created' in program.stdout.decode() else 'Updated'} {jsonfile}!")
+		output = program.stdout.decode().strip()
+		if len(output) > 0:
+			print(f"[>] {'Created' if 'Created' in output else 'Updated'} {jsonfile}")
 	else:
-		print(f"Error: There was a problem converting {layoutfile}. Full output below:\n")
+		print(f"[Error] There was a problem converting {layoutfile} to json.")
 		outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
 		print("\n".join([o for o in outputs if len(o) > 0]))
 		entertoexit()
@@ -109,14 +103,14 @@ with open(jsonfile) as openfile:
 		layout = json.load(openfile)
 		layout["m_Bridge"]["m_Anchors"] = layout["m_Anchors"] # both should update together in real-time
 	except json.JSONDecodeError as error:
-		print(f"Syntax error in line {error.lineno}, column {error.colno} of {jsonfile}")
+		print(f"[Error] Invalid syntax in line {error.lineno}, column {error.colno} of {jsonfile}")
 		entertoexit()
 	except ValueError:
-		print(f"Error: {jsonfile} is either incomplete or not a valid level")
+		print(f"[Error] {jsonfile} is either incomplete or not a valid level")
 		entertoexit()
 
 
-print(f"Opening {leveltoedit} in the editor")
+print(f"[>] Opening {leveltoedit} in the editor")
 
 start_x, start_y = 0, 0
 mouse_x, mouse_y = 0, 0
@@ -149,7 +143,8 @@ while not done:
 	display.blit(pos_text, (2, 5))
 	# Key actions
 	font = pygame.font.SysFont('Courier', 18, True)
-	help_msg = "LClick: Camera | RClick: Select | Arrows: Move | C: Copy | D: Delete | S: Save | H: Hitboxes | B: Colors"
+	help_msg = "LClick: Camera | RClick: Select | Arrows: Move | " \
+			   "C: Copy | D: Delete | S: Save | H: Hitboxes | B: Colors"
 	help_text = font.render(help_msg, True, extras_color)
 	help_size = font.size(help_msg)
 	display.blit(help_text, (round((SIZE[0] - help_size[0]) / 2 - 3), SIZE[1] - help_size[1] - 3))
@@ -278,7 +273,7 @@ while not done:
 									anchors[c]["m_Pos"]["y"] -= 1
 				custom_shapes.extend(new_shapes)
 			if event.key == ord("s"):
-				print("Saving...")
+				print("[>] Saving...")
 				jsonstr = json.dumps(layout, indent=2)
 				jsonstr = re.sub(r"(\r\n|\r|\n)( ){6,}", r" ", jsonstr) # limit depth to 3 levels
 				jsonstr = re.sub(r"(\r\n|\r|\n)( ){4,}([}\]])", r" \3", jsonstr)
@@ -287,13 +282,14 @@ while not done:
 				program = run(f"{POLYCONVERTER} {jsonfile}", capture_output=True)
 				if program.returncode == SUCCESS_CODE:
 					pygame.quit()
-					if program.stdout is None or len(program.stdout) < 6:
-						print("No new changes to apply.")
+					output = program.stdout.decode().strip()
+					if len(output) == 0:
+						print("[>] No new changes to apply.")
 					else:
 						if "backup" in program.stdout.decode():
-							print(f"Created backup {backupfile}")
-						print(f"Applied changes to {layoutfile}!")
-					print("Done!")
+							print(f"[>] Created backup {backupfile}")
+						print(f"[>] Applied changes to {layoutfile}")
+					print("[#] Done!")
 					entertoexit()
 				elif program.returncode == FILE_ERROR_CODE:  # Failed to save?
 					print(program.stdout.decode().strip())
