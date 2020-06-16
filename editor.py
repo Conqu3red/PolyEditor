@@ -6,11 +6,12 @@ import re
 import json
 from uuid import uuid4
 from copy import deepcopy
+from itertools import chain
 from os import getcwd, listdir
 from os.path import isfile, join as pathjoin, getmtime as lastmodified
 from subprocess import run
 
-from game_objects import LayoutList, CustomShape
+import game_objects as g
 
 SIZE = [1200, 600]
 ZOOM_MULT = 1.1
@@ -98,11 +99,14 @@ def main():
 	hitboxes = False
 	dragging = False
 	selecting = False
+	moving = False
+	old_mouse_pos = [0,0]
 	bg_color = BACKGROUND_BLUE
 	extras_color = WHITE
 
-	custom_shapes = LayoutList(CustomShape, layout["m_CustomShapes"])
-	anchors = layout["m_Anchors"]
+	terrain_stretches = g.LayoutList(g.TerrainStretch, layout["m_TerrainStretches"])
+	anchors = g.LayoutList(g.Anchor, layout["m_Anchors"])
+	custom_shapes = g.LayoutList(g.CustomShape, layout["m_CustomShapes"])
 
 	display = pygame.display.set_mode(SIZE)
 	pygame.display.set_caption("PolyEditor")
@@ -114,35 +118,46 @@ def main():
 		# Mouse position
 		font = pygame.font.SysFont('Courier', 20)
 		true_mouse = (mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])
-		pos_text = font.render(f"[{round(true_mouse[0], 1):>5},{round(true_mouse[1], 1):>5}]", True, extras_color)
+		pos_text = font.render(f"[{round(true_mouse[0], 2):>6},{round(true_mouse[1], 2):>6}]", True, extras_color)
 		display.blit(pos_text, (2, 5))
 		# Key actions
 		font_size = 16
 		font = pygame.font.SysFont('Courier', font_size, True)
 		help_msg = "Mouse Wheel: Zoom | Left Click: Move camera | Right Click: Make selection | S: Save + Quit | 0: Quit"
 		help_text = font.render(help_msg, True, extras_color)
-		help_size = font.size(help_msg)
 		display.blit(help_text, (5, SIZE[1] - font_size*2 - 5))
 		help_msg = "Arrows: Move selected | C: Copy selected | D: Delete selected | H: Toggle Hitboxes | B: Toggle Color Scheme"
 		help_text = font.render(help_msg, True, extras_color)
-		help_size = font.size(help_msg)
 		display.blit(help_text, (5, SIZE[1] - font_size - 5))
-		# Mark 0,0 for reference
-		pygame.draw.line(display, extras_color, (round(zoom * (-1 + camera[0])), round(-zoom * camera[1])),
-		                                        (round(zoom * (1 + camera[0])), round(-zoom * camera[1])), 1)
-		pygame.draw.line(display, extras_color, (round(zoom * camera[0]), round(-zoom * (-1 + camera[1]))),
-		                                        (round(zoom * camera[0]), round(-zoom * (1 + camera[1]))), 1)
 		# Render Custom Shapes
+		# Render Objects
+		for terrain in terrain_stretches:
+			terrain.render(display, camera, zoom, extras_color)
 		for shape in custom_shapes:
-			shape.render(display, camera, zoom, anchors, hitboxes)
+			shape.render(display, camera, zoom, hitboxes)
+		dyn_anc_ids = list(chain(*[shape.dynamic_anchor_ids for shape in custom_shapes]))
+		for anchor in anchors:
+			anchor.render(display, camera, zoom, dyn_anc_ids)
 
 		for event in pygame.event.get():
 			if event.type == pygame.QUIT:
+				pygame.quit()
 				return
 			elif event.type == pygame.MOUSEBUTTONDOWN:
 				start_x, start_y = 0, 0
-				if event.button == 1:  # left click
-					dragging = True
+				if event.button == 1:
+					clickarea = pygame.Rect(event.pos[0], event.pos[1], 1, 1)
+					for i in reversed(range(len(custom_shapes))):
+						if (custom_shapes[i].hitbox.colliderect(clickarea)):
+							if (custom_shapes[i].highlighted == False):
+								if (not(pygame.key.get_mods() & pygame.KMOD_SHIFT)):
+									for enshape in custom_shapes:
+										enshape.highlighted = False
+								custom_shapes[i].highlighted = True
+							moving = True
+							break
+					if (moving == False): 
+						dragging = True  # left click
 					old_mouse_x, old_mouse_y = event.pos
 				if event.button == 3:  # right click
 					start_x, start_y = event.pos
@@ -151,16 +166,21 @@ def main():
 				if event.button == 4:  # mousewheel up
 					oldtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
 					zoom *= ZOOM_MULT
+					if (zoom > 700): zoom = 700
+
 					newtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
 					camera = [camera[0] + newtruepos[0] - oldtruepos[0], camera[1] + newtruepos[1] - oldtruepos[1]]
 				if event.button == 5:  # mousewheel down
 					oldtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
 					zoom /= ZOOM_MULT
+					if (zoom < 10): zoom = 10
+
 					newtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
 					camera = [camera[0] + newtruepos[0] - oldtruepos[0], camera[1] + newtruepos[1] - oldtruepos[1]]
 			elif event.type == pygame.MOUSEBUTTONUP:
 				if event.button == 1:  # left click
 					dragging = False
+					moving = False
 				if event.button == 3:  # right click
 					selecting = False
 					start_x, start_y = 0, 0
@@ -189,6 +209,10 @@ def main():
 					# Delete selected
 					for shape in [s for s in custom_shapes if s.highlighted]:
 						custom_shapes.remove(shape)
+						for dyn_anc_id in shape.dynamic_anchor_ids:
+							for anchor in [a for a in anchors]:
+								if anchor.id == dyn_anc_id:
+									anchors.remove(anchor)
 				elif event.key == pygame.K_LEFT:
 					x_change = -1
 					move = True
@@ -208,29 +232,29 @@ def main():
 							new_shape = deepcopy(shape)
 							shape.highlighted = False
 							# Assing new guids
-							new_shape.dynamic_anchors = [str(uuid4()) for _ in new_shape.dynamic_anchors]
+							new_shape.dynamic_anchor_ids = [str(uuid4()) for _ in new_shape.dynamic_anchor_ids]
 							# Add to shapes list
 							new_shapes.append(new_shape)
 							# Add to anchors list
 							new_anchors = []
-							for i, anchor_id in enumerate(shape.dynamic_anchors):
+							for i, dyn_anc_id in enumerate(shape.dynamic_anchor_ids):
 								for anchor in anchors:
-									if anchor["m_Guid"] == anchor_id:
+									if anchor.id == dyn_anc_id:
 										new_anchor = deepcopy(anchor)
-										new_anchor["m_Guid"] = new_shape.dynamic_anchors[i]
+										new_anchor.id = new_shape.dynamic_anchor_ids[i]
 										new_anchors.append(new_anchor)
 							anchors.extend(new_anchors)
 							# Shift down-right
-							new_shape.position["x"] += 1
-							new_shape.position["y"] -= 1
+							new_shape.pos["x"] += 1
+							new_shape.pos["y"] -= 1
 							for c, pin in enumerate(new_shape.static_pins):
 								new_shape.static_pins[c]["x"] += 1
 								new_shape.static_pins[c]["y"] -= 1
-							for anchor_id in new_shape.dynamic_anchors:
-								for c, anchor in enumerate(anchors[:]):
-									if anchor["m_Guid"] == anchor_id:
-										anchors[c]["m_Pos"]["x"] += 1
-										anchors[c]["m_Pos"]["y"] -= 1
+							for dyn_anc_id in new_shape.dynamic_anchor_ids:
+								for anchor in anchors:
+									if anchor.id == dyn_anc_id:
+										anchor.pos["x"] += 1
+										anchor.pos["y"] -= 1
 					custom_shapes.extend(new_shapes)
 				elif event.key == ord('0'):
 					pygame.quit()
@@ -264,23 +288,42 @@ def main():
 				if move:
 					for shape in custom_shapes:
 						if shape.highlighted:
-							shape.position["x"] += x_change
-							shape.position["y"] += y_change
-							for c, pin in enumerate(shape.static_pins):
-								shape.static_pins[c]["x"] += x_change
-								shape.static_pins[c]["y"] += y_change
-							for anchor_id in shape.dynamic_anchors:
-								for c, anchor in enumerate(anchors[:]):
-									if anchor["m_Guid"] == anchor_id:
-										anchors[c]["m_Pos"]["x"] += x_change
-										anchors[c]["m_Pos"]["y"] += y_change
+							shape.pos["x"] += x_change
+							shape.pos["y"] += y_change
+							for pin in shape.static_pins:
+								pin["x"] += x_change
+								pin["y"] += y_change
+							for dyn_anc_id in shape.dynamic_anchor_ids:
+								for anchor in anchors:
+									if anchor.id == dyn_anc_id:
+										anchor.pos["x"] += x_change
+										anchor.pos["y"] += y_change
 
 		# Selecting shapes
 		if selecting:
 			select_box = pygame.draw.rect(display, (0, 255, 0),
-			                              pygame.Rect(start_x, start_y, mouse_x - start_x, mouse_y - start_y), 1)
+										  pygame.Rect(start_x, start_y, mouse_x - start_x, mouse_y - start_y), 1)
 			for shape in custom_shapes:
 				shape.highlighted = shape.hitbox.colliderect(select_box)
+
+		if moving:
+			current_mouse_pos = [(mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])]
+			x_change = current_mouse_pos[0] - old_mouse_pos[0]
+			y_change = current_mouse_pos[1] - old_mouse_pos[1]
+			for shape in custom_shapes:
+				if shape.highlighted:
+					shape.pos["x"] += x_change
+					shape.pos["y"] += y_change
+					for pin in shape.static_pins:
+						pin["x"] += x_change
+						pin["y"] += y_change
+					for dyn_anc_id in shape.dynamic_anchor_ids:
+						for anchor in anchors:
+							if anchor.id == dyn_anc_id:
+								anchor.pos["x"] += x_change
+								anchor.pos["y"] += y_change
+
+		old_mouse_pos = [(mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])]
 
 		pygame.display.flip()
 		clock.tick(fps)
