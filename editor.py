@@ -10,7 +10,8 @@ from os import getcwd, listdir
 from os.path import isfile, join as pathjoin, getmtime as lastmodified
 from subprocess import run
 
-from game_objects import LayoutList, CustomShape
+from game_objects import LayoutList, CustomShape, centroid
+from popup_windows import Popup
 
 SIZE = [1200, 600]
 ZOOM_MULT = 1.1
@@ -88,6 +89,7 @@ def main():
 
 	print(f"[>] Opening {leveltoedit} in the editor")
 
+	popup_active = False
 	start_x, start_y = 0, 0
 	mouse_x, mouse_y = 0, 0
 	old_mouse_x, old_mouse_y = 0, 0
@@ -102,6 +104,7 @@ def main():
 	extras_color = WHITE
 
 	custom_shapes = LayoutList(CustomShape, layout["m_CustomShapes"])
+	#print(f"Loading {len(custom_shapes)} Shape")
 	anchors = layout["m_Anchors"]
 
 	display = pygame.display.set_mode(SIZE)
@@ -260,6 +263,21 @@ def main():
 					else:
 						outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
 						print(f"Unexpected error:\n" + "\n".join([o for o in outputs if len(o) > 0]))
+				
+				elif event.key == ord("e") and not popup_active:
+					highlighted = [shape for shape in custom_shapes if shape.highlighted]
+					print(len(highlighted))
+					if len(highlighted) == 1:
+						start_position = deepcopy(highlighted[0]).position
+						values = [
+								["X",highlighted[0].position["x"]],
+								["Y",highlighted[0].position["y"]],
+								["Z",highlighted[0].position["z"]]
+							]
+						popup = Popup(values)
+						popup_active = True
+						
+
 
 				if move:
 					for shape in custom_shapes:
@@ -282,9 +300,39 @@ def main():
 			for shape in custom_shapes:
 				shape.highlighted = shape.hitbox.colliderect(select_box)
 
+		highlighted = [shape for shape in custom_shapes if shape.highlighted]
+		if popup_active and len(highlighted) == 1:
+			try:
+				popup.update()
+				start_position = deepcopy(highlighted[0]).position
+				highlighted[0].position = {
+					"x":float(popup.get(1,0)),
+					"y":float(popup.get(1,1)),
+					"z":float(popup.get(1,2))
+				}
+				shape = highlighted[0]
+				x_change = shape.position["x"] - start_position["x"]
+				y_change = shape.position["y"] - start_position["y"]
+				for c,pin in enumerate(shape.static_pins):
+					#print(pin)
+					shape.static_pins[c]["x"] += x_change
+					shape.static_pins[c]["y"] += y_change
+					for anchor_id in shape.dynamic_anchors:
+						for c, anchor in enumerate(anchors[:]):
+							if anchor["m_Guid"] == anchor_id:
+								anchors[c]["m_Pos"]["x"] += x_change
+								anchors[c]["m_Pos"]["y"] += y_change
+				#print(highlighted[0].position)
+			except:
+				pass
+		elif popup_active:
+			popup_active = False
+			popup.delete()
+
+
 		pygame.display.flip()
 		clock.tick(fps)
-
+		#print(clock.get_fps())
 
 if __name__ == "__main__":
 	os.system("title PolyEditor Console")
