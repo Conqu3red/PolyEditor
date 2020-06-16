@@ -5,15 +5,16 @@
 # Keybinds
 - scroll wheel - zoom
 - left click and drag - move around
-- right click and drag - select
+- right click and drag - make selection
 - arrow keys - move selection
-- c - copy
-- s - save
+- c - copy selection
 - d - delete selection
-- h - toggle objects' selection hitboxes
+- s - save and close the program
+- h - toggle hitboxes display
+- b - toggle
 
 # Instructions
-1. Have Python installed. You may download it from the Microsoft Store or from [here](https://www.python.org/downloads/release/python-383/)
-2. Have the required modules installed. From the command console, run the command `python -m pip install pygame squaternion attrs uuid`
-3. Move editor.py and PolyConverter.exe to the same folder as the layouts you want to edit.
-4. To run the editor, open the command console at that folder and type the command `python editor.py` 
+
+1. Download `PolyEditor.rar` in the **Assets** list below
+2. Place both `PolyEditor.exe` and `PolyConverter.exe` (both are inside the rar) in the same folder as the layout(s) you want to edit
+3. Run `PolyEditor.exe`

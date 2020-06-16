@@ -146,7 +146,7 @@ while not done:
 	help_msg = "LClick: Camera | RClick: Select | Arrows: Move | C: Copy | D: Delete | S: Save | H: Hitboxes | B: Colors"
 	help_text = font.render(help_msg, True, extras_color)
 	help_size = font.size(help_msg)
-	display.blit(help_text, ((SIZE[0] - help_size[0]) / 2 - 3, SIZE[1] - help_size[1] - 3))
+	display.blit(help_text, (round((SIZE[0] - help_size[0]) / 2 - 3), SIZE[1] - help_size[1] - 3))
 	# Mark 0,0 for reference
 	pygame.draw.line(display, extras_color, (round(zoom * (-1 + camera[0])), round(-zoom * camera[1])),
 	                                     (round(zoom * (1 + camera[0])), round(-zoom * camera[1])), 1)
