@@ -1,6 +1,5 @@
 import pygame
 import math
-from squaternion import Quaternion
 
 DYNAMIC_ANCHOR_COLOR = (222, 168, 62)
 DYNAMIC_ANCHOR_BORDER = (0, 0, 0)
@@ -10,27 +9,65 @@ STATIC_PIN_BORDER = (50, 50, 50)
 PIN_SIZE = 0.12
 
 
-def centroid(vertexes):
-	_x_list = [vertex[0] for vertex in vertexes]
-	_y_list = [vertex[1] for vertex in vertexes]
-	_len = len(vertexes)
-	_x = sum(_x_list) / _len
-	_y = sum(_y_list) / _len
-	return [_x, _y]
+def centroid(points):
+	count = len(points)
+	x = sum(p[0] for p in points) / count
+	y = sum(p[1] for p in points) / count
+	return x, y
 
 
-def rotate(origin, point, angle):
-	"""Rotate a point counterclockwise by a given angle around a given origin.
-	The angle should be given in degrees.
-	"""
-	angle = math.radians(angle)
-
+def rotate(origin, point, angle, deg=True):
+	"""Rotate a point by a given angle counterclockwise around a given origin"""
+	if deg:
+		angle = math.radians(angle)
 	ox, oy = origin
 	px, py = point
+	x = ox + math.cos(angle) * (px - ox) - math.sin(angle) * (py - oy)
+	y = oy + math.sin(angle) * (px - ox) + math.cos(angle) * (py - oy)
+	return x, y
 
-	qx = ox + math.cos(angle) * (px - ox) - math.sin(angle) * (py - oy)
-	qy = oy + math.sin(angle) * (px - ox) + math.cos(angle) * (py - oy)
-	return [qx, qy]
+
+def quaternion(x, y, z, deg=True):
+	"""Converts euler anglesto a quaternion
+	https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles"""
+	if deg:
+		x = math.radians(x)
+		y = math.radians(y)
+		z = math.radians(z)
+
+	cx = math.cos(x * 0.5)
+	sx = math.sin(x * 0.5)
+	cy = math.cos(y * 0.5)
+	sy = math.sin(y * 0.5)
+	cz = math.cos(z * 0.5)
+	sz = math.sin(z * 0.5)
+
+	qx = sx * cy * cz - cx * sy * sz
+	qy = cx * sy * cz + sx * cy * sz
+	qz = cx * cy * sz - sx * sy * cz
+	qw = cx * cy * cz + sx * sy * sz
+	return qx, qy, qz, qw
+
+
+def euler_angles(qx, qy, qz, qw, deg=True):
+	"""Converts a quaternion to euler angles
+	https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles"""
+	sx_cy = 2 * (qw * qx + qy * qz)
+	cx_cy = 1 - 2 * (qx**2 + qy**1)
+	x = math.atan2(sx_cy, cx_cy)
+
+	sy = 2 * (qw * qy - qz * qx)
+	y = math.asin(sy) if -1 < sy < 1 else math.copysign(math.pi / 2, sy)
+
+	sz_cy = 2 * (qw * qz + qx * qy)
+	cz_cy = 1 - 2 * (qy**2 + qz**2)
+	z = math.atan2(sz_cy, cz_cy)
+
+	if deg:
+		x = math.degrees(x)
+		y = math.degrees(y)
+		z = math.degrees(z)
+	return x, y, z
 
 
 class LayoutObject:
@@ -118,11 +155,11 @@ class CustomShape(LayoutObject):
 	@property
 	def rotation(self):
 		rot = self._dict["m_Rot"]
-		return Quaternion(rot["w"], rot["x"], rot["y"], rot["z"]).to_euler(degrees=True)
+		return euler_angles(rot["x"], rot["y"], rot["z"], rot["w"])
 	@rotation.setter
 	def rotation(self, value):
-		q = Quaternion.from_euler(*value, degrees=True)
-		self._dict["m_Rot"] = {"x": q[1], "y": q[2], "z": q[3], "w": q[0]}
+		q = quaternion(*value)
+		self._dict["m_Rot"] = {"x": q[0], "y": q[1], "z": q[2], "w": q[3]}
 		self._dict["m_RotationDegrees"] = value[2]
 
 	@property

@@ -10,7 +10,7 @@ from os import getcwd, listdir
 from os.path import isfile, join as pathjoin, getmtime as lastmodified
 from subprocess import run
 
-from game_objects import LayoutList, CustomShape
+import game_objects as game
 
 SIZE = [1200, 600]
 ZOOM_MULT = 1.1
@@ -101,7 +101,7 @@ def main():
 	bg_color = BACKGROUND_BLUE
 	extras_color = WHITE
 
-	custom_shapes = LayoutList(CustomShape, layout["m_CustomShapes"])
+	custom_shapes = game.LayoutList(game.CustomShape, layout["m_CustomShapes"])
 	anchors = layout["m_Anchors"]
 
 	display = pygame.display.set_mode(SIZE)
