@@ -115,7 +115,7 @@ print(f"Opening {leveltoedit} in the editor")
 start_x, start_y = 0, 0
 mouse_x, mouse_y = 0, 0
 zoom = 20
-camera = [SIZE[0] / zoom / 2 - 2, -(SIZE[1] / zoom / 2 + 10)]
+camera = [SIZE[0] / zoom / 2, -(SIZE[1] / zoom / 2 + 10)]
 clock = pygame.time.Clock()
 fps = 60
 hitboxes = False
@@ -136,21 +136,23 @@ done = False
 while not done:
 
 	display.fill(bg_color)
-
+	# Mouse position
 	font = pygame.font.SysFont('Courier', 20)
 	true_mouse = (mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])
 	pos_text = font.render(f"[{round(true_mouse[0], 1):>5},{round(true_mouse[1], 1):>5}]", True, extras_color)
 	display.blit(pos_text, (2, 5))
-	font = pygame.font.SysFont('Courier', 16, True)
-	help_text = font.render("LClick: Camera | RClick: Select | Arrows: Move | C: Copy | D: Delete | " +
-	                        "S: Save | H: Hitboxes | B: Background", True, extras_color)
-	display.blit(help_text, (5, SIZE[1] - 21))
-
+	# Key actions
+	font = pygame.font.SysFont('Courier', 18, True)
+	help_msg = "LClick: Camera | RClick: Select | Arrows: Move | C: Copy | D: Delete | S: Save | H: Hitboxes | B: Colors"
+	help_text = font.render(help_msg, True, extras_color)
+	help_size = font.size(help_msg)
+	display.blit(help_text, ((SIZE[0] - help_size[0]) / 2 - 3, SIZE[1] - help_size[1] - 3))
+	# Mark 0,0 for reference
 	pygame.draw.line(display, extras_color, (round(zoom * (-1 + camera[0])), round(-zoom * camera[1])),
 	                                     (round(zoom * (1 + camera[0])), round(-zoom * camera[1])), 1)
 	pygame.draw.line(display, extras_color, (round(zoom * camera[0]), round(-zoom * (-1 + camera[1]))),
 	                                     (round(zoom * camera[0]), round(-zoom * (1 + camera[1]))), 1)
-
+	# Render Custom Shapes
 	for shape in custom_shapes:
 		shape.render(display, camera, zoom, anchors, hitboxes)
 
