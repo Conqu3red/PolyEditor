@@ -18,3 +18,4 @@
 - s - save and close the program
 - h - toggle hitboxes display
 - b - toggle color scheme
+- e - edit shape location (x,y,z)
