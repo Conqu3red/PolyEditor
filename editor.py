@@ -48,14 +48,13 @@ if not exists(POLYCONVERTER):
 
 program = run(f"{POLYCONVERTER} test", capture_output=True)
 if program.returncode == GAMEPATH_ERROR_CODE:  # game install not found
-	print(program.stdout.decode('utf-8').strip())
+	print(program.stdout.decode().strip())
 	entertoexit()
 elif program.returncode == FILE_ERROR_CODE:  # as "test" is not a valid file
 	pass
 else:  # .NET not installed?
-	print("Unexpected error:\n")
-	print(program.stderr.decode('utf-8').strip())
-	entertoexit()
+	outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
+	print(f"Unexpected error:\n" + "\n".join([o for o in outputs if len(o) > 0]))
 
 currentdir = getcwd()
 filelist = [f for f in listdir(currentdir) if isfile(pathjoin(currentdir, f))]
@@ -90,12 +89,11 @@ if (layoutfile in filelist and
 	program = run(f"{POLYCONVERTER} {layoutfile}", capture_output=True)
 	if program.returncode == SUCCESS_CODE:
 		if program.stdout is not None and len(program.stdout) >= 6:
-			print(f"{'Created' if 'Created' in str(program.stdout) else 'Updated'} {jsonfile}!")
+			print(f"{'Created' if 'Created' in program.stdout.decode() else 'Updated'} {jsonfile}!")
 	else:
 		print(f"Error: There was a problem converting {layoutfile}. Full output below:\n")
-		outputs = [program.stdout.decode('utf-8').strip(), program.stderr.decode('utf-8').strip()]
-		for o in [o for o in outputs if len(o) > 0]:
-			print(o)
+		outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
+		print("\n".join([o for o in outputs if len(o) > 0]))
 		entertoexit()
 
 with open(jsonfile) as openfile:
@@ -284,18 +282,16 @@ while not done:
 					if program.stdout is None or len(program.stdout) < 6:
 						print("No new changes to apply.")
 					else:
-						if "backup" in str(program.stdout):
+						if "backup" in program.stdout.decode():
 							print(f"Created backup {backupfile}")
 						print(f"Applied changes to {layoutfile}!")
 					print("Done!")
 					entertoexit()
 				elif program.returncode == FILE_ERROR_CODE:  # Failed to save?
-					print(program.stdout.decode('utf-8').strip())
+					print(program.stdout.decode().strip())
 				else:
-					outputs = [program.stdout.decode('utf-8').strip(), program.stderr.decode('utf-8').strip()]
-					print(f"Unexpected error:")
-					for o in [o for o in outputs if len(o) > 0]:
-						print(o)
+					outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
+					print(f"Unexpected error:\n" + "\n".join([o for o in outputs if len(o) > 0]))
 
 	# Selecting shapes
 	if selecting:
