@@ -104,10 +104,10 @@ def main():
 	dragging = False
 	selecting = False
 	moving = False
-	start_x, start_y = 0, 0
 	mouse_x, mouse_y = 0, 0
+	selecting_x, selecting_y = 0, 0
 	old_mouse_x, old_mouse_y = 0, 0
-	old_mouse_pos = [0, 0]  # TODO: Merge functionality with old_mouse_xy or rename them to something clearer
+	old_true_mouse_pos = [0, 0]  # TODO: Merge functionality with old_mouse_xy or rename them to something clearer
 	bg_color = BACKGROUND_BLUE
 	bg_color_2 = BACKGROUND_BLUE_GRID
 	fg_color = WHITE
@@ -117,6 +117,9 @@ def main():
 	pillars = g.LayoutList(g.Pillar, layout)
 	anchors = g.LayoutList(g.Anchor, layout)
 	custom_shapes = g.LayoutList(g.CustomShape, layout)
+
+	selectable_objects = lambda: tuple(chain(custom_shapes, pillars))
+	holding_shift = lambda: pygame.key.get_mods() & pygame.KMOD_SHIFT
 
 	display = pygame.display.set_mode(size, pygame.RESIZABLE)
 	pygame.display.set_caption("PolyEditor")
@@ -148,7 +151,7 @@ def main():
 		# Display controls
 		font_size = 16
 		font = pygame.font.SysFont('Courier', font_size, True)
-		help_msg = "Mouse Wheel: Zoom | Left Click: Move camera | Right Click: Make selection | S: Save + Quit | 0: Quit"
+		help_msg = "Wheel: Zoom | LeftClick: Move/Pan | RightClick: Make selection | ShiftClick: Multiselect | S: Save + Quit | 0: Quit"
 		help_text = font.render(help_msg, True, fg_color)
 		display.blit(help_text, (5, size[1] - font_size*2 - 5))
 		help_msg = "Arrows: Move selected | C: Copy selected | D: Delete selected | H: Toggle hitboxes | B: Toggle color scheme"
@@ -180,30 +183,36 @@ def main():
 				display = pygame.display.set_mode(size, pygame.RESIZABLE)
 
 			elif event.type == pygame.MOUSEBUTTONDOWN:
-				start_x, start_y = 0, 0
+				selecting_x, selecting_y = 0, 0
 
 				if event.button == 1:  # left click
 					clickarea = pygame.Rect(event.pos[0], event.pos[1], 1, 1)
-					for i in reversed(range(len(custom_shapes))):
-						if custom_shapes[i].hitbox.colliderect(clickarea):
-							if not custom_shapes[i].highlighted:
-								if not(pygame.key.get_mods() & pygame.KMOD_SHIFT):
-									for s in custom_shapes:
-										s.highlighted = False
-								custom_shapes[i].highlighted = True
-							elif pygame.key.get_mods() & pygame.KMOD_SHIFT:
-								custom_shapes[i].highlighted = False
-							if not pygame.key.get_mods() & pygame.KMOD_SHIFT:
+					for obj in reversed(selectable_objects()):
+						if obj.hitbox.colliderect(clickarea):  # dragging and multiselect
+							if not holding_shift():
 								moving = True
+							if not obj.highlighted:
+								if not holding_shift():  # clear other selections
+									for o in selectable_objects():
+										o.highlighted = False
+								obj.highlighted = True
+							elif holding_shift():
+								obj.highlighted = False
 							break
 					if not moving:
 						dragging = True
 					old_mouse_x, old_mouse_y = event.pos
 
 				if event.button == 3:  # right click
-					start_x, start_y = event.pos
+					selecting_x, selecting_y = event.pos
 					mouse_x, mouse_y = event.pos
-					selecting = True
+					if holding_shift():  # multiselect
+						clickarea = pygame.Rect(event.pos[0], event.pos[1], 1, 1)
+						for obj in reversed(selectable_objects()):
+							if obj.hitbox.colliderect(clickarea):
+								obj.highlighted = not obj.highlighted
+					else:
+						selecting = True
 
 				if event.button == 4:  # mousewheel up
 					if zoom * ZOOM_MULT <= ZOOM_MAX:
@@ -211,6 +220,7 @@ def main():
 						zoom *= ZOOM_MULT
 						newtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
 						camera = [camera[0] + newtruepos[0] - oldtruepos[0], camera[1] + newtruepos[1] - oldtruepos[1]]
+
 				if event.button == 5:  # mousewheel down
 					if zoom / ZOOM_MULT >= ZOOM_MIN:
 						oldtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
@@ -219,12 +229,17 @@ def main():
 						camera = [camera[0] + newtruepos[0] - oldtruepos[0], camera[1] + newtruepos[1] - oldtruepos[1]]
 
 			elif event.type == pygame.MOUSEBUTTONUP:
+
 				if event.button == 1:  # left click
 					dragging = False
 					moving = False
+					hl_objs = [o for o in chain(custom_shapes, pillars) if o.highlighted]
+					if len(hl_objs) == 1 and not holding_shift():  # "drop" object
+						hl_objs[0].highlighted = False
+
 				if event.button == 3:  # right click
 					selecting = False
-					start_x, start_y = 0, 0
+					selecting_x, selecting_y = 0, 0
 
 			elif event.type == pygame.MOUSEMOTION:
 				mouse_x, mouse_y = event.pos
@@ -232,12 +247,9 @@ def main():
 					camera[0] = camera[0] + (mouse_x - old_mouse_x) / zoom
 					camera[1] = camera[1] - (mouse_y - old_mouse_y) / zoom
 					old_mouse_x, old_mouse_y = mouse_x, mouse_y
-				if selecting:
-					mouse_x, mouse_y = event.pos
 
 			elif event.type == pygame.KEYDOWN:
-				# Moving selection
-				x_change, y_change = 0, 0
+				move_x, move_y = 0, 0
 				move = False
 
 				if event.key == ord('b'):
@@ -255,63 +267,61 @@ def main():
 
 				elif event.key == ord('d'):
 					# Delete selected
-					for shape in [s for s in custom_shapes if s.highlighted]:
-						custom_shapes.remove(shape)
-						for dyn_anc_id in shape.dynamic_anchor_ids:
-							for anchor in [a for a in anchors]:
-								if anchor.id == dyn_anc_id:
-									anchors.remove(anchor)
-					for pillar in [p for p in pillars if p.highlighted]:
-						pillars.remove(pillar)
+					for obj in [o for o in selectable_objects() if o.highlighted]:
+						if type(obj) is g.Pillar:
+							pillars.remove(obj)
+						elif type(obj) is g.CustomShape:
+							custom_shapes.remove(obj)
+							for dyn_anc_id in obj.dynamic_anchor_ids:
+								for anchor in [a for a in anchors]:
+									if anchor.id == dyn_anc_id:
+										anchors.remove(anchor)
+						else:
+							raise NotImplementedError(f"Deleting {type(obj).__name__}")
 
 				elif event.key == pygame.K_LEFT:
-					x_change = -1
+					move_x = -1
 					move = True
 
 				elif event.key == pygame.K_RIGHT:
-					x_change = 1
+					move_x = 1
 					move = True
 
 				elif event.key == pygame.K_UP:
-					y_change = 1
+					move_y = 1
 					move = True
 
 				elif event.key == pygame.K_DOWN:
-					y_change = -1
+					move_y = -1
 					move = True
 
 				elif event.key == ord("c"):
 					# Copy Selected
-					for shape in [s for s in custom_shapes if s.highlighted]:
-						new_shape = deepcopy(shape)
-						shape.highlighted = False
-						# Assing new ids
-						new_shape.dynamic_anchor_ids = [str(uuid4()) for _ in new_shape.dynamic_anchor_ids]
-						# Add to shapes list
-						custom_shapes.append(new_shape)
-						# Add to anchors list
-						for i in range(len(shape.dynamic_anchor_ids)):
-							for anchor in [a for a in anchors if a.id == shape.dynamic_anchor_ids[i]]:
-								new_anchor = deepcopy(anchor)
-								new_anchor.id = new_shape.dynamic_anchor_ids[i]
-								anchors.append(new_anchor)
-						# Shift down-right
-						new_shape.pos["x"] += 1
-						new_shape.pos["y"] -= 1
-						for c, pin in enumerate(new_shape.static_pins):
-							new_shape.static_pins[c]["x"] += 1
-							new_shape.static_pins[c]["y"] -= 1
-						for dyn_anc_id in new_shape.dynamic_anchor_ids:
-							for anchor in anchors:
-								if anchor.id == dyn_anc_id:
-									anchor.pos["x"] += 1
-									anchor.pos["y"] -= 1
-					for pillar in [p for p in pillars if p.highlighted]:
-						new_pillar = deepcopy(pillar)
-						pillar.highlighted = False
-						pillars.append(new_pillar)
-						new_pillar.pos["x"] += 1
-						new_pillar.pos["y"] -= 1
+					for old_obj in [o for o in selectable_objects() if o.highlighted]:
+						new_obj = deepcopy(old_obj)
+						old_obj.highlighted = False
+						new_obj.pos["x"] += 1
+						new_obj.pos["y"] -= 1
+						if type(new_obj) is g.Pillar:
+							pillars.append(new_obj)
+						elif type(new_obj) is g.CustomShape:
+							new_obj.dynamic_anchor_ids = [str(uuid4()) for _ in old_obj.dynamic_anchor_ids]
+							for i in range(len(new_obj.dynamic_anchor_ids)):
+								for anchor in [a for a in anchors if a.id == old_obj.dynamic_anchor_ids[i]]:
+									new_anchor = deepcopy(anchor)
+									new_anchor.id = new_obj.dynamic_anchor_ids[i]
+									anchors.append(new_anchor)
+							for c, pin in enumerate(new_obj.static_pins):
+								new_obj.static_pins[c]["x"] += 1
+								new_obj.static_pins[c]["y"] -= 1
+							for dyn_anc_id in new_obj.dynamic_anchor_ids:
+								for anchor in anchors:
+									if anchor.id == dyn_anc_id:
+										anchor.pos["x"] += 1
+										anchor.pos["y"] -= 1
+							custom_shapes.append(new_obj)
+						else:
+							raise NotImplementedError(f"Copying {type(new_obj).__name__}")
 
 				elif event.key == ord('0'):
 					pygame.quit()
@@ -343,51 +353,50 @@ def main():
 						outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
 						print(f"Unexpected error:\n" + "\n".join([o for o in outputs if len(o) > 0]))
 
+				# Move selection with keys
 				if move:
-					for shape in custom_shapes:
-						if shape.highlighted:
-							shape.pos["x"] += x_change
-							shape.pos["y"] += y_change
-							for pin in shape.static_pins:
-								pin["x"] += x_change
-								pin["y"] += y_change
-							for dyn_anc_id in shape.dynamic_anchor_ids:
-								for anchor in anchors:
-									if anchor.id == dyn_anc_id:
-										anchor.pos["x"] += x_change
-										anchor.pos["y"] += y_change
-					for pillar in pillars:
-						if pillar.highlighted:
-							pillar.pos["x"] += x_change
-							pillar.pos["y"] += y_change
+					for obj in selectable_objects():
+						if obj.highlighted:
+							obj.pos["x"] += move_x
+							obj.pos["y"] += move_y
+							if type(obj) is g.CustomShape:
+								for pin in obj.static_pins:
+									pin["x"] += move_x
+									pin["y"] += move_y
+								for dyn_anc_id in obj.dynamic_anchor_ids:
+									for anchor in anchors:
+										if anchor.id == dyn_anc_id:
+											anchor.pos["x"] += move_x
+											anchor.pos["y"] += move_y
 
 		# Selecting shapes
 		if selecting:
 			select_box = pygame.draw.rect(display, (0, 255, 0),
-										  pygame.Rect(start_x, start_y, mouse_x - start_x, mouse_y - start_y), 1)
-			for shape in custom_shapes:
-				shape.highlighted = shape.hitbox.colliderect(select_box)
-			for pillar in pillars:
-				pillar.highlighted = pillar.hitbox.colliderect(select_box)
+				pygame.Rect(selecting_x, selecting_y, mouse_x - selecting_x, mouse_y - selecting_y),
+				g.scale(1, zoom))
+			for obj in selectable_objects():
+				obj.highlighted = obj.hitbox.colliderect(select_box)
 
+		# Move selection with mouse
 		if moving:
-			current_mouse_pos = [(mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])]
-			x_change = current_mouse_pos[0] - old_mouse_pos[0]
-			y_change = current_mouse_pos[1] - old_mouse_pos[1]
-			for shape in custom_shapes:
-				if shape.highlighted:
-					shape.pos["x"] += x_change
-					shape.pos["y"] += y_change
-					for pin in shape.static_pins:
-						pin["x"] += x_change
-						pin["y"] += y_change
-					for dyn_anc_id in shape.dynamic_anchor_ids:
-						for anchor in anchors:
-							if anchor.id == dyn_anc_id:
-								anchor.pos["x"] += x_change
-								anchor.pos["y"] += y_change
+			true_mouse_pos = [(mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])]
+			move_x = true_mouse_pos[0] - old_true_mouse_pos[0]
+			move_y = true_mouse_pos[1] - old_true_mouse_pos[1]
+			for obj in selectable_objects():
+				if obj.highlighted:
+					obj.pos["x"] += move_x
+					obj.pos["y"] += move_y
+					if type(obj) is g.CustomShape:
+						for pin in obj.static_pins:
+							pin["x"] += move_x
+							pin["y"] += move_y
+						for dyn_anc_id in obj.dynamic_anchor_ids:
+							for anchor in anchors:
+								if anchor.id == dyn_anc_id:
+									anchor.pos["x"] += move_x
+									anchor.pos["y"] += move_y
 
-		old_mouse_pos = [(mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])]
+		old_true_mouse_pos = [(mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])]
 
 		pygame.display.flip()
 		clock.tick(fps)
