@@ -154,7 +154,8 @@ def main():
 									for enshape in custom_shapes:
 										enshape.highlighted = False
 								custom_shapes[i].highlighted = True
-							moving = True
+							elif (pygame.key.get_mods() & pygame.KMOD_SHIFT): custom_shapes[i].highlighted = False
+							if (not(pygame.key.get_mods() & pygame.KMOD_SHIFT)): moving = True
 							break
 					if (moving == False): 
 						dragging = True  # left click
