@@ -365,11 +365,11 @@ def main():
 					highlighted = [shape for shape in custom_shapes if shape.highlighted]
 					print(len(highlighted))
 					if len(highlighted) == 1:
-						start_position = deepcopy(highlighted[0]).position
+						start_position = deepcopy(highlighted[0]).pos
 						values = [
-								["X",highlighted[0].position["x"]],
-								["Y",highlighted[0].position["y"]],
-								["Z",highlighted[0].position["z"]]
+								["X",highlighted[0].pos["x"]],
+								["Y",highlighted[0].pos["y"]],
+								["Z",highlighted[0].pos["z"]]
 							]
 						popup = Popup(values)
 						popup_active = True
@@ -425,24 +425,26 @@ def main():
 		if popup_active and len(highlighted) == 1:
 			try:
 				popup.update()
-				start_position = deepcopy(highlighted[0]).position
-				highlighted[0].position = {
+				start_position = deepcopy(highlighted[0]).pos
+				highlighted[0].pos = {
 					"x":float(popup.get(1,0)),
 					"y":float(popup.get(1,1)),
 					"z":float(popup.get(1,2))
 				}
 				shape = highlighted[0]
-				x_change = shape.position["x"] - start_position["x"]
-				y_change = shape.position["y"] - start_position["y"]
-				for c,pin in enumerate(shape.static_pins):
+				x_change = shape.pos["x"] - start_position["x"]
+				y_change = shape.pos["y"] - start_position["y"]
+				#print(shape.static_pins)
+				for pin in shape.static_pins:
+				
 					#print(pin)
-					shape.static_pins[c]["x"] += x_change
-					shape.static_pins[c]["y"] += y_change
-					for anchor_id in shape.dynamic_anchors:
-						for c, anchor in enumerate(anchors[:]):
-							if anchor["m_Guid"] == anchor_id:
-								anchors[c]["m_Pos"]["x"] += x_change
-								anchors[c]["m_Pos"]["y"] += y_change
+					pin["x"] += x_change
+					pin["y"] += y_change
+				for anchor_id in shape.dynamic_anchor_ids:
+					for anchor in anchors:
+						if anchor.id == anchor_id:
+							anchor.pos["x"] += x_change
+							anchor.pos["y"] += y_change
 				#print(highlighted[0].position)
 			except:
 				pass
