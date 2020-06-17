@@ -19,3 +19,4 @@
 - 0 - Close without saving
 - H - Toggle hitboxes display
 - B - Toggle color scheme
+- E - edit shape location (x,y,z)
