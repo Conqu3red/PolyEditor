@@ -222,13 +222,7 @@ def main():
 				if event.button == 3:  # right click
 					selecting_x, selecting_y = event.pos
 					mouse_x, mouse_y = event.pos
-					if holding_shift():  # multiselect
-						clickarea = pygame.Rect(event.pos[0], event.pos[1], 1, 1)
-						for obj in reversed(selectable_objects()):
-							if obj.hitbox.colliderect(clickarea):
-								obj.highlighted = not obj.highlighted
-					else:
-						selecting = True
+					selecting = True
 
 				if event.button == 4:  # mousewheel up
 					if zoom * ZOOM_MULT <= ZOOM_MAX:
@@ -405,7 +399,10 @@ def main():
 				pygame.Rect(selecting_x, selecting_y, mouse_x - selecting_x, mouse_y - selecting_y),
 				g.scale(1, zoom))
 			for obj in selectable_objects():
-				obj.highlighted = obj.hitbox.colliderect(select_box)
+				if not holding_shift():
+					obj.highlighted = obj.hitbox.colliderect(select_box)
+				elif obj.hitbox.colliderect(select_box):  # multiselect
+					obj.highlighted = True
 
 		# Move selection with mouse
 		if moving:
