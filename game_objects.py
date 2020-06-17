@@ -25,6 +25,12 @@ PILLAR_COLOR = (195, 171, 149, 150)
 PILLAR_BORDER = (105, 98, 91)
 PILLAR_BORDER_WIDTH = 1
 
+
+def scale(min_width, zoom, factor=30):
+	"""Scales the width of a line to the zoom level"""
+	return max(min_width, round(zoom / (factor / min_width)))
+
+
 def rotate(point, angle, deg=True):
 	"""Rotate a point by a given angle counterclockwise around (0,0)"""
 	if deg:
@@ -166,7 +172,7 @@ class TerrainStretch(LayoutObject):
 		else:
 			x = zoom * (self.pos["x"] - self.width / 2 * (-1 if self.flipped else 1) + camera[0])
 		rect = (round(x), round(zoom * -(self.height + camera[1])), round(zoom * self.width), round(zoom * self.height))
-		pygame.draw.rect(display, color, rect, TERRAIN_BORDER_WIDTH)
+		pygame.draw.rect(display, color, rect, scale(TERRAIN_BORDER_WIDTH, zoom))
 
 	@property
 	def pos(self):
@@ -200,7 +206,7 @@ class WaterBlock(LayoutObject):
 	def render(self, display, camera, zoom, color):
 		start = (zoom * (self.pos["x"] - self.width/2 + camera[0]), zoom * -(self.height + camera[1]))
 		end = (zoom * (self.pos["x"] + self.width/2 + camera[0]), zoom * -(self.height + camera[1]))
-		pygame.draw.line(display, color, start, end, 1)
+		pygame.draw.line(display, color, start, end, scale(WATER_EDGE_WIDTH, zoom))
 
 	@property
 	def pos(self):
@@ -241,11 +247,12 @@ class Pillar(LayoutObject):
 		surf = pygame.Surface((rect[2], rect[3]))
 		surf.fill(PILLAR_COLOR)
 		surf.set_alpha(PILLAR_COLOR[3])
-		if self.highlighted:
-			pygame.draw.rect(display, HIGHLIGHT_COLOR, rect, SHAPE_HIGHLIGHTED_WIDTH)
-		else:
-			pygame.draw.rect(surf, PILLAR_BORDER, (0, 0, rect[2], rect[3]), PILLAR_BORDER_WIDTH)
+		if not self.highlighted:
+			pygame.draw.rect(surf, PILLAR_BORDER, (0, 0, rect[2], rect[3]), scale(PILLAR_BORDER_WIDTH, zoom))
 		display.blit(surf, (rect[0], rect[1]))
+		if self.highlighted:
+			pygame.draw.rect(display, HIGHLIGHT_COLOR, rect, scale(SHAPE_HIGHLIGHTED_WIDTH, zoom))
+
 	@property
 	def pos(self):
 		return self._dict["m_Pos"]
@@ -288,7 +295,7 @@ class CustomShape(LayoutObject):
 		if draw_hitbox:
 			pygame.draw.rect(display, HITBOX_COLOR, self.hitbox, 1)
 		if self.highlighted:
-			pygame.draw.polygon(display, HIGHLIGHT_COLOR, points_pixels, SHAPE_HIGHLIGHTED_WIDTH)
+			pygame.draw.polygon(display, HIGHLIGHT_COLOR, points_pixels, scale(SHAPE_HIGHLIGHTED_WIDTH, zoom))
 
 	@property
 	def pos(self):

@@ -122,7 +122,7 @@ def main():
 		# Render background
 		display.fill(bg_color)
 		block_size = round(zoom)
-		line_width = max(1, block_size // 30)
+		line_width = g.scale(1, zoom)
 		shift = (round(camera[0] * zoom % block_size), round(camera[1] * zoom % block_size))
 		if block_size > 3:
 			for x in range(0, SIZE[0], block_size):
