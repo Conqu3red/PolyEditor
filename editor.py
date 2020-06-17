@@ -106,6 +106,8 @@ def main():
 	hitboxes = False
 	dragging = False
 	selecting = False
+	moving = False
+	old_mouse_pos = [0,0]
 	bg_color = BACKGROUND_BLUE
 	bg_color_2 = BACKGROUND_BLUE_GRID
 	fg_color = WHITE
@@ -179,9 +181,20 @@ def main():
 
 			elif event.type == pygame.MOUSEBUTTONDOWN:
 				start_x, start_y = 0, 0
-
-				if event.button == 1:  # left click
-					dragging = True
+				if event.button == 1:
+					clickarea = pygame.Rect(event.pos[0], event.pos[1], 1, 1)
+					for i in reversed(range(len(custom_shapes))):
+						if (custom_shapes[i].hitbox.colliderect(clickarea)):
+							if (custom_shapes[i].highlighted == False):
+								if (not(pygame.key.get_mods() & pygame.KMOD_SHIFT)):
+									for enshape in custom_shapes:
+										enshape.highlighted = False
+								custom_shapes[i].highlighted = True
+							elif (pygame.key.get_mods() & pygame.KMOD_SHIFT): custom_shapes[i].highlighted = False
+							if (not(pygame.key.get_mods() & pygame.KMOD_SHIFT)): moving = True
+							break
+					if (moving == False): 
+						dragging = True  # left click
 					old_mouse_x, old_mouse_y = event.pos
 
 				if event.button == 3:  # right click
@@ -190,22 +203,23 @@ def main():
 					selecting = True
 
 				if event.button == 4:  # mousewheel up
-					if zoom * ZOOM_MULT <= ZOOM_MAX:
-						oldtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
-						zoom *= ZOOM_MULT
-						newtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
-						camera = [camera[0] + newtruepos[0] - oldtruepos[0], camera[1] + newtruepos[1] - oldtruepos[1]]
+					oldtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
+					zoom *= ZOOM_MULT
+					if (zoom > 700): zoom = 700
 
+					newtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
+					camera = [camera[0] + newtruepos[0] - oldtruepos[0], camera[1] + newtruepos[1] - oldtruepos[1]]
 				if event.button == 5:  # mousewheel down
-					if zoom / ZOOM_MULT >= ZOOM_MIN:
-						oldtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
-						zoom /= ZOOM_MULT
-						newtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
-						camera = [camera[0] + newtruepos[0] - oldtruepos[0], camera[1] + newtruepos[1] - oldtruepos[1]]
+					oldtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
+					zoom /= ZOOM_MULT
+					if (zoom < 10): zoom = 10
 
+					newtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
+					camera = [camera[0] + newtruepos[0] - oldtruepos[0], camera[1] + newtruepos[1] - oldtruepos[1]]
 			elif event.type == pygame.MOUSEBUTTONUP:
 				if event.button == 1:  # left click
 					dragging = False
+					moving = False
 				if event.button == 3:  # right click
 					selecting = False
 					start_x, start_y = 0, 0
@@ -348,11 +362,30 @@ def main():
 		# Selecting shapes
 		if selecting:
 			select_box = pygame.draw.rect(display, (0, 255, 0),
-			                              pygame.Rect(start_x, start_y, mouse_x - start_x, mouse_y - start_y), 1)
+										  pygame.Rect(start_x, start_y, mouse_x - start_x, mouse_y - start_y), 1)
 			for shape in custom_shapes:
 				shape.highlighted = shape.hitbox.colliderect(select_box)
 			for pillar in pillars:
 				pillar.highlighted = pillar.hitbox.colliderect(select_box)
+
+		if moving:
+			current_mouse_pos = [(mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])]
+			x_change = current_mouse_pos[0] - old_mouse_pos[0]
+			y_change = current_mouse_pos[1] - old_mouse_pos[1]
+			for shape in custom_shapes:
+				if shape.highlighted:
+					shape.pos["x"] += x_change
+					shape.pos["y"] += y_change
+					for pin in shape.static_pins:
+						pin["x"] += x_change
+						pin["y"] += y_change
+					for dyn_anc_id in shape.dynamic_anchor_ids:
+						for anchor in anchors:
+							if anchor.id == dyn_anc_id:
+								anchor.pos["x"] += x_change
+								anchor.pos["y"] += y_change
+
+		old_mouse_pos = [(mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])]
 
 		pygame.display.flip()
 		clock.tick(fps)
