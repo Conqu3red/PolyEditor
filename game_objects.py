@@ -1,6 +1,10 @@
 import pygame
 import math
 
+HIGHLIGHT_COLOR = (255, 255, 0)
+HITBOX_COLOR = (0, 255, 0)
+SHAPE_HIGHLIGHTED_WIDTH = 2
+
 ANCHOR_RADIUS = 0.16
 ANCHOR_COLOR = (235, 0, 50)
 ANCHOR_BORDER = (0, 0, 0)
@@ -14,13 +18,17 @@ TERRAIN_MAIN_WIDTH = 25.25
 TERRAIN_SMALL_WIDTH = 4.0
 TERRAIN_BASE_HEIGHT = 5.0
 TERRAIN_BORDER_WIDTH = 2
+WATER_EDGE_WIDTH = 1
+
+PILLAR_WIDTH = 1.0
+PILLAR_COLOR = (195, 171, 149, 150)
+PILLAR_BORDER = (105, 98, 91)
+PILLAR_BORDER_WIDTH = 1
 
 
-def centroid(points):
-	count = len(points)
-	x = sum(p[0] for p in points) / count
-	y = sum(p[1] for p in points) / count
-	return x, y
+def scale(min_width, zoom, factor=30):
+	"""Scales the width of a line to the zoom level"""
+	return max(min_width, round(zoom / (factor / min_width)))
 
 
 def rotate(point, angle, deg=True):
@@ -78,6 +86,7 @@ def euler_angles(qx, qy, qz, qw, deg=True):
 
 class LayoutObject:
 	"""Acts as a wrapper for the dictionary that represents an object in the layout."""
+	list_name = None
 
 	def __init__(self, dictionary):
 		self._dict = dictionary
@@ -88,12 +97,12 @@ class LayoutObject:
 
 
 class LayoutList:
-	"""Acts a wrapper for the list of dictionaries that represent a list of objects in the layout."""
+	"""Acts a wrapper for a list of dictionaries in the layout, allowing you to treat them as objects."""
 
-	def __init__(self, cls, objects):
+	def __init__(self, cls, layout):
 		if not issubclass(cls, LayoutObject): raise TypeError()
-		self._dictlist = objects
-		self._objlist = [cls(o) for o in objects]
+		self._dictlist = layout[cls.list_name]
+		self._objlist = [cls(o) for o in self._dictlist]
 
 	def append(self, elem):
 		self._dictlist.append(elem.dictionary)
@@ -106,6 +115,9 @@ class LayoutList:
 	def remove(self, elem):
 		self._dictlist.remove(elem.dictionary)
 		self._objlist.remove(elem)
+
+	def __len__(self):
+		return self._objlist.__len__()
 
 	def __iter__(self):
 		return self._objlist.__iter__()
@@ -183,14 +195,161 @@ class TerrainStretch(LayoutObject):
 	def height(self):
 		return TERRAIN_BASE_HEIGHT + self.pos["y"]
 
+	def __getitem__(self, item):
+		return self._objlist.__getitem__(item)
 
-class CustomShape(LayoutObject):
+
+class Anchor(LayoutObject):
+	list_name = "m_Anchors"
+
+	def __init__(self, dictionary):
+		super().__init__(dictionary)
+
+	def render(self, display, camera, zoom, dynamic_anchor_ids):
+		color = ANCHOR_COLOR
+		for dyn_anc_id in dynamic_anchor_ids:
+			if self.id == dyn_anc_id:
+				color = DYNAMIC_ANCHOR_COLOR
+				break
+		rect = (round(zoom * (self.pos["x"] + camera[0] - ANCHOR_RADIUS)),
+		        round(zoom * -(self.pos["y"] + camera[1] + ANCHOR_RADIUS)),
+		        round(zoom * ANCHOR_RADIUS * 2),
+		        round(zoom * ANCHOR_RADIUS * 2))
+		pygame.draw.rect(display, color, rect)
+		pygame.draw.rect(display, ANCHOR_BORDER, rect, max(1, round(rect[2] / 15)))
+
+	@property
+	def pos(self):
+		return self._dict["m_Pos"]
+	@pos.setter
+	def pos(self, value):
+		self._dict["m_Pos"] = value
+
+	@property
+	def id(self) -> str:
+		return self._dict["m_Guid"]
+	@id.setter
+	def id(self, value):
+		self._dict["m_Guid"] = value
+
+
+class TerrainStretch(LayoutObject):
+	list_name = "m_TerrainStretches"
+
+	def __init__(self, dictionary):
+		super().__init__(dictionary)
+
+	def render(self, display, camera, zoom, color):
+		if self.width == TERRAIN_MAIN_WIDTH:  # main terrain
+			x = zoom * (self.pos["x"] - (0 if self.flipped else self.width) + camera[0])
+		else:
+			x = zoom * (self.pos["x"] - self.width / 2 * (-1 if self.flipped else 1) + camera[0])
+		rect = (round(x), round(zoom * -(self.height + camera[1])), round(zoom * self.width), round(zoom * self.height))
+		pygame.draw.rect(display, color, rect, scale(TERRAIN_BORDER_WIDTH, zoom))
+
+	@property
+	def pos(self):
+		return self._dict["m_Pos"]
+	@pos.setter
+	def pos(self, value):
+		self._dict["m_Pos"] = value
+
+	@property
+	def flipped(self) -> bool:
+		return self._dict["m_Flipped"]
+	@flipped.setter
+	def flipped(self, value):
+		self._dict["m_Flipped"] = value
+
+	@property
+	def width(self):
+		return TERRAIN_MAIN_WIDTH if self._dict["m_TerrainIslandType"] == 0 else TERRAIN_SMALL_WIDTH
+
+	@property
+	def height(self):
+		return TERRAIN_BASE_HEIGHT + self.pos["y"]
+
+
+class WaterBlock(LayoutObject):
+	list_name = "m_WaterBlocks"
+
+	def __init__(self, dictionary):
+		super().__init__(dictionary)
+
+	def render(self, display, camera, zoom, color):
+		start = (zoom * (self.pos["x"] - self.width/2 + camera[0]), zoom * -(self.height + camera[1]))
+		end = (zoom * (self.pos["x"] + self.width/2 + camera[0]), zoom * -(self.height + camera[1]))
+		pygame.draw.line(display, color, start, end, scale(WATER_EDGE_WIDTH, zoom))
+
+	@property
+	def pos(self):
+		return self._dict["m_Pos"]
+	@pos.setter
+	def pos(self, value):
+		self._dict["m_Pos"] = value
+
+	@property
+	def width(self):
+		return self._dict["m_Width"]
+	@width.setter
+	def width(self, value):
+		self._dict["m_Width"] = value
+
+	@property
+	def height(self):
+		return self._dict["m_Height"]
+	@height.setter
+	def height(self, value):
+		self._dict["m_Height"] = value
+
+
+class Pillar(LayoutObject):
+	list_name = "m_Pillars"
+
 	def __init__(self, dictionary):
 		super().__init__(dictionary)
 		self.highlighted = False
 		self.hitbox = None
 
-	def render(self, display, camera, zoom, draw_hitbox):
+	def render(self, display, camera, zoom):
+		rect = (round(zoom * (self.pos["x"] - PILLAR_WIDTH / 2 + camera[0])),
+				round(zoom * -(self.pos["y"] + self.height + camera[1])),
+				round(zoom * PILLAR_WIDTH),
+				round(zoom * self.height))
+		self.hitbox = pygame.Rect(rect)
+		surf = pygame.Surface((rect[2], rect[3]))
+		surf.fill(PILLAR_COLOR)
+		surf.set_alpha(PILLAR_COLOR[3])
+		if not self.highlighted:
+			pygame.draw.rect(surf, PILLAR_BORDER, (0, 0, rect[2], rect[3]), scale(PILLAR_BORDER_WIDTH, zoom))
+		display.blit(surf, (rect[0], rect[1]))
+		if self.highlighted:
+			pygame.draw.rect(display, HIGHLIGHT_COLOR, rect, scale(SHAPE_HIGHLIGHTED_WIDTH, zoom))
+
+	@property
+	def pos(self):
+		return self._dict["m_Pos"]
+	@pos.setter
+	def pos(self, value):
+		self._dict["m_Pos"] = value
+
+	@property
+	def height(self):
+		return self._dict["m_Height"]
+	@height.setter
+	def height(self, value):
+		self._dict["m_Height"] = value
+
+
+class CustomShape(LayoutObject):
+	list_name = "m_CustomShapes"
+
+	def __init__(self, dictionary):
+		super().__init__(dictionary)
+		self.highlighted = False
+		self.hitbox = None
+
+	def render(self, display, camera, zoom, draw_hitbox, border_color):
 		# Add base position and adjust for the camera position
 		points_pixels = [[round(zoom * (self.pos["x"] + point[0] + camera[0])),
 		                  round(zoom * -(self.pos["y"] + point[1] + camera[1]))]
@@ -205,11 +364,10 @@ class CustomShape(LayoutObject):
 			        round(zoom * PIN_RADIUS * 2),
 			        round(zoom * PIN_RADIUS * 2))
 			pygame.draw.ellipse(display, STATIC_PIN_COLOR, rect)
-		# Draw dynamic anchors
 		if draw_hitbox:
-			pygame.draw.rect(display, (0, 255, 0), self.hitbox, 1)
+			pygame.draw.rect(display, HITBOX_COLOR, self.hitbox, 1)
 		if self.highlighted:
-			pygame.draw.polygon(display, (255, 255, 0), points_pixels, round(zoom / 30 + 1))
+			pygame.draw.polygon(display, HIGHLIGHT_COLOR, points_pixels, scale(SHAPE_HIGHLIGHTED_WIDTH, zoom))
 
 	@property
 	def pos(self):

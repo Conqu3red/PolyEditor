@@ -9,12 +9,13 @@
 3. Run it and wait for it to load.
 
 ### Keybinds
-- scroll wheel - zoom
-- left click and drag - move around
-- right click and drag - make selection
-- arrow keys - move selection
-- c - copy selection
-- d - delete selection
-- s - save and close the program
-- h - toggle hitboxes display
-- b - toggle color scheme
+- Scroll wheel - Zoom
+- Left click and drag - Move around
+- Right click and drag - Make selection
+- Arrow keys - Move selected
+- C - Copy selected
+- D - Delete selected
+- S - Save and close the program
+- 0 - Close without saving
+- H - Toggle hitboxes display
+- B - Toggle color scheme
