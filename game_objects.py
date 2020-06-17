@@ -103,6 +103,7 @@ class LayoutList:
 		if not issubclass(cls, LayoutObject): raise TypeError()
 		self._dictlist = layout[cls.list_name]
 		self._objlist = [cls(o) for o in self._dictlist]
+		self.list_name = cls.list_name
 
 	def append(self, elem):
 		self._dictlist.append(elem.dictionary)

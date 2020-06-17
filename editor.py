@@ -122,6 +122,8 @@ def main():
 	pillars = g.LayoutList(g.Pillar, layout)
 	anchors = g.LayoutList(g.Anchor, layout)
 	custom_shapes = g.LayoutList(g.CustomShape, layout)
+	object_lists = {objs.list_name: objs for objs in
+	               [terrain_stretches, water_blocks, pillars, anchors, custom_shapes]}
 
 	selectable_objects = lambda: tuple(chain(custom_shapes, pillars))
 	holding_shift = lambda: pygame.key.get_mods() & pygame.KMOD_SHIFT
@@ -153,7 +155,7 @@ def main():
 		zoom_msg = f"({str(zoom)[:4].ljust(4, '0').strip('.')})"
 		zoom_size = font.size(zoom_msg)
 		zoom_text = font.render(zoom_msg, True, fg_color)
-		display.blit(zoom_text, (size[0]/2 - zoom_size[0]/2, 5))
+		display.blit(zoom_text, (round(size[0] / 2 - zoom_size[0] / 2), 5))
 		fps_msg = str(round(clock.get_fps())).rjust(2)
 		fps_size = font.size(fps_msg)
 		fps_text = font.render(fps_msg, True, fg_color)
@@ -281,16 +283,12 @@ def main():
 				elif event.key == ord('d'):
 					# Delete selected
 					for obj in [o for o in selectable_objects() if o.highlighted]:
-						if type(obj) is g.Pillar:
-							pillars.remove(obj)
-						elif type(obj) is g.CustomShape:
-							custom_shapes.remove(obj)
+						if type(obj) is g.CustomShape:
 							for dyn_anc_id in obj.dynamic_anchor_ids:
 								for anchor in [a for a in anchors]:
 									if anchor.id == dyn_anc_id:
 										anchors.remove(anchor)
-						else:
-							raise NotImplementedError(f"Deleting {type(obj).__name__}")
+						object_lists[obj.list_name].remove(obj)
 
 				elif event.key == pygame.K_LEFT:
 					move_x = -1
@@ -315,9 +313,7 @@ def main():
 						old_obj.highlighted = False
 						new_obj.pos["x"] += 1
 						new_obj.pos["y"] -= 1
-						if type(new_obj) is g.Pillar:
-							pillars.append(new_obj)
-						elif type(new_obj) is g.CustomShape:
+						if type(new_obj) is g.CustomShape:
 							new_obj.dynamic_anchor_ids = [str(uuid4()) for _ in old_obj.dynamic_anchor_ids]
 							for i in range(len(new_obj.dynamic_anchor_ids)):
 								for anchor in [a for a in anchors if a.id == old_obj.dynamic_anchor_ids[i]]:
@@ -332,9 +328,7 @@ def main():
 									if anchor.id == dyn_anc_id:
 										anchor.pos["x"] += 1
 										anchor.pos["y"] -= 1
-							custom_shapes.append(new_obj)
-						else:
-							raise NotImplementedError(f"Copying {type(new_obj).__name__}")
+						object_lists[new_obj.list_name].append(new_obj)
 
 				elif event.key == ord('0'):
 					pygame.quit()
@@ -436,7 +430,6 @@ def main():
 				if x > 100000 or y > 100000 or z > 100000 or x < -10000 or y < -10000 or z < -10000:
 					raise ValueError()
 				obj.pos = {"x": x, "y": y, "z": z}
-				print(obj.pos)
 				if type(obj) is g.CustomShape:
 					x_change = obj.pos["x"] - popup_edit_start_pos["x"]
 					y_change = obj.pos["y"] - popup_edit_start_pos["y"]
