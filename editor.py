@@ -12,7 +12,7 @@ from itertools import chain
 from os import getcwd, listdir
 from os.path import isfile, join as pathjoin, getmtime as lastmodified
 from subprocess import run
-
+from tkinter import TclError
 
 import game_objects as g
 from popup_windows import Popup
@@ -165,7 +165,7 @@ def main():
 		help_msg = "Wheel: Zoom | LeftClick: Move/Pan | RightClick: Make selection | ShiftClick: Multiselect | S: Save + Quit | 0: Quit"
 		help_text = font.render(help_msg, True, fg_color)
 		display.blit(help_text, (5, size[1] - font_size*2 - 5))
-		help_msg = "Arrows: Move selected | C: Copy selected | D: Delete selected | H: Toggle hitboxes | B: Toggle color scheme"
+		help_msg = "Arrows: Move | E: Precise Move | C: Copy selected | D: Delete selected | H: Toggle hitboxes | B: Toggle color scheme"
 		help_text = font.render(help_msg, True, fg_color)
 		display.blit(help_text, (5, size[1] - font_size - 5))
 
@@ -433,7 +433,7 @@ def main():
 				x = float(popup.get(1, 0))
 				y = float(popup.get(1, 1))
 				z = float(popup.get(1, 2))
-				if x > 100000 or y > 100000 or z > 100000:
+				if x > 100000 or y > 100000 or z > 100000 or x < -10000 or y < -10000 or z < -10000:
 					raise ValueError()
 				obj.pos = {"x": x, "y": y, "z": z}
 				print(obj.pos)
@@ -448,7 +448,9 @@ def main():
 							if anchor.id == anchor_id:
 								anchor.pos["x"] += x_change
 								anchor.pos["y"] += y_change
-			except ValueError:
+			except ValueError:  # invalid position
+				pass
+			except TclError:  # destroyed
 				pass
 		elif popup_active:
 			popup_active = False
@@ -456,6 +458,7 @@ def main():
 
 		pygame.display.flip()
 		clock.tick(FPS)
+
 
 if __name__ == "__main__":
 	os.system("title PolyEditor Console")

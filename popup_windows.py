@@ -26,11 +26,11 @@ class Popup:
 
 	def delete(self):
 		try:
-			self.root.destroy()
+			self.root.destroy()  # rip
 		except:
 			pass
 
-	def get(self,grid_x,grid_y):
+	def get(self, grid_x, grid_y):
 		return self.table[grid_y][grid_x].get()
 
 	def update(self):
