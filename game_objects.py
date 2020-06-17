@@ -3,6 +3,8 @@ import math
 
 HIGHLIGHT_COLOR = (255, 255, 0)
 HITBOX_COLOR = (0, 255, 0)
+HITBOX_LINE_WIDTH = 1
+HITBOX_CENTER_WIDTH = 3
 SHAPE_HIGHLIGHTED_WIDTH = 2
 
 ANCHOR_RADIUS = 0.16
@@ -239,7 +241,7 @@ class Pillar(LayoutObject):
 		self.highlighted = False
 		self.hitbox = None
 
-	def render(self, display, camera, zoom):
+	def render(self, display, camera, zoom, draw_hitbox):
 		rect = (round(zoom * (self.pos["x"] - PILLAR_WIDTH / 2 + camera[0])),
 				round(zoom * -(self.pos["y"] + self.height + camera[1])),
 				round(zoom * PILLAR_WIDTH),
@@ -251,6 +253,13 @@ class Pillar(LayoutObject):
 		if not self.highlighted:
 			pygame.draw.rect(surf, PILLAR_BORDER, (0, 0, rect[2], rect[3]), scale(PILLAR_BORDER_WIDTH, zoom))
 		display.blit(surf, (rect[0], rect[1]))
+		if draw_hitbox:
+			pygame.draw.rect(display, HITBOX_COLOR, self.hitbox, scale(HITBOX_LINE_WIDTH, zoom))
+			center_width = scale(HITBOX_CENTER_WIDTH, zoom)
+			center_start = (round(zoom * (self.pos["x"] + camera[0]) - center_width / 2),
+							round(zoom * -(self.pos["y"] + camera[1])))
+			center_end = (center_start[0] + center_width, center_start[1])
+			pygame.draw.line(display, HITBOX_COLOR, center_start, center_end, center_width)
 		if self.highlighted:
 			pygame.draw.rect(display, HIGHLIGHT_COLOR, rect, scale(SHAPE_HIGHLIGHTED_WIDTH, zoom))
 
@@ -277,7 +286,7 @@ class CustomShape(LayoutObject):
 		self.highlighted = False
 		self.hitbox = None
 
-	def render(self, display, camera, zoom, draw_hitbox, border_color):
+	def render(self, display, camera, zoom, draw_hitbox):
 		# Add base position and adjust for the camera position
 		points_pixels = [[round(zoom * (self.pos["x"] + point[0] + camera[0])),
 		                  round(zoom * -(self.pos["y"] + point[1] + camera[1]))]
@@ -293,12 +302,12 @@ class CustomShape(LayoutObject):
 			        round(zoom * PIN_RADIUS * 2))
 			pygame.draw.ellipse(display, STATIC_PIN_COLOR, rect)
 		if draw_hitbox:
-			pygame.draw.rect(display, HITBOX_COLOR, self.hitbox, scale(1, zoom))
-			center_width = scale(3, zoom)
-			center_rect = (round(zoom * (self.pos["x"] + camera[0]) - center_width / 2),
-			               round(zoom * -(self.pos["y"] + camera[1])),
-			               center_width, center_width)
-			pygame.draw.rect(display, HITBOX_COLOR, center_rect, center_width)
+			pygame.draw.rect(display, HITBOX_COLOR, self.hitbox, scale(HITBOX_LINE_WIDTH, zoom))
+			center_width = scale(HITBOX_CENTER_WIDTH, zoom)
+			center_start = (round(zoom * (self.pos["x"] + camera[0]) - center_width / 2),
+			                round(zoom * -(self.pos["y"] + camera[1])))
+			center_end = (center_start[0] + center_width, center_start[1])
+			pygame.draw.line(display, HITBOX_COLOR, center_start, center_end, center_width)
 		if self.highlighted:
 			pygame.draw.polygon(display, HIGHLIGHT_COLOR, points_pixels, scale(SHAPE_HIGHLIGHTED_WIDTH, zoom))
 

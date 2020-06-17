@@ -178,9 +178,9 @@ def main():
 		for water in water_blocks:
 			water.render(display, camera, zoom, fg_color)
 		for shape in custom_shapes:
-			shape.render(display, camera, zoom, hitboxes, fg_color)
+			shape.render(display, camera, zoom, hitboxes)
 		for pillar in pillars:
-			pillar.render(display, camera, zoom)
+			pillar.render(display, camera, zoom, hitboxes)
 		dyn_anc_ids = list(chain(*[shape.dynamic_anchor_ids for shape in custom_shapes]))
 		for anchor in anchors:
 			anchor.render(display, camera, zoom, dyn_anc_ids)
