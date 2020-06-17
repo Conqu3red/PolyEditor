@@ -15,7 +15,7 @@ from subprocess import run
 
 import game_objects as g
 
-SIZE = [1200, 600]
+BASE_SIZE = (1200, 600)
 ZOOM_MULT = 1.1
 ZOOM_MIN = 1.0
 ZOOM_MAX = 300.0
@@ -42,7 +42,6 @@ GAMEPATH_ERROR_CODE = 4
 
 
 def main():
-	global SIZE
 	currentdir = getcwd()
 	filelist = [f for f in listdir(currentdir) if isfile(pathjoin(currentdir, f))]
 	levellist = [match.group(1) for match in [FILE_REGEX.match(f) for f in filelist] if match]
@@ -96,18 +95,19 @@ def main():
 
 	print(f"[>] Opening {leveltoedit} in the editor")
 
-	start_x, start_y = 0, 0
-	mouse_x, mouse_y = 0, 0
-	old_mouse_x, old_mouse_y = 0, 0
-	zoom = 20.0
-	camera = [SIZE[0] / zoom / 2, -(SIZE[1] / zoom / 2 + 5)]
-	clock = pygame.time.Clock()
+	size = BASE_SIZE
 	fps = 60
+	zoom = 20.0
+	camera = [size[0] / zoom / 2, -(size[1] / zoom / 2 + 5)]
+	clock = pygame.time.Clock()
 	hitboxes = False
 	dragging = False
 	selecting = False
 	moving = False
-	old_mouse_pos = [0,0]
+	start_x, start_y = 0, 0
+	mouse_x, mouse_y = 0, 0
+	old_mouse_x, old_mouse_y = 0, 0
+	old_mouse_pos = [0, 0]  # TODO: Merge functionality with old_mouse_xy or rename them to something clearer
 	bg_color = BACKGROUND_BLUE
 	bg_color_2 = BACKGROUND_BLUE_GRID
 	fg_color = WHITE
@@ -118,7 +118,7 @@ def main():
 	anchors = g.LayoutList(g.Anchor, layout)
 	custom_shapes = g.LayoutList(g.CustomShape, layout)
 
-	display = pygame.display.set_mode(SIZE, pygame.RESIZABLE)
+	display = pygame.display.set_mode(size, pygame.RESIZABLE)
 	pygame.display.set_caption("PolyEditor")
 	pygame.init()
 
@@ -130,10 +130,10 @@ def main():
 		line_width = g.scale(1, zoom)
 		shift = (round(camera[0] * zoom % block_size), round(camera[1] * zoom % block_size))
 		if block_size > 3:
-			for x in range(0, SIZE[0], block_size):
-				pygame.draw.line(display, bg_color_2, (x+shift[0], 0), (x+shift[0], SIZE[1]), line_width)
-			for y in range(0, SIZE[1], block_size):
-				pygame.draw.line(display, bg_color_2, (0, y-shift[1]), (SIZE[0], y-shift[1]), line_width)
+			for x in range(0, size[0], block_size):
+				pygame.draw.line(display, bg_color_2, (x+shift[0], 0), (x+shift[0], size[1]), line_width)
+			for y in range(0, size[1], block_size):
+				pygame.draw.line(display, bg_color_2, (0, y-shift[1]), (size[0], y-shift[1]), line_width)
 
 		# Display mouse position and zoom
 		font = pygame.font.SysFont('Courier', 20)
@@ -143,17 +143,17 @@ def main():
 		zoom_msg = f"({str(zoom)[:4].ljust(4, '0').strip('.')})"
 		zoom_size = font.size(zoom_msg)
 		zoom_text = font.render(zoom_msg, True, fg_color)
-		display.blit(zoom_text, (SIZE[0] - zoom_size[0] - 2, 5))
+		display.blit(zoom_text, (size[0] - zoom_size[0] - 2, 5))
 
 		# Display controls
 		font_size = 16
 		font = pygame.font.SysFont('Courier', font_size, True)
 		help_msg = "Mouse Wheel: Zoom | Left Click: Move camera | Right Click: Make selection | S: Save + Quit | 0: Quit"
 		help_text = font.render(help_msg, True, fg_color)
-		display.blit(help_text, (5, SIZE[1] - font_size*2 - 5))
+		display.blit(help_text, (5, size[1] - font_size*2 - 5))
 		help_msg = "Arrows: Move selected | C: Copy selected | D: Delete selected | H: Toggle hitboxes | B: Toggle color scheme"
 		help_text = font.render(help_msg, True, fg_color)
-		display.blit(help_text, (5, SIZE[1] - font_size - 5))
+		display.blit(help_text, (5, size[1] - font_size - 5))
 
 		# Render Objects
 		for terrain in terrain_stretches:
@@ -176,25 +176,28 @@ def main():
 				return
 
 			if event.type == pygame.VIDEORESIZE:
-				SIZE = event.size
-				display = pygame.display.set_mode(SIZE, pygame.RESIZABLE)
+				size = event.size
+				display = pygame.display.set_mode(size, pygame.RESIZABLE)
 
 			elif event.type == pygame.MOUSEBUTTONDOWN:
 				start_x, start_y = 0, 0
-				if event.button == 1:
+
+				if event.button == 1:  # left click
 					clickarea = pygame.Rect(event.pos[0], event.pos[1], 1, 1)
 					for i in reversed(range(len(custom_shapes))):
-						if (custom_shapes[i].hitbox.colliderect(clickarea)):
-							if (custom_shapes[i].highlighted == False):
-								if (not(pygame.key.get_mods() & pygame.KMOD_SHIFT)):
-									for enshape in custom_shapes:
-										enshape.highlighted = False
+						if custom_shapes[i].hitbox.colliderect(clickarea):
+							if not custom_shapes[i].highlighted:
+								if not(pygame.key.get_mods() & pygame.KMOD_SHIFT):
+									for s in custom_shapes:
+										s.highlighted = False
 								custom_shapes[i].highlighted = True
-							elif (pygame.key.get_mods() & pygame.KMOD_SHIFT): custom_shapes[i].highlighted = False
-							if (not(pygame.key.get_mods() & pygame.KMOD_SHIFT)): moving = True
+							elif pygame.key.get_mods() & pygame.KMOD_SHIFT:
+								custom_shapes[i].highlighted = False
+							if not pygame.key.get_mods() & pygame.KMOD_SHIFT:
+								moving = True
 							break
-					if (moving == False): 
-						dragging = True  # left click
+					if not moving:
+						dragging = True
 					old_mouse_x, old_mouse_y = event.pos
 
 				if event.button == 3:  # right click
@@ -203,19 +206,18 @@ def main():
 					selecting = True
 
 				if event.button == 4:  # mousewheel up
-					oldtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
-					zoom *= ZOOM_MULT
-					if (zoom > 700): zoom = 700
-
-					newtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
-					camera = [camera[0] + newtruepos[0] - oldtruepos[0], camera[1] + newtruepos[1] - oldtruepos[1]]
+					if zoom * ZOOM_MULT <= ZOOM_MAX:
+						oldtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
+						zoom *= ZOOM_MULT
+						newtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
+						camera = [camera[0] + newtruepos[0] - oldtruepos[0], camera[1] + newtruepos[1] - oldtruepos[1]]
 				if event.button == 5:  # mousewheel down
-					oldtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
-					zoom /= ZOOM_MULT
-					if (zoom < 10): zoom = 10
+					if zoom / ZOOM_MULT >= ZOOM_MIN:
+						oldtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
+						zoom /= ZOOM_MULT
+						newtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
+						camera = [camera[0] + newtruepos[0] - oldtruepos[0], camera[1] + newtruepos[1] - oldtruepos[1]]
 
-					newtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
-					camera = [camera[0] + newtruepos[0] - oldtruepos[0], camera[1] + newtruepos[1] - oldtruepos[1]]
 			elif event.type == pygame.MOUSEBUTTONUP:
 				if event.button == 1:  # left click
 					dragging = False
