@@ -1,5 +1,7 @@
 import os
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
+os.environ['SDL_VIDEO_CENTERED'] = '1'
+
 import sys
 import pygame
 import re
@@ -40,6 +42,7 @@ GAMEPATH_ERROR_CODE = 4
 
 
 def main():
+	global SIZE
 	currentdir = getcwd()
 	filelist = [f for f in listdir(currentdir) if isfile(pathjoin(currentdir, f))]
 	levellist = [match.group(1) for match in [FILE_REGEX.match(f) for f in filelist] if match]
@@ -113,11 +116,11 @@ def main():
 	anchors = g.LayoutList(g.Anchor, layout)
 	custom_shapes = g.LayoutList(g.CustomShape, layout)
 
-	display = pygame.display.set_mode(SIZE)
+	display = pygame.display.set_mode(SIZE, pygame.RESIZABLE)
 	pygame.display.set_caption("PolyEditor")
 	pygame.init()
 
-	# Main loop
+	# Pygame loop
 	while True:
 		# Render background
 		display.fill(bg_color)
@@ -169,6 +172,10 @@ def main():
 			if event.type == pygame.QUIT:
 				pygame.quit()
 				return
+
+			if event.type == pygame.VIDEORESIZE:
+				SIZE = event.size
+				display = pygame.display.set_mode(SIZE, pygame.RESIZABLE)
 
 			elif event.type == pygame.MOUSEBUTTONDOWN:
 				start_x, start_y = 0, 0
