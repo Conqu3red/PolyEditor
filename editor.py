@@ -97,13 +97,12 @@ def main():
 
 	print(f"[>] Opening {leveltoedit} in the editor")
 
-
-	popup_active = False
 	size = BASE_SIZE
 	fps = 60
 	zoom = 20.0
 	camera = [size[0] / zoom / 2, -(size[1] / zoom / 2 + 5)]
 	clock = pygame.time.Clock()
+	popup_active = False
 	hitboxes = False
 	dragging = False
 	selecting = False
@@ -122,11 +121,8 @@ def main():
 	anchors = g.LayoutList(g.Anchor, layout)
 	custom_shapes = g.LayoutList(g.CustomShape, layout)
 
-
-
 	selectable_objects = lambda: tuple(chain(custom_shapes, pillars))
 	holding_shift = lambda: pygame.key.get_mods() & pygame.KMOD_SHIFT
-
 
 	display = pygame.display.set_mode(size, pygame.RESIZABLE)
 	pygame.display.set_caption("PolyEditor")
@@ -146,15 +142,20 @@ def main():
 			for y in range(-shift[1], size[1], block_size):
 				pygame.draw.line(display, bg_color_2, (0, y), (size[0], y), line_width)
 
-		# Display mouse position and zoom
+		# Display mouse position, zoom and fps
 		font = pygame.font.SysFont('Courier', 20)
 		true_mouse = (mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])
 		pos_text = font.render(f"[{round(true_mouse[0], 2):>6},{round(true_mouse[1], 2):>6}]", True, fg_color)
 		display.blit(pos_text, (2, 5))
+		font = pygame.font.SysFont('Courier', 16)
 		zoom_msg = f"({str(zoom)[:4].ljust(4, '0').strip('.')})"
 		zoom_size = font.size(zoom_msg)
 		zoom_text = font.render(zoom_msg, True, fg_color)
-		display.blit(zoom_text, (size[0] - zoom_size[0] - 2, 5))
+		display.blit(zoom_text, (size[0]/2 - zoom_size[0]/2, 5))
+		fps_msg = str(round(clock.get_fps())).rjust(2)
+		fps_size = font.size(fps_msg)
+		fps_text = font.render(fps_msg, True, fg_color)
+		display.blit(fps_text, (size[0] - fps_size[0] - 5, 5))
 
 		# Display controls
 		font_size = 16
