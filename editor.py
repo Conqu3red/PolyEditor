@@ -186,6 +186,8 @@ def main():
 		for event in pygame.event.get():
 
 			if event.type == pygame.QUIT:
+				if popup is not None:
+					popup.delete()
 				pygame.quit()
 				return
 
@@ -446,7 +448,7 @@ def main():
 							if anchor.id == anchor_id:
 								anchor.pos["x"] += x_change
 								anchor.pos["y"] += y_change
-			except:  # hmm
+			except ValueError:
 				pass
 		elif popup_active:
 			popup_active = False
