@@ -18,6 +18,7 @@ import game_objects as g
 from popup_windows import Popup
 
 BASE_SIZE = (1200, 600)
+FPS = 60
 ZOOM_MULT = 1.1
 ZOOM_MIN = 1.0
 ZOOM_MAX = 300.0
@@ -98,10 +99,10 @@ def main():
 	print(f"[>] Opening {leveltoedit} in the editor")
 
 	size = BASE_SIZE
-	fps = 60
 	zoom = 20.0
 	camera = [size[0] / zoom / 2, -(size[1] / zoom / 2 + 5)]
 	clock = pygame.time.Clock()
+	popup = None
 	popup_active = False
 	hitboxes = False
 	dragging = False
@@ -110,7 +111,8 @@ def main():
 	mouse_x, mouse_y = 0, 0
 	selecting_x, selecting_y = 0, 0
 	old_mouse_x, old_mouse_y = 0, 0
-	old_true_mouse_pos = [0, 0]  # TODO: Merge functionality with old_mouse_xy or rename them to something clearer
+	old_true_mouse_pos = [0, 0]
+	popup_edit_start_pos = None
 	bg_color = BACKGROUND_BLUE
 	bg_color_2 = BACKGROUND_BLUE_GRID
 	fg_color = WHITE
@@ -242,7 +244,7 @@ def main():
 				if event.button == 1:  # left click
 					dragging = False
 					moving = False
-					hl_objs = [o for o in chain(custom_shapes, pillars) if o.highlighted]
+					hl_objs = [o for o in selectable_objects() if o.highlighted]
 					if len(hl_objs) == 1 and not holding_shift():  # "drop" object
 						hl_objs[0].highlighted = False
 
@@ -363,19 +365,17 @@ def main():
 						print(f"Unexpected error:\n" + "\n".join([o for o in outputs if len(o) > 0]))
 				
 				elif event.key == ord("e") and not popup_active:
-					highlighted = [shape for shape in custom_shapes if shape.highlighted]
-					print(len(highlighted))
-					if len(highlighted) == 1:
-						start_position = deepcopy(highlighted[0]).pos
+					# Popup window to edit properties
+					hl_objs = [o for o in selectable_objects() if o.highlighted]
+					if len(hl_objs) == 1:
+						popup_edit_start_pos = deepcopy(hl_objs[0].pos)
 						values = [
-								["X",highlighted[0].pos["x"]],
-								["Y",highlighted[0].pos["y"]],
-								["Z",highlighted[0].pos["z"]]
+								["X", hl_objs[0].pos["x"]],
+								["Y", hl_objs[0].pos["y"]],
+								["Z", hl_objs[0].pos["z"]]
 							]
 						popup = Popup(values)
 						popup_active = True
-						
-
 
 				# Move selection with keys
 				if move:
@@ -422,41 +422,38 @@ def main():
 
 		old_true_mouse_pos = [(mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])]
 
-		highlighted = [shape for shape in custom_shapes if shape.highlighted]
-		if popup_active and len(highlighted) == 1:
+		hl_objs = [o for o in selectable_objects() if o.highlighted]
+		if popup_active and len(hl_objs) == 1:
+			obj = hl_objs[0]
 			try:
 				popup.update()
-				start_position = deepcopy(highlighted[0]).pos
-				highlighted[0].pos = {
-					"x":float(popup.get(1,0)),
-					"y":float(popup.get(1,1)),
-					"z":float(popup.get(1,2))
-				}
-				shape = highlighted[0]
-				x_change = shape.pos["x"] - start_position["x"]
-				y_change = shape.pos["y"] - start_position["y"]
-				#print(shape.static_pins)
-				for pin in shape.static_pins:
-				
-					#print(pin)
-					pin["x"] += x_change
-					pin["y"] += y_change
-				for anchor_id in shape.dynamic_anchor_ids:
-					for anchor in anchors:
-						if anchor.id == anchor_id:
-							anchor.pos["x"] += x_change
-							anchor.pos["y"] += y_change
-				#print(highlighted[0].position)
-			except:
+				popup_edit_start_pos = deepcopy(obj.pos)
+				x = float(popup.get(1, 0))
+				y = float(popup.get(1, 1))
+				z = float(popup.get(1, 2))
+				if x > 100000 or y > 100000 or z > 100000:
+					raise ValueError()
+				obj.pos = {"x": x, "y": y, "z": z}
+				print(obj.pos)
+				if type(obj) is g.CustomShape:
+					x_change = obj.pos["x"] - popup_edit_start_pos["x"]
+					y_change = obj.pos["y"] - popup_edit_start_pos["y"]
+					for pin in obj.static_pins:
+						pin["x"] += x_change
+						pin["y"] += y_change
+					for anchor_id in obj.dynamic_anchor_ids:
+						for anchor in anchors:
+							if anchor.id == anchor_id:
+								anchor.pos["x"] += x_change
+								anchor.pos["y"] += y_change
+			except:  # hmm
 				pass
 		elif popup_active:
 			popup_active = False
 			popup.delete()
 
-
 		pygame.display.flip()
-		clock.tick(fps)
-		#print(clock.get_fps())
+		clock.tick(FPS)
 
 if __name__ == "__main__":
 	os.system("title PolyEditor Console")
