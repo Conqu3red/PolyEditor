@@ -127,6 +127,7 @@ def main():
 
 	selectable_objects = lambda: tuple(chain(custom_shapes, pillars))
 	holding_shift = lambda: pygame.key.get_mods() & pygame.KMOD_SHIFT
+	true_mouse_pos = lambda: (mouse_x / zoom - camera[0], -mouse_y / zoom - camera[1])
 
 	display = pygame.display.set_mode(size, pygame.RESIZABLE)
 	pygame.display.set_caption("PolyEditor")
@@ -148,8 +149,8 @@ def main():
 
 		# Display mouse position, zoom and fps
 		font = pygame.font.SysFont('Courier', 20)
-		true_mouse = (mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])
-		pos_text = font.render(f"[{round(true_mouse[0], 2):>6},{round(true_mouse[1], 2):>6}]", True, fg_color)
+		pos_msg = f"[{round(true_mouse_pos()[0], 2):>6},{round(true_mouse_pos()[1], 2):>6}]"
+		pos_text = font.render(pos_msg, True, fg_color)
 		display.blit(pos_text, (2, 5))
 		font = pygame.font.SysFont('Courier', 16)
 		zoom_msg = f"({str(zoom)[:4].ljust(4, '0').strip('.')})"
@@ -231,17 +232,17 @@ def main():
 
 				if event.button == 4:  # mousewheel up
 					if zoom * ZOOM_MULT <= ZOOM_MAX:
-						oldtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
+						z_old_pos = true_mouse_pos()
 						zoom *= ZOOM_MULT
-						newtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
-						camera = [camera[0] + newtruepos[0] - oldtruepos[0], camera[1] + newtruepos[1] - oldtruepos[1]]
+						z_new_pos = true_mouse_pos()
+						camera = [camera[0] + z_new_pos[0] - z_old_pos[0], camera[1] + z_new_pos[1] - z_old_pos[1]]
 
 				if event.button == 5:  # mousewheel down
 					if zoom / ZOOM_MULT >= ZOOM_MIN:
-						oldtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
+						z_old_pos = true_mouse_pos()
 						zoom /= ZOOM_MULT
-						newtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
-						camera = [camera[0] + newtruepos[0] - oldtruepos[0], camera[1] + newtruepos[1] - oldtruepos[1]]
+						z_new_pos = true_mouse_pos()
+						camera = [camera[0] + z_new_pos[0] - z_old_pos[0], camera[1] + z_new_pos[1] - z_old_pos[1]]
 
 			elif event.type == pygame.MOUSEBUTTONUP:
 
@@ -268,6 +269,7 @@ def main():
 				move = False
 
 				if event.key == ord('b'):
+					# Toggle color scheme
 					if bg_color == BACKGROUND_GRAY:
 						bg_color = BACKGROUND_BLUE
 						bg_color_2 = BACKGROUND_BLUE_GRID
@@ -278,6 +280,7 @@ def main():
 						fg_color = BLACK
 
 				elif event.key == ord('h'):
+					# Toggle hitboxes
 					hitboxes = not hitboxes
 
 				elif event.key == ord('d'):
@@ -360,9 +363,16 @@ def main():
 						outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
 						print(f"Unexpected error:\n" + "\n".join([o for o in outputs if len(o) > 0]))
 				
-				elif event.key == ord("e") and not popup_active:
+				elif event.key == ord('e') and not popup_active:
 					# Popup window to edit properties
 					hl_objs = [o for o in selectable_objects() if o.highlighted]
+					if len(hl_objs) == 0:  # under cursor
+						clickarea = pygame.Rect(mouse_x, mouse_y, 1, 1)
+						for obj in reversed(selectable_objects()):
+							if obj.hitbox.colliderect(clickarea):
+								obj.highlighted = True
+								hl_objs.append(obj)
+								break
 					if len(hl_objs) == 1:
 						popup_edit_start_pos = deepcopy(hl_objs[0].pos)
 						values = [
@@ -399,9 +409,8 @@ def main():
 
 		# Move selection with mouse
 		if moving:
-			true_mouse_pos = [(mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])]
-			move_x = true_mouse_pos[0] - old_true_mouse_pos[0]
-			move_y = true_mouse_pos[1] - old_true_mouse_pos[1]
+			move_x = true_mouse_pos()[0] - old_true_mouse_pos[0]
+			move_y = true_mouse_pos()[1] - old_true_mouse_pos[1]
 			for obj in selectable_objects():
 				if obj.highlighted:
 					obj.pos["x"] += move_x
@@ -416,8 +425,7 @@ def main():
 									anchor.pos["x"] += move_x
 									anchor.pos["y"] += move_y
 
-		old_true_mouse_pos = [(mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])]
-
+		old_true_mouse_pos = true_mouse_pos()
 		hl_objs = [o for o in selectable_objects() if o.highlighted]
 		if popup_active and len(hl_objs) == 1:
 			obj = hl_objs[0]

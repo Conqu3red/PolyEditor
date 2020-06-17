@@ -9,6 +9,8 @@ import sys
 class Popup:
 	def __init__(self, values):
 		self.root = Tk()
+		self.root.overrideredirect(True)
+		self.root.geometry("150x62+300+200")
 		self.root.protocol("WM_DELETE_WINDOW", self.delete)
 		self.main_dialog = Frame(self.root)
 		self.values = values
