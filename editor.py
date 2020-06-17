@@ -20,8 +20,8 @@ from popup_windows import Popup
 BASE_SIZE = (1200, 600)
 FPS = 60
 ZOOM_MULT = 1.1
-ZOOM_MIN = 1.0
-ZOOM_MAX = 300.0
+ZOOM_MIN = 10.0
+ZOOM_MAX = 500.0
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 BACKGROUND_BLUE = (43, 70, 104)
@@ -230,6 +230,7 @@ def main():
 						zoom *= ZOOM_MULT
 						z_new_pos = true_mouse_pos()
 						camera = [camera[0] + z_new_pos[0] - z_old_pos[0], camera[1] + z_new_pos[1] - z_old_pos[1]]
+					else: zoom = ZOOM_MAX
 
 				if event.button == 5:  # mousewheel down
 					if zoom / ZOOM_MULT >= ZOOM_MIN:
@@ -237,6 +238,7 @@ def main():
 						zoom /= ZOOM_MULT
 						z_new_pos = true_mouse_pos()
 						camera = [camera[0] + z_new_pos[0] - z_old_pos[0], camera[1] + z_new_pos[1] - z_old_pos[1]]
+					else: zoom = ZOOM_MIN
 
 			elif event.type == pygame.MOUSEBUTTONUP:
 
