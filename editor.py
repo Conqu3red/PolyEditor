@@ -127,16 +127,17 @@ def main():
 
 	# Pygame loop
 	while True:
+
 		# Render background
 		display.fill(bg_color)
 		block_size = round(zoom)
 		line_width = g.scale(1, zoom)
 		shift = (round(camera[0] * zoom % block_size), round(camera[1] * zoom % block_size))
 		if block_size > 3:
-			for x in range(0, size[0], block_size):
-				pygame.draw.line(display, bg_color_2, (x+shift[0], 0), (x+shift[0], size[1]), line_width)
-			for y in range(0, size[1], block_size):
-				pygame.draw.line(display, bg_color_2, (0, y-shift[1]), (size[0], y-shift[1]), line_width)
+			for x in range(shift[0], size[0], block_size):
+				pygame.draw.line(display, bg_color_2, (x, 0), (x, size[1]), line_width)
+			for y in range(-shift[1], size[1], block_size):
+				pygame.draw.line(display, bg_color_2, (0, y), (size[0], y), line_width)
 
 		# Display mouse position and zoom
 		font = pygame.font.SysFont('Courier', 20)

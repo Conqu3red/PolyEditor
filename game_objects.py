@@ -292,7 +292,12 @@ class CustomShape(LayoutObject):
 			        round(zoom * PIN_RADIUS * 2))
 			pygame.draw.ellipse(display, STATIC_PIN_COLOR, rect)
 		if draw_hitbox:
-			pygame.draw.rect(display, HITBOX_COLOR, self.hitbox, 1)
+			pygame.draw.rect(display, HITBOX_COLOR, self.hitbox, scale(1, zoom))
+			center_width = scale(3, zoom)
+			center_rect = (round(zoom * (self.pos["x"] + camera[0]) - center_width / 2),
+			               round(zoom * -(self.pos["y"] + camera[1])),
+			               center_width, center_width)
+			pygame.draw.rect(display, HITBOX_COLOR, center_rect, center_width)
 		if self.highlighted:
 			pygame.draw.polygon(display, HIGHLIGHT_COLOR, points_pixels, scale(SHAPE_HIGHLIGHTED_WIDTH, zoom))
 
