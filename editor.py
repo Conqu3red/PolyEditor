@@ -9,6 +9,7 @@ import json
 from uuid import uuid4
 from copy import deepcopy
 from itertools import chain
+from time import sleep
 from os import getcwd, listdir
 from os.path import isfile, join as pathjoin, getmtime as lastmodified
 from subprocess import run
@@ -20,14 +21,14 @@ from popup_windows import Popup
 BASE_SIZE = (1200, 600)
 FPS = 60
 ZOOM_MULT = 1.1
-ZOOM_MIN = 1.0
-ZOOM_MAX = 300.0
+ZOOM_MIN = 2.0
+ZOOM_MAX = 400.0
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 BACKGROUND_BLUE = (43, 70, 104)
 BACKGROUND_BLUE_GRID = (38, 63, 94)
 BACKGROUND_GRAY = (162, 154, 194)
-BACKGROUND_GRAY_GRID =(178, 169, 211)
+BACKGROUND_GRAY_GRID = (178, 169, 211)
 
 try:  # when bundled as single executable
 	POLYCONVERTER = pathjoin(sys._MEIPASS, "PolyConverter.exe")
@@ -112,7 +113,6 @@ def main():
 	selecting_x, selecting_y = 0, 0
 	old_mouse_x, old_mouse_y = 0, 0
 	old_true_mouse_pos = [0, 0]
-	popup_edit_start_pos = None
 	bg_color = BACKGROUND_BLUE
 	bg_color_2 = BACKGROUND_BLUE_GRID
 	fg_color = WHITE
@@ -165,7 +165,7 @@ def main():
 		# Display controls
 		font_size = 16
 		font = pygame.font.SysFont('Courier', font_size, True)
-		help_msg = "Wheel: Zoom | LeftClick: Move/Pan | RightClick: Make selection | ShiftClick: Multiselect | S: Save + Quit | 0: Quit"
+		help_msg = "Wheel: Zoom | LeftClick: Move / Pan | RightClick: Make selection | ShiftClick: Multiselect | S: Save + Quit | 0: Quit"
 		help_text = font.render(help_msg, True, fg_color)
 		display.blit(help_text, (5, size[1] - font_size*2 - 5))
 		help_msg = "Arrows: Move | E: Precise Move | C: Copy selected | D: Delete selected | H: Toggle hitboxes | B: Toggle color scheme"
@@ -178,9 +178,9 @@ def main():
 		for water in water_blocks:
 			water.render(display, camera, zoom, fg_color)
 		for shape in custom_shapes:
-			shape.render(display, camera, zoom, hitboxes, fg_color)
+			shape.render(display, camera, zoom, hitboxes)
 		for pillar in pillars:
-			pillar.render(display, camera, zoom)
+			pillar.render(display, camera, zoom, hitboxes)
 		dyn_anc_ids = list(chain(*[shape.dynamic_anchor_ids for shape in custom_shapes]))
 		for anchor in anchors:
 			anchor.render(display, camera, zoom, dyn_anc_ids)
@@ -200,6 +200,9 @@ def main():
 
 			elif event.type == pygame.MOUSEBUTTONDOWN:
 				selecting_x, selecting_y = 0, 0
+				if popup_active:
+					popup.delete()
+					popup_active = False
 
 				if event.button == 1:  # left click
 					clickarea = pygame.Rect(event.pos[0], event.pos[1], 1, 1)
@@ -222,27 +225,23 @@ def main():
 				if event.button == 3:  # right click
 					selecting_x, selecting_y = event.pos
 					mouse_x, mouse_y = event.pos
-					if holding_shift():  # multiselect
-						clickarea = pygame.Rect(event.pos[0], event.pos[1], 1, 1)
-						for obj in reversed(selectable_objects()):
-							if obj.hitbox.colliderect(clickarea):
-								obj.highlighted = not obj.highlighted
-					else:
-						selecting = True
+					selecting = True
 
 				if event.button == 4:  # mousewheel up
-					if zoom * ZOOM_MULT <= ZOOM_MAX:
-						z_old_pos = true_mouse_pos()
-						zoom *= ZOOM_MULT
-						z_new_pos = true_mouse_pos()
-						camera = [camera[0] + z_new_pos[0] - z_old_pos[0], camera[1] + z_new_pos[1] - z_old_pos[1]]
+					z_old_pos = true_mouse_pos()
+					zoom *= ZOOM_MULT
+					if zoom > ZOOM_MAX:
+						zoom = ZOOM_MAX
+					z_new_pos = true_mouse_pos()
+					camera = [camera[0] + z_new_pos[0] - z_old_pos[0], camera[1] + z_new_pos[1] - z_old_pos[1]]
 
 				if event.button == 5:  # mousewheel down
-					if zoom / ZOOM_MULT >= ZOOM_MIN:
-						z_old_pos = true_mouse_pos()
-						zoom /= ZOOM_MULT
-						z_new_pos = true_mouse_pos()
-						camera = [camera[0] + z_new_pos[0] - z_old_pos[0], camera[1] + z_new_pos[1] - z_old_pos[1]]
+					z_old_pos = true_mouse_pos()
+					zoom /= ZOOM_MULT
+					if zoom < ZOOM_MIN:
+						zoom = ZOOM_MIN
+					z_new_pos = true_mouse_pos()
+					camera = [camera[0] + z_new_pos[0] - z_old_pos[0], camera[1] + z_new_pos[1] - z_old_pos[1]]
 
 			elif event.type == pygame.MOUSEBUTTONUP:
 
@@ -363,9 +362,15 @@ def main():
 						outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
 						print(f"Unexpected error:\n" + "\n".join([o for o in outputs if len(o) > 0]))
 				
-				elif event.key == ord('e') and not popup_active:
+				elif event.key == ord('e'):
 					# Popup window to edit properties
 					hl_objs = [o for o in selectable_objects() if o.highlighted]
+					if popup_active:  # remove previous
+						popup.delete()
+						popup_active = False
+						for obj in hl_objs:
+							obj.highlighted = False
+						hl_objs.clear()
 					if len(hl_objs) == 0:  # under cursor
 						clickarea = pygame.Rect(mouse_x, mouse_y, 1, 1)
 						for obj in reversed(selectable_objects()):
@@ -374,11 +379,11 @@ def main():
 								hl_objs.append(obj)
 								break
 					if len(hl_objs) == 1:
-						popup_edit_start_pos = deepcopy(hl_objs[0].pos)
+						popup_start_pos = deepcopy(hl_objs[0].pos)
 						values = [
-								["X", hl_objs[0].pos["x"]],
-								["Y", hl_objs[0].pos["y"]],
-								["Z", hl_objs[0].pos["z"]]
+								["X", popup_start_pos["x"]],
+								["Y", popup_start_pos["y"]],
+								["Z", popup_start_pos["z"]]
 							]
 						popup = Popup(values)
 						popup_active = True
@@ -405,7 +410,10 @@ def main():
 				pygame.Rect(selecting_x, selecting_y, mouse_x - selecting_x, mouse_y - selecting_y),
 				g.scale(1, zoom))
 			for obj in selectable_objects():
-				obj.highlighted = obj.hitbox.colliderect(select_box)
+				if not holding_shift():
+					obj.highlighted = obj.hitbox.colliderect(select_box)
+				elif obj.hitbox.colliderect(select_box):  # multiselect
+					obj.highlighted = True
 
 		# Move selection with mouse
 		if moving:
@@ -430,17 +438,28 @@ def main():
 		if popup_active and len(hl_objs) == 1:
 			obj = hl_objs[0]
 			try:
-				popup.update()
-				popup_edit_start_pos = deepcopy(obj.pos)
+				# It drops most inputs when update is called just once (60 fps)
+				# Calling it a lot of times reduces the dropped inputs, but it's still not perfect
+				# Honestly, everything about tkinter is completely garbage
+				for i in range(round(1000/FPS)):
+					popup.update()
+					sleep(0.001)
 				x = float(popup.get(1, 0))
 				y = float(popup.get(1, 1))
 				z = float(popup.get(1, 2))
-				if x > 100000 or y > 100000 or z > 100000 or x < -10000 or y < -10000 or z < -10000:
+				if abs(x) > 100000 or abs(y) > 100000 or abs(z) > 1000:
 					raise ValueError()
-				obj.pos = {"x": x, "y": y, "z": z}
+				x_change, y_change, z_change = x - obj.pos["x"], y - obj.pos["y"], z - obj.pos["z"]
+				if abs(x_change) < 0.0001:  # prevent rounding-based microchanges
+					x_change = 0
+				if abs(y_change) < 0.0001:
+					y_change = 0
+				if abs(z_change) < 0.0001:
+					z_change = 0
+				obj.pos["x"] += x_change
+				obj.pos["y"] += y_change
+				obj.pos["z"] += z_change
 				if type(obj) is g.CustomShape:
-					x_change = obj.pos["x"] - popup_edit_start_pos["x"]
-					y_change = obj.pos["y"] - popup_edit_start_pos["y"]
 					for pin in obj.static_pins:
 						pin["x"] += x_change
 						pin["y"] += y_change
