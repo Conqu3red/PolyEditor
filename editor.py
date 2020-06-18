@@ -121,6 +121,7 @@ def main():
 	selecting_x, selecting_y = 0, 0
 	old_mouse_x, old_mouse_y = 0, 0
 	old_true_mouse_pos = [0, 0]
+	dragndrop_pos = [0, 0]
 	bg_color = BACKGROUND_BLUE
 	bg_color_2 = BACKGROUND_BLUE_GRID
 	fg_color = WHITE
@@ -178,6 +179,7 @@ def main():
 								break
 							if not holding_shift():
 								moving = True
+								dragndrop_pos = true_mouse_pos() if not obj.highlighted else None
 							if not obj.highlighted:
 								if not holding_shift():  # clear other selections
 									for o in selectable_objects():
@@ -188,6 +190,7 @@ def main():
 							break
 					if not (moving or point_moving):
 						dragging = True
+						dragndrop_pos = true_mouse_pos()
 					old_mouse_x, old_mouse_y = event.pos
 
 				if event.button == 3:  # right click
@@ -215,15 +218,18 @@ def main():
 			elif event.type == pygame.MOUSEBUTTONUP:
 
 				if event.button == 1:  # left click
-					dragging = False
-					moving = False
-					hl_objs = [o for o in selectable_objects() if o.highlighted]
 					if point_moving:
 						selected_shape.selected_points = []
 						selected_shape = None
 						point_moving = False
-					if len(hl_objs) == 1 and not holding_shift():  # "drop" object
-						hl_objs[0].highlighted = False
+					if not holding_shift() and dragndrop_pos is not None and\
+							((not dragging and dragndrop_pos != true_mouse_pos())
+							 or (dragging and dragndrop_pos == true_mouse_pos())):
+						hl_objs = [o for o in selectable_objects() if o.highlighted]
+						if len(hl_objs) == 1:
+							hl_objs[0].highlighted = False
+					dragging = False
+					moving = False
 
 				if event.button == 3:  # right click
 					selecting = False
