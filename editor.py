@@ -372,19 +372,21 @@ def main():
 
 				# Move selection with keys
 				if move:
-					for obj in selectable_objects():
-						if obj.highlighted:
-							obj.pos["x"] += move_x
-							obj.pos["y"] += move_y
-							if type(obj) is g.CustomShape:
-								for pin in obj.static_pins:
-									pin["x"] += move_x
-									pin["y"] += move_y
-								for dyn_anc_id in obj.dynamic_anchor_ids:
-									for anchor in anchors:
-										if anchor.id == dyn_anc_id:
-											anchor.pos["x"] += move_x
-											anchor.pos["y"] += move_y
+					hl_objs = [o for o in selectable_objects() if o.highlighted]
+					if len(hl_objs) == 0:
+						camera = (camera[0] - move_x, camera[1] - move_y)
+					for obj in hl_objs:
+						obj.pos["x"] += move_x
+						obj.pos["y"] += move_y
+						if type(obj) is g.CustomShape:
+							for pin in obj.static_pins:
+								pin["x"] += move_x
+								pin["y"] += move_y
+							for dyn_anc_id in obj.dynamic_anchor_ids:
+								for anchor in anchors:
+									if anchor.id == dyn_anc_id:
+										anchor.pos["x"] += move_x
+										anchor.pos["y"] += move_y
 
 		# Render background
 		display.fill(bg_color)
