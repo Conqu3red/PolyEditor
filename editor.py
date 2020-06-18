@@ -14,6 +14,8 @@ from os import getcwd, listdir
 from os.path import isfile, join as pathjoin, getmtime as lastmodified
 from subprocess import run
 from tkinter import TclError
+import PySimpleGUI as sg
+
 
 import game_objects as g
 from popup_windows import Popup
@@ -190,7 +192,7 @@ def main():
 
 			if event.type == pygame.QUIT:
 				if popup is not None:
-					popup.delete()
+					popup.window.close()
 				pygame.quit()
 				return
 
@@ -201,7 +203,7 @@ def main():
 			elif event.type == pygame.MOUSEBUTTONDOWN:
 				selecting_x, selecting_y = 0, 0
 				if popup_active:
-					popup.delete()
+					popup.window.close()
 					popup_active = False
 
 				if event.button == 1:  # left click
@@ -366,7 +368,7 @@ def main():
 					# Popup window to edit properties
 					hl_objs = [o for o in selectable_objects() if o.highlighted]
 					if popup_active:  # remove previous
-						popup.delete()
+						popup.window.close()
 						popup_active = False
 						for obj in hl_objs:
 							obj.highlighted = False
@@ -441,12 +443,16 @@ def main():
 				# It drops most inputs when update is called just once (60 fps)
 				# Calling it a lot of times reduces the dropped inputs, but it's still not perfect
 				# Honestly, everything about tkinter is completely garbage
-				for i in range(round(1000/FPS)):
-					popup.update()
-					sleep(0.001)
-				x = float(popup.get(1, 0))
-				y = float(popup.get(1, 1))
-				z = float(popup.get(1, 2))
+				gui_evnt, values = popup.window.read(timeout=100)
+				if gui_evnt == sg.WIN_CLOSED or gui_evnt == 'Exit':
+					popup.window.close()
+					popup_active = False
+				print(values)
+
+				
+				x = float(values[0])
+				y = float(values[1])
+				z = float(values[2])
 				if abs(x) > 100000 or abs(y) > 100000 or abs(z) > 1000:
 					raise ValueError()
 				x_change, y_change, z_change = x - obj.pos["x"], y - obj.pos["y"], z - obj.pos["z"]
@@ -470,11 +476,6 @@ def main():
 								anchor.pos["y"] += y_change
 			except ValueError:  # invalid position
 				pass
-			except TclError:  # destroyed
-				pass
-		elif popup_active:
-			popup_active = False
-			popup.delete()
 
 		pygame.display.flip()
 		clock.tick(FPS)
