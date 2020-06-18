@@ -22,7 +22,6 @@ from popup_windows import Popup
 BASE_SIZE = (1200, 600)
 FPS = 60
 ZOOM_MULT = 1.1
-ZOOM_INCR = 1
 ZOOM_MIN = 4
 ZOOM_MAX = 400
 WHITE = (255, 255, 255)
@@ -200,20 +199,26 @@ def main():
 						selecting = True
 
 				if event.button == 4:  # mousewheel up
-					z_old_pos = true_mouse_pos()
-					zoom = round(zoom * ZOOM_MULT if not holding_shift() else zoom + ZOOM_INCR)
+					old_pos = true_mouse_pos()
+					if not holding_shift() and round(zoom * (ZOOM_MULT - 1)) >= 1:
+						zoom = round(zoom * ZOOM_MULT)
+					else:
+						zoom += 1
 					if zoom > ZOOM_MAX:
 						zoom = ZOOM_MAX
-					z_new_pos = true_mouse_pos()
-					camera = [camera[i] + z_new_pos[i] - z_old_pos[i] for i in range(2)]
+					new_pos = true_mouse_pos()
+					camera = [camera[i] + new_pos[i] - old_pos[i] for i in range(2)]
 
 				if event.button == 5:  # mousewheel down
-					z_old_pos = true_mouse_pos()
-					zoom = round(zoom / ZOOM_MULT if not holding_shift() else zoom - ZOOM_INCR)
+					old_pos = true_mouse_pos()
+					if not holding_shift() and round(zoom / (ZOOM_MULT - 1)) >= 1:
+						zoom = round(zoom / ZOOM_MULT)
+					else:
+						zoom -= 1
 					if zoom < ZOOM_MIN:
 						zoom = ZOOM_MIN
-					z_new_pos = true_mouse_pos()
-					camera = [camera[i] + z_new_pos[i] - z_old_pos[i] for i in range(2)]
+					new_pos = true_mouse_pos()
+					camera = [camera[i] + new_pos[i] - old_pos[i] for i in range(2)]
 
 			elif event.type == pygame.MOUSEBUTTONUP:
 
@@ -390,14 +395,13 @@ def main():
 
 		# Render background
 		display.fill(bg_color)
-		block_size = round(zoom)
+		block_size = zoom
 		line_width = g.scale(1, zoom)
 		shift = (round(camera[0] * zoom % block_size), round(camera[1] * zoom % block_size))
-		if block_size > 3:
-			for x in range(shift[0], size[0], block_size):
-				pygame.draw.line(display, bg_color_2, (x, 0), (x, size[1]), line_width)
-			for y in range(-shift[1], size[1], block_size):
-				pygame.draw.line(display, bg_color_2, (0, y), (size[0], y), line_width)
+		for x in range(shift[0], size[0], block_size):
+			pygame.draw.line(display, bg_color_2, (x, 0), (x, size[1]), line_width)
+		for y in range(-shift[1], size[1], block_size):
+			pygame.draw.line(display, bg_color_2, (0, y), (size[0], y), line_width)
 
 		# Selecting shapes
 		if selecting:
