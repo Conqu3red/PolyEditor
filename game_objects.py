@@ -293,12 +293,21 @@ class CustomShape(LayoutObject):
 		self.selected_points = []
 		self.point_hitboxes = []
 
-	def render(self, display, camera, zoom, draw_hitbox, draw_points):
+	def render(self, display, camera, zoom, draw_hitbox, point_mode):
 		# Check for display size change, if so, change hitbox surface
 		global HITBOX_SURFACE
 		if display.get_size() != HITBOX_SURFACE.get_size():
 			print("Display size changed, changing hitbox surface to match.")
 			HITBOX_SURFACE = pygame.Surface(display.get_size(), pygame.SRCALPHA, 32)
+
+		# move point if a point is selected
+		if self.selected_points:
+			for i, point in enumerate(self.points):
+				if (self.selected_points[i]):
+					_newpoints = list(self.points)
+					_newpoints[i] = tuple(map(float.__add__, point, point_mode["mouse_change"]))
+					self.points = tuple(_newpoints)
+					break
 
 		# Add base position and adjust for the camera position
 		points_pixels = [[round(zoom * (self.pos["x"] + point[0] + camera[0])),
@@ -307,7 +316,7 @@ class CustomShape(LayoutObject):
 
 		self.hitbox = pygame.draw.polygon(HITBOX_SURFACE, 0, points_pixels, 1)
 		pygame.gfxdraw.filled_polygon(display, points_pixels, self.color)
-		pygame.gfxdraw.aapolygon(display, points_pixels, self.color)
+		if not self.highlighted: pygame.gfxdraw.aapolygon(display, points_pixels, self.color)
 
 		# Draw static pins
 		for pin in self.static_pins:
@@ -317,7 +326,7 @@ class CustomShape(LayoutObject):
 			pygame.gfxdraw.aacircle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
 			pygame.gfxdraw.filled_circle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
 		if draw_hitbox:
-			pygame.draw.rect(display, HITBOX_COLOR, self.hitbox, scale(HITBOX_LINE_WIDTH, zoom))
+			pygame.draw.rect(display, HITBOX_COLOR, self.hitbox, 1)
 			center_width = scale(HITBOX_CENTER_WIDTH, zoom)
 			center_start = (round(zoom * (self.pos["x"] + camera[0]) - center_width / 2),
 			                round(zoom * -(self.pos["y"] + camera[1])))
@@ -326,7 +335,7 @@ class CustomShape(LayoutObject):
 		if self.highlighted:
 			pygame.gfxdraw.aapolygon(display, points_pixels, HIGHLIGHT_COLOR)
 		self.point_hitboxes = []
-		if draw_points:
+		if point_mode["draw_points"]:
 			self.check_box = deepcopy(self.hitbox)
 			self.check_box.size = (self.hitbox.width + round(zoom * PIN_RADIUS), self.hitbox.height + round(zoom * PIN_RADIUS))
 			self.check_box.x -= round(zoom * PIN_RADIUS / 2)
@@ -334,12 +343,13 @@ class CustomShape(LayoutObject):
 			for i, point in enumerate(points_pixels):
 				self.point_hitboxes.append(pygame.draw.circle(HITBOX_SURFACE, 0, point, round(zoom * PIN_RADIUS / 2), 0))
 				if (len(self.selected_points) < len(self.point_hitboxes)): self.selected_points = [0 for p in self.point_hitboxes]
+				divisor = 1.7 if self.point_hitboxes[i].collidepoint(point_mode["mouse_pos"]) else 2
 				if (self.selected_points[i]):
-					pygame.gfxdraw.aacircle(display, point[0], point[1], round(zoom * PIN_RADIUS / 2), HIGHLIGHT_COLOR)
-					pygame.gfxdraw.filled_circle(display, point[0], point[1], round(zoom * PIN_RADIUS / 2), HIGHLIGHT_COLOR)
+					pygame.gfxdraw.aacircle(display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), HIGHLIGHT_COLOR)
+					pygame.gfxdraw.filled_circle(display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), HIGHLIGHT_COLOR)
 				else:
-					pygame.gfxdraw.aacircle(display, point[0], point[1], round(zoom * PIN_RADIUS / 2), POINT_COLOR)
-					pygame.gfxdraw.filled_circle(display, point[0], point[1], round(zoom * PIN_RADIUS / 2), POINT_COLOR)
+					pygame.gfxdraw.aacircle(display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), POINT_COLOR)
+					pygame.gfxdraw.filled_circle(display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), POINT_COLOR)
 		else: self.check_box = self.hitbox
 
 	@property
