@@ -503,11 +503,11 @@ def main():
 		# Display controls
 		font_size = 16
 		font = pygame.font.SysFont('Courier', font_size, True)
-		help_msg = "Wheel: Zoom | LeftClick: Move / Pan | RightClick: Make selection | " \
-		           "ShiftClick: Multiselect | S: Save + Quit | 0: Quit"
+		help_msg = "LeftClick: Move / Pan | RightClick: Select | " \
+		           "ShiftClick: Multi-select | Arrows: Move | S: Save + Quit | 0: Quit"
 		help_text = font.render(help_msg, True, fg_color)
 		display.blit(help_text, (5, size[1] - font_size*2 - 5))
-		help_msg = "Arrows: Move | E: Precise Move | C: Copy selected | D: Delete selected | " \
+		help_msg = "P: Edit points | E: Edit object | C: Copy selected | D: Delete selected | " \
 		           "H: Toggle hitboxes | B: Toggle color scheme"
 		help_text = font.render(help_msg, True, fg_color)
 		display.blit(help_text, (5, size[1] - font_size - 5))
