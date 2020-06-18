@@ -379,7 +379,7 @@ def main():
 				if move:
 					hl_objs = [o for o in selectable_objects() if o.highlighted]
 					if len(hl_objs) == 0:
-						camera = (camera[0] - move_x, camera[1] - move_y)
+						camera = [camera[0] - move_x, camera[1] - move_y]
 					for obj in hl_objs:
 						obj.pos["x"] += move_x
 						obj.pos["y"] += move_y
