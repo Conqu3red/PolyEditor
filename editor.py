@@ -117,11 +117,11 @@ def main():
 	delete_points = False
 	selected_shape = None
 
-	mouse_x, mouse_y = 0, 0
-	selecting_x, selecting_y = 0, 0
-	old_mouse_x, old_mouse_y = 0, 0
-	old_true_mouse_pos = [0, 0]
-	dragndrop_pos = [0, 0]
+	mouse_pos = (0, 0)
+	old_mouse_pos = (0, 0)
+	old_true_mouse_pos = (0, 0)
+	selecting_pos = (0, 0)
+	dragndrop_pos = (0, 0)
 	bg_color = BACKGROUND_BLUE
 	bg_color_2 = BACKGROUND_BLUE_GRID
 	fg_color = WHITE
@@ -136,7 +136,7 @@ def main():
 
 	selectable_objects = lambda: tuple(chain(custom_shapes, pillars))
 	holding_shift = lambda: pygame.key.get_mods() & pygame.KMOD_SHIFT
-	true_mouse_pos = lambda: (mouse_x / zoom - camera[0], -mouse_y / zoom - camera[1])
+	true_mouse_pos = lambda: (mouse_pos[0] / zoom - camera[0], -mouse_pos[1] / zoom - camera[1])
 
 	display = pygame.display.set_mode(size, pygame.RESIZABLE)
 	pygame.display.set_caption("PolyEditor")
@@ -160,7 +160,6 @@ def main():
 				g.HITBOX_SURFACE = pygame.Surface(event.size, pygame.SRCALPHA, 32)
 
 			elif event.type == pygame.MOUSEBUTTONDOWN:
-				selecting_x, selecting_y = 0, 0
 				if popup_active:
 					popup.window.close()
 					popup_active = False
@@ -191,11 +190,11 @@ def main():
 					if not (moving or point_moving):
 						dragging = True
 						dragndrop_pos = true_mouse_pos()
-					old_mouse_x, old_mouse_y = event.pos
+					old_mouse_pos = event.pos
 
 				if event.button == 3:  # right click
-					selecting_x, selecting_y = event.pos
-					mouse_x, mouse_y = event.pos
+					mouse_pos = event.pos
+					selecting_pos = event.pos
 					if not point_moving or moving:
 						selecting = True
 
@@ -233,14 +232,13 @@ def main():
 
 				if event.button == 3:  # right click
 					selecting = False
-					selecting_x, selecting_y = 0, 0
 
 			elif event.type == pygame.MOUSEMOTION:
-				mouse_x, mouse_y = event.pos
+				mouse_pos = event.pos
 				if dragging:
-					camera[0] = camera[0] + (mouse_x - old_mouse_x) / zoom
-					camera[1] = camera[1] - (mouse_y - old_mouse_y) / zoom
-					old_mouse_x, old_mouse_y = mouse_x, mouse_y
+					camera[0] = camera[0] + (mouse_pos[0] - old_mouse_pos[0]) / zoom
+					camera[1] = camera[1] - (mouse_pos[1] - old_mouse_pos[1]) / zoom
+					old_mouse_pos = mouse_pos
 
 			elif event.type == pygame.KEYDOWN:
 				move_x, move_y = 0, 0
@@ -355,7 +353,7 @@ def main():
 							obj.highlighted = False
 						hl_objs.clear()
 					if len(hl_objs) == 0:  # under cursor
-						clickarea = pygame.Rect(mouse_x, mouse_y, 1, 1)
+						clickarea = pygame.Rect(mouse_pos[0], mouse_pos[1], 1, 1)
 						for obj in reversed(selectable_objects()):
 							if obj.hitbox.colliderect(clickarea):
 								obj.highlighted = True
@@ -400,9 +398,9 @@ def main():
 
 		# Selecting shapes
 		if selecting:
-			select_box = pygame.draw.rect(display, g.HITBOX_COLOR,
-				pygame.Rect(selecting_x, selecting_y, mouse_x - selecting_x, mouse_y - selecting_y),
-				g.HITBOX_LINE_WIDTH)
+			select_box = pygame.draw.rect(display, g.SELECT_COLOR,
+				pygame.Rect(selecting_pos[0], selecting_pos[1],
+				            mouse_pos[0] - selecting_pos[0], mouse_pos[1] - selecting_pos[1]), 1)
 			for obj in selectable_objects():
 				if not holding_shift():
 					obj.highlighted = obj.hitbox.colliderect(select_box)
@@ -471,7 +469,7 @@ def main():
 			terrain.render(display, camera, zoom, fg_color)
 		for water in water_blocks:
 			water.render(display, camera, zoom, fg_color)
-		point_mode = g.PointMode(draw_points, delete_points, add_points, (mouse_x, mouse_y), true_mouse_change)
+		point_mode = g.PointMode(draw_points, delete_points, add_points, mouse_pos, true_mouse_change)
 		for shape in custom_shapes:
 			shape.render(display, camera, zoom, hitboxes, point_mode)
 		for pillar in pillars:

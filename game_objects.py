@@ -5,13 +5,15 @@ from copy import deepcopy
 from operator import add, sub
 from editor import BASE_SIZE
 
+# Dummy surface to get hitboxes from by calling draw. Probably should find a better solution.
+HITBOX_SURFACE = pygame.Surface(BASE_SIZE, pygame.SRCALPHA, 32)
+
 HIGHLIGHT_COLOR = (255, 255, 0)
-HITBOX_COLOR = (0, 255, 0)
+SELECT_COLOR = (0, 255, 0)
+HITBOX_COLOR = (255, 0, 255)
 POINT_COLOR = (255, 255, 255)
-HITBOX_LINE_WIDTH = 1
 HITBOX_CENTER_WIDTH = 3
 SHAPE_HIGHLIGHTED_WIDTH = 2
-HITBOX_SURFACE = pygame.Surface(BASE_SIZE, pygame.SRCALPHA, 32)
 
 ANCHOR_RADIUS = 0.16
 ANCHOR_COLOR = (235, 0, 50)
@@ -262,7 +264,7 @@ class Pillar(LayoutObject):
 			pygame.draw.rect(surf, PILLAR_BORDER, (0, 0, rect[2], rect[3]), scale(PILLAR_BORDER_WIDTH, zoom))
 		display.blit(surf, (rect[0], rect[1]))
 		if draw_hitbox:
-			pygame.draw.rect(display, HITBOX_COLOR, self.hitbox, scale(HITBOX_LINE_WIDTH, zoom))
+			pygame.draw.rect(display, HITBOX_COLOR, self.hitbox, 1)
 			center_width = scale(HITBOX_CENTER_WIDTH, zoom)
 			center_start = (round(zoom * (self.pos["x"] + camera[0]) - center_width / 2),
 							round(zoom * -(self.pos["y"] + camera[1])))
