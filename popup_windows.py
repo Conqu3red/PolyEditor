@@ -36,4 +36,5 @@ class Popup:
 
 	def update(self):
 		self.main_dialog.update()
+		self.main_dialog.update_idletasks()
 		self.root.lift()
