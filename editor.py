@@ -9,24 +9,27 @@ import json
 from uuid import uuid4
 from copy import deepcopy
 from itertools import chain
+from time import sleep
 from os import getcwd, listdir
 from os.path import isfile, join as pathjoin, getmtime as lastmodified
 from subprocess import run
-
+from tkinter import TclError
+import PySimpleGUI as sg
 
 import game_objects as g
 from popup_windows import Popup
 
 BASE_SIZE = (1200, 600)
+FPS = 60
 ZOOM_MULT = 1.1
-ZOOM_MIN = 1.0
-ZOOM_MAX = 300.0
+ZOOM_MIN = 2.0
+ZOOM_MAX = 400.0
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 BACKGROUND_BLUE = (43, 70, 104)
 BACKGROUND_BLUE_GRID = (38, 63, 94)
 BACKGROUND_GRAY = (162, 154, 194)
-BACKGROUND_GRAY_GRID =(178, 169, 211)
+BACKGROUND_GRAY_GRID = (178, 169, 211)
 
 try:  # when bundled as single executable
 	POLYCONVERTER = pathjoin(sys._MEIPASS, "PolyConverter.exe")
@@ -97,13 +100,12 @@ def main():
 
 	print(f"[>] Opening {leveltoedit} in the editor")
 
-
-	popup_active = False
 	size = BASE_SIZE
-	fps = 60
 	zoom = 20.0
 	camera = [size[0] / zoom / 2, -(size[1] / zoom / 2 + 5)]
 	clock = pygame.time.Clock()
+	popup = None
+	popup_active = False
 	hitboxes = False
 	dragging = False
 	selecting = False
@@ -111,7 +113,7 @@ def main():
 	mouse_x, mouse_y = 0, 0
 	selecting_x, selecting_y = 0, 0
 	old_mouse_x, old_mouse_y = 0, 0
-	old_true_mouse_pos = [0, 0]  # TODO: Merge functionality with old_mouse_xy or rename them to something clearer
+	old_true_mouse_pos = [0, 0]
 	bg_color = BACKGROUND_BLUE
 	bg_color_2 = BACKGROUND_BLUE_GRID
 	fg_color = WHITE
@@ -121,12 +123,12 @@ def main():
 	pillars = g.LayoutList(g.Pillar, layout)
 	anchors = g.LayoutList(g.Anchor, layout)
 	custom_shapes = g.LayoutList(g.CustomShape, layout)
-
-
+	object_lists = {objs.list_name: objs for objs in
+	               [terrain_stretches, water_blocks, pillars, anchors, custom_shapes]}
 
 	selectable_objects = lambda: tuple(chain(custom_shapes, pillars))
 	holding_shift = lambda: pygame.key.get_mods() & pygame.KMOD_SHIFT
-
+	true_mouse_pos = lambda: (mouse_x / zoom - camera[0], -mouse_y / zoom - camera[1])
 
 	display = pygame.display.set_mode(size, pygame.RESIZABLE)
 	pygame.display.set_caption("PolyEditor")
@@ -146,23 +148,28 @@ def main():
 			for y in range(-shift[1], size[1], block_size):
 				pygame.draw.line(display, bg_color_2, (0, y), (size[0], y), line_width)
 
-		# Display mouse position and zoom
+		# Display mouse position, zoom and fps
 		font = pygame.font.SysFont('Courier', 20)
-		true_mouse = (mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])
-		pos_text = font.render(f"[{round(true_mouse[0], 2):>6},{round(true_mouse[1], 2):>6}]", True, fg_color)
+		pos_msg = f"[{round(true_mouse_pos()[0], 2):>6},{round(true_mouse_pos()[1], 2):>6}]"
+		pos_text = font.render(pos_msg, True, fg_color)
 		display.blit(pos_text, (2, 5))
+		font = pygame.font.SysFont('Courier', 16)
 		zoom_msg = f"({str(zoom)[:4].ljust(4, '0').strip('.')})"
 		zoom_size = font.size(zoom_msg)
 		zoom_text = font.render(zoom_msg, True, fg_color)
-		display.blit(zoom_text, (size[0] - zoom_size[0] - 2, 5))
+		display.blit(zoom_text, (round(size[0] / 2 - zoom_size[0] / 2), 5))
+		fps_msg = str(round(clock.get_fps())).rjust(2)
+		fps_size = font.size(fps_msg)
+		fps_text = font.render(fps_msg, True, fg_color)
+		display.blit(fps_text, (size[0] - fps_size[0] - 5, 5))
 
 		# Display controls
 		font_size = 16
 		font = pygame.font.SysFont('Courier', font_size, True)
-		help_msg = "Wheel: Zoom | LeftClick: Move/Pan | RightClick: Make selection | ShiftClick: Multiselect | S: Save + Quit | 0: Quit"
+		help_msg = "Wheel: Zoom | LeftClick: Move / Pan | RightClick: Make selection | ShiftClick: Multiselect | S: Save + Quit | 0: Quit"
 		help_text = font.render(help_msg, True, fg_color)
 		display.blit(help_text, (5, size[1] - font_size*2 - 5))
-		help_msg = "Arrows: Move selected | C: Copy selected | D: Delete selected | H: Toggle hitboxes | B: Toggle color scheme"
+		help_msg = "Arrows: Move | E: Precise Move | C: Copy selected | D: Delete selected | H: Toggle hitboxes | B: Toggle color scheme"
 		help_text = font.render(help_msg, True, fg_color)
 		display.blit(help_text, (5, size[1] - font_size - 5))
 
@@ -172,9 +179,9 @@ def main():
 		for water in water_blocks:
 			water.render(display, camera, zoom, fg_color)
 		for shape in custom_shapes:
-			shape.render(display, camera, zoom, hitboxes, fg_color)
+			shape.render(display, camera, zoom, hitboxes)
 		for pillar in pillars:
-			pillar.render(display, camera, zoom)
+			pillar.render(display, camera, zoom, hitboxes)
 		dyn_anc_ids = list(chain(*[shape.dynamic_anchor_ids for shape in custom_shapes]))
 		for anchor in anchors:
 			anchor.render(display, camera, zoom, dyn_anc_ids)
@@ -183,6 +190,8 @@ def main():
 		for event in pygame.event.get():
 
 			if event.type == pygame.QUIT:
+				if popup is not None:
+					popup.window.close()
 				pygame.quit()
 				return
 
@@ -192,6 +201,9 @@ def main():
 
 			elif event.type == pygame.MOUSEBUTTONDOWN:
 				selecting_x, selecting_y = 0, 0
+				if popup_active:
+					popup.window.close()
+					popup_active = False
 
 				if event.button == 1:  # left click
 					clickarea = pygame.Rect(event.pos[0], event.pos[1], 1, 1)
@@ -214,34 +226,30 @@ def main():
 				if event.button == 3:  # right click
 					selecting_x, selecting_y = event.pos
 					mouse_x, mouse_y = event.pos
-					if holding_shift():  # multiselect
-						clickarea = pygame.Rect(event.pos[0], event.pos[1], 1, 1)
-						for obj in reversed(selectable_objects()):
-							if obj.hitbox.colliderect(clickarea):
-								obj.highlighted = not obj.highlighted
-					else:
-						selecting = True
+					selecting = True
 
 				if event.button == 4:  # mousewheel up
-					if zoom * ZOOM_MULT <= ZOOM_MAX:
-						oldtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
-						zoom *= ZOOM_MULT
-						newtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
-						camera = [camera[0] + newtruepos[0] - oldtruepos[0], camera[1] + newtruepos[1] - oldtruepos[1]]
+					z_old_pos = true_mouse_pos()
+					zoom *= ZOOM_MULT
+					if zoom > ZOOM_MAX:
+						zoom = ZOOM_MAX
+					z_new_pos = true_mouse_pos()
+					camera = [camera[0] + z_new_pos[0] - z_old_pos[0], camera[1] + z_new_pos[1] - z_old_pos[1]]
 
 				if event.button == 5:  # mousewheel down
-					if zoom / ZOOM_MULT >= ZOOM_MIN:
-						oldtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
-						zoom /= ZOOM_MULT
-						newtruepos = [event.pos[0]/zoom - camera[0], -(event.pos[1]/zoom - camera[1])]
-						camera = [camera[0] + newtruepos[0] - oldtruepos[0], camera[1] + newtruepos[1] - oldtruepos[1]]
+					z_old_pos = true_mouse_pos()
+					zoom /= ZOOM_MULT
+					if zoom < ZOOM_MIN:
+						zoom = ZOOM_MIN
+					z_new_pos = true_mouse_pos()
+					camera = [camera[0] + z_new_pos[0] - z_old_pos[0], camera[1] + z_new_pos[1] - z_old_pos[1]]
 
 			elif event.type == pygame.MOUSEBUTTONUP:
 
 				if event.button == 1:  # left click
 					dragging = False
 					moving = False
-					hl_objs = [o for o in chain(custom_shapes, pillars) if o.highlighted]
+					hl_objs = [o for o in selectable_objects() if o.highlighted]
 					if len(hl_objs) == 1 and not holding_shift():  # "drop" object
 						hl_objs[0].highlighted = False
 
@@ -261,6 +269,7 @@ def main():
 				move = False
 
 				if event.key == ord('b'):
+					# Toggle color scheme
 					if bg_color == BACKGROUND_GRAY:
 						bg_color = BACKGROUND_BLUE
 						bg_color_2 = BACKGROUND_BLUE_GRID
@@ -271,21 +280,18 @@ def main():
 						fg_color = BLACK
 
 				elif event.key == ord('h'):
+					# Toggle hitboxes
 					hitboxes = not hitboxes
 
 				elif event.key == ord('d'):
 					# Delete selected
 					for obj in [o for o in selectable_objects() if o.highlighted]:
-						if type(obj) is g.Pillar:
-							pillars.remove(obj)
-						elif type(obj) is g.CustomShape:
-							custom_shapes.remove(obj)
+						if type(obj) is g.CustomShape:
 							for dyn_anc_id in obj.dynamic_anchor_ids:
 								for anchor in [a for a in anchors]:
 									if anchor.id == dyn_anc_id:
 										anchors.remove(anchor)
-						else:
-							raise NotImplementedError(f"Deleting {type(obj).__name__}")
+						object_lists[obj.list_name].remove(obj)
 
 				elif event.key == pygame.K_LEFT:
 					move_x = -1
@@ -310,9 +316,7 @@ def main():
 						old_obj.highlighted = False
 						new_obj.pos["x"] += 1
 						new_obj.pos["y"] -= 1
-						if type(new_obj) is g.Pillar:
-							pillars.append(new_obj)
-						elif type(new_obj) is g.CustomShape:
+						if type(new_obj) is g.CustomShape:
 							new_obj.dynamic_anchor_ids = [str(uuid4()) for _ in old_obj.dynamic_anchor_ids]
 							for i in range(len(new_obj.dynamic_anchor_ids)):
 								for anchor in [a for a in anchors if a.id == old_obj.dynamic_anchor_ids[i]]:
@@ -327,9 +331,7 @@ def main():
 									if anchor.id == dyn_anc_id:
 										anchor.pos["x"] += 1
 										anchor.pos["y"] -= 1
-							custom_shapes.append(new_obj)
-						else:
-							raise NotImplementedError(f"Copying {type(new_obj).__name__}")
+						object_lists[new_obj.list_name].append(new_obj)
 
 				elif event.key == ord('0'):
 					pygame.quit()
@@ -361,20 +363,31 @@ def main():
 						outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
 						print(f"Unexpected error:\n" + "\n".join([o for o in outputs if len(o) > 0]))
 				
-				elif event.key == ord("e") and not popup_active:
-					highlighted = [shape for shape in custom_shapes if shape.highlighted]
-					print(len(highlighted))
-					if len(highlighted) == 1:
-						start_position = deepcopy(highlighted[0]).position
+				elif event.key == ord('e'):
+					# Popup window to edit properties
+					hl_objs = [o for o in selectable_objects() if o.highlighted]
+					if popup_active:  # remove previous
+						popup.window.close()
+						popup_active = False
+						for obj in hl_objs:
+							obj.highlighted = False
+						hl_objs.clear()
+					if len(hl_objs) == 0:  # under cursor
+						clickarea = pygame.Rect(mouse_x, mouse_y, 1, 1)
+						for obj in reversed(selectable_objects()):
+							if obj.hitbox.colliderect(clickarea):
+								obj.highlighted = True
+								hl_objs.append(obj)
+								break
+					if len(hl_objs) == 1:
+						popup_start_pos = deepcopy(hl_objs[0].pos)
 						values = [
-								["X",highlighted[0].position["x"]],
-								["Y",highlighted[0].position["y"]],
-								["Z",highlighted[0].position["z"]]
+								["X", popup_start_pos["x"]],
+								["Y", popup_start_pos["y"]],
+								["Z", popup_start_pos["z"]]
 							]
 						popup = Popup(values)
 						popup_active = True
-						
-
 
 				# Move selection with keys
 				if move:
@@ -398,13 +411,15 @@ def main():
 				pygame.Rect(selecting_x, selecting_y, mouse_x - selecting_x, mouse_y - selecting_y),
 				g.scale(1, zoom))
 			for obj in selectable_objects():
-				obj.highlighted = obj.hitbox.colliderect(select_box)
+				if not holding_shift():
+					obj.highlighted = obj.hitbox.colliderect(select_box)
+				elif obj.hitbox.colliderect(select_box):  # multiselect
+					obj.highlighted = True
 
 		# Move selection with mouse
 		if moving:
-			true_mouse_pos = [(mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])]
-			move_x = true_mouse_pos[0] - old_true_mouse_pos[0]
-			move_y = true_mouse_pos[1] - old_true_mouse_pos[1]
+			move_x = true_mouse_pos()[0] - old_true_mouse_pos[0]
+			move_y = true_mouse_pos()[1] - old_true_mouse_pos[1]
 			for obj in selectable_objects():
 				if obj.highlighted:
 					obj.pos["x"] += move_x
@@ -419,41 +434,51 @@ def main():
 									anchor.pos["x"] += move_x
 									anchor.pos["y"] += move_y
 
-		old_true_mouse_pos = [(mouse_x / zoom - camera[0]), (-mouse_y / zoom - camera[1])]
-
-		highlighted = [shape for shape in custom_shapes if shape.highlighted]
-		if popup_active and len(highlighted) == 1:
+		old_true_mouse_pos = true_mouse_pos()
+		hl_objs = [o for o in selectable_objects() if o.highlighted]
+		if popup_active and len(hl_objs) == 1:
+			obj = hl_objs[0]
 			try:
-				popup.update()
-				start_position = deepcopy(highlighted[0]).position
-				highlighted[0].position = {
-					"x":float(popup.get(1,0)),
-					"y":float(popup.get(1,1)),
-					"z":float(popup.get(1,2))
-				}
-				shape = highlighted[0]
-				x_change = shape.position["x"] - start_position["x"]
-				y_change = shape.position["y"] - start_position["y"]
-				for c,pin in enumerate(shape.static_pins):
-					#print(pin)
-					shape.static_pins[c]["x"] += x_change
-					shape.static_pins[c]["y"] += y_change
-					for anchor_id in shape.dynamic_anchors:
-						for c, anchor in enumerate(anchors[:]):
-							if anchor["m_Guid"] == anchor_id:
-								anchors[c]["m_Pos"]["x"] += x_change
-								anchors[c]["m_Pos"]["y"] += y_change
-				#print(highlighted[0].position)
-			except:
-				pass
-		elif popup_active:
-			popup_active = False
-			popup.delete()
+				# It drops most inputs when update is called just once (60 fps)
+				# Calling it a lot of times reduces the dropped inputs, but it's still not perfect
+				# Honestly, everything about tkinter is completely garbage
+				gui_evnt, values = popup.window.read(timeout=100)
+				if gui_evnt == sg.WIN_CLOSED or gui_evnt == 'Exit':
+					popup.window.close()
+					popup_active = False
+				print(values)
 
+				
+				x = float(values[0])
+				y = float(values[1])
+				z = float(values[2])
+				if abs(x) > 100000 or abs(y) > 100000 or abs(z) > 1000:
+					raise ValueError()
+				x_change, y_change, z_change = x - obj.pos["x"], y - obj.pos["y"], z - obj.pos["z"]
+				if abs(x_change) < 0.0001:  # prevent rounding-based microchanges
+					x_change = 0
+				if abs(y_change) < 0.0001:
+					y_change = 0
+				if abs(z_change) < 0.0001:
+					z_change = 0
+				obj.pos["x"] += x_change
+				obj.pos["y"] += y_change
+				obj.pos["z"] += z_change
+				if type(obj) is g.CustomShape:
+					for pin in obj.static_pins:
+						pin["x"] += x_change
+						pin["y"] += y_change
+					for anchor_id in obj.dynamic_anchor_ids:
+						for anchor in anchors:
+							if anchor.id == anchor_id:
+								anchor.pos["x"] += x_change
+								anchor.pos["y"] += y_change
+			except ValueError:  # invalid position
+				pass
 
 		pygame.display.flip()
-		clock.tick(fps)
-		#print(clock.get_fps())
+		clock.tick(FPS)
+
 
 if __name__ == "__main__":
 	os.system("title PolyEditor Console")
