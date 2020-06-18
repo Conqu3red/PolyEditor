@@ -5,9 +5,10 @@ import math
 HIGHLIGHT_COLOR = (255, 255, 0)
 HITBOX_COLOR = (0, 255, 0)
 POINT_COLOR = (255, 255, 255)
-HITBOX_LINE_WIDTH = 1.5
+HITBOX_LINE_WIDTH = 2
 HITBOX_CENTER_WIDTH = 3
 SHAPE_HIGHLIGHTED_WIDTH = 2
+HITBOX_SURFACE = pygame.Surface((1, 1), pygame.SRCALPHA, 32)
 
 ANCHOR_RADIUS = 0.16
 ANCHOR_COLOR = (235, 0, 50)
@@ -294,8 +295,9 @@ class CustomShape(LayoutObject):
 		                  round(zoom * -(self.pos["y"] + point[1] + camera[1]))]
 		                 for point in self.points]
 
-		self.hitbox = pygame.gfxdraw.filled_polygon(display, points_pixels, self.color)
+		pygame.gfxdraw.filled_polygon(display, points_pixels, self.color)
 		pygame.gfxdraw.aapolygon(display, points_pixels, self.color)
+		self.hitbox = pygame.draw.polygon(HITBOX_SURFACE, 0, points_pixels, 1)
 
 		# Draw static pins
 		for pin in self.static_pins:
