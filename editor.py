@@ -110,6 +110,8 @@ def main():
 	dragging = False
 	selecting = False
 	moving = False
+	point_moving = False
+	selected_shape = None
 	mouse_x, mouse_y = 0, 0
 	selecting_x, selecting_y = 0, 0
 	old_mouse_x, old_mouse_y = 0, 0
@@ -206,20 +208,26 @@ def main():
 					popup_active = False
 
 				if event.button == 1:  # left click
-					clickarea = pygame.Rect(event.pos[0], event.pos[1], 1, 1)
 					for obj in reversed(selectable_objects()):
-						if obj.hitbox.colliderect(clickarea):  # dragging and multiselect
-							if not holding_shift():
-								moving = True
-							if not obj.highlighted:
-								if not holding_shift():  # clear other selections
-									for o in selectable_objects():
-										o.highlighted = False
-								obj.highlighted = True
-							elif holding_shift():
-								obj.highlighted = False
+						if (obj.check_box.collidepoint(event.pos)):  # dragging and multiselect
+							clicked_point = [p for p in obj.point_hitboxes if p.collidepoint(event.pos)]
+							if clicked_point:
+								point_moving = True
+								obj.selected_points = [p.collidepoint(event.pos) for p in obj.point_hitboxes]
+								selected_shape = obj
+							else:
+								if not obj.hitbox.collidepoint(event.pos): break
+								if not holding_shift():
+									moving = True
+								if not obj.highlighted:
+									if not holding_shift():  # clear other selections
+										for o in selectable_objects():
+											o.highlighted = False
+									obj.highlighted = True
+								elif holding_shift():
+									obj.highlighted = False
 							break
-					if not moving:
+					if not (moving or point_moving):
 						dragging = True
 					old_mouse_x, old_mouse_y = event.pos
 
@@ -250,6 +258,10 @@ def main():
 					dragging = False
 					moving = False
 					hl_objs = [o for o in selectable_objects() if o.highlighted]
+					if (point_moving): 
+						selected_shape.selected_points = []
+						selected_shape = None
+						point_moving = False
 					# if len(hl_objs) == 1 and not holding_shift():  # "drop" object
 					# 	hl_objs[0].highlighted = False
 
