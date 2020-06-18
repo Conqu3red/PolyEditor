@@ -107,10 +107,17 @@ def main():
 	clock = pygame.time.Clock()
 	popup = None
 	popup_active = False
+	draw_points = False
 	hitboxes = False
 	dragging = False
 	selecting = False
 	moving = False
+
+	point_moving = False
+	add_points = False
+	delete_points = False
+	selected_shape = None
+
 	mouse_x, mouse_y = 0, 0
 	selecting_x, selecting_y = 0, 0
 	old_mouse_x, old_mouse_y = 0, 0
@@ -138,55 +145,6 @@ def main():
 	# Pygame loop
 	while True:
 
-		# Render background
-		display.fill(bg_color)
-		block_size = round(zoom)
-		line_width = g.scale(1, zoom)
-		shift = (round(camera[0] * zoom % block_size), round(camera[1] * zoom % block_size))
-		if block_size > 3:
-			for x in range(shift[0], size[0], block_size):
-				pygame.draw.line(display, bg_color_2, (x, 0), (x, size[1]), line_width)
-			for y in range(-shift[1], size[1], block_size):
-				pygame.draw.line(display, bg_color_2, (0, y), (size[0], y), line_width)
-
-		# Display mouse position, zoom and fps
-		font = pygame.font.SysFont('Courier', 20)
-		pos_msg = f"[{round(true_mouse_pos()[0], 2):>6},{round(true_mouse_pos()[1], 2):>6}]"
-		pos_text = font.render(pos_msg, True, fg_color)
-		display.blit(pos_text, (2, 5))
-		font = pygame.font.SysFont('Courier', 16)
-		zoom_msg = f"({str(zoom)[:4].ljust(4, '0').strip('.')})"
-		zoom_size = font.size(zoom_msg)
-		zoom_text = font.render(zoom_msg, True, fg_color)
-		display.blit(zoom_text, (round(size[0] / 2 - zoom_size[0] / 2), 5))
-		fps_msg = str(round(clock.get_fps())).rjust(2)
-		fps_size = font.size(fps_msg)
-		fps_text = font.render(fps_msg, True, fg_color)
-		display.blit(fps_text, (size[0] - fps_size[0] - 5, 5))
-
-		# Display controls
-		font_size = 16
-		font = pygame.font.SysFont('Courier', font_size, True)
-		help_msg = "Wheel: Zoom | LeftClick: Move / Pan | RightClick: Make selection | ShiftClick: Multiselect | S: Save + Quit | 0: Quit"
-		help_text = font.render(help_msg, True, fg_color)
-		display.blit(help_text, (5, size[1] - font_size*2 - 5))
-		help_msg = "Arrows: Move | E: Precise Move | C: Copy selected | D: Delete selected | H: Toggle hitboxes | B: Toggle color scheme"
-		help_text = font.render(help_msg, True, fg_color)
-		display.blit(help_text, (5, size[1] - font_size - 5))
-
-		# Render Objects
-		for terrain in terrain_stretches:
-			terrain.render(display, camera, zoom, fg_color)
-		for water in water_blocks:
-			water.render(display, camera, zoom, fg_color)
-		for shape in custom_shapes:
-			shape.render(display, camera, zoom, hitboxes)
-		for pillar in pillars:
-			pillar.render(display, camera, zoom, hitboxes)
-		dyn_anc_ids = list(chain(*[shape.dynamic_anchor_ids for shape in custom_shapes]))
-		for anchor in anchors:
-			anchor.render(display, camera, zoom, dyn_anc_ids)
-
 		# Listen for actions
 		for event in pygame.event.get():
 
@@ -207,27 +165,33 @@ def main():
 					popup_active = False
 
 				if event.button == 1:  # left click
-					clickarea = pygame.Rect(event.pos[0], event.pos[1], 1, 1)
 					for obj in reversed(selectable_objects()):
-						if obj.hitbox.colliderect(clickarea):  # dragging and multiselect
-							if not holding_shift():
-								moving = True
-							if not obj.highlighted:
-								if not holding_shift():  # clear other selections
-									for o in selectable_objects():
-										o.highlighted = False
-								obj.highlighted = True
-							elif holding_shift():
-								obj.highlighted = False
+						if (obj.check_box.collidepoint(event.pos)):  # dragging and multiselect
+							clicked_point = [p for p in obj.point_hitboxes if p.collidepoint(event.pos)]
+							if clicked_point:
+								point_moving = True
+								obj.selected_points = [p.collidepoint(event.pos) for p in obj.point_hitboxes]
+								selected_shape = obj
+							else:
+								if not obj.hitbox.collidepoint(event.pos): break
+								if not holding_shift():
+									moving = True
+								if not obj.highlighted:
+									if not holding_shift():  # clear other selections
+										for o in selectable_objects():
+											o.highlighted = False
+									obj.highlighted = True
+								elif holding_shift():
+									obj.highlighted = False
 							break
-					if not moving:
+					if not (moving or point_moving):
 						dragging = True
 					old_mouse_x, old_mouse_y = event.pos
 
 				if event.button == 3:  # right click
 					selecting_x, selecting_y = event.pos
 					mouse_x, mouse_y = event.pos
-					selecting = True
+					if not (point_moving or moving): selecting = True
 
 				if event.button == 4:  # mousewheel up
 					z_old_pos = true_mouse_pos()
@@ -251,8 +215,12 @@ def main():
 					dragging = False
 					moving = False
 					hl_objs = [o for o in selectable_objects() if o.highlighted]
-					if len(hl_objs) == 1 and not holding_shift():  # "drop" object
-						hl_objs[0].highlighted = False
+					if (point_moving): 
+						selected_shape.selected_points = []
+						selected_shape = None
+						point_moving = False
+					# if len(hl_objs) == 1 and not holding_shift():  # "drop" object
+					# 	hl_objs[0].highlighted = False
 
 				if event.button == 3:  # right click
 					selecting = False
@@ -283,6 +251,10 @@ def main():
 				elif event.key == ord('h'):
 					# Toggle hitboxes
 					hitboxes = not hitboxes
+				
+				elif event.key == ord('p'):
+					# Toggle showing points
+					draw_points = not draw_points
 
 				elif event.key == ord('d'):
 					# Delete selected
@@ -406,11 +378,22 @@ def main():
 											anchor.pos["x"] += move_x
 											anchor.pos["y"] += move_y
 
+		# Render background
+		display.fill(bg_color)
+		block_size = round(zoom)
+		line_width = g.scale(1, zoom)
+		shift = (round(camera[0] * zoom % block_size), round(camera[1] * zoom % block_size))
+		if block_size > 3:
+			for x in range(shift[0], size[0], block_size):
+				pygame.draw.line(display, bg_color_2, (x, 0), (x, size[1]), line_width)
+			for y in range(-shift[1], size[1], block_size):
+				pygame.draw.line(display, bg_color_2, (0, y), (size[0], y), line_width)
+
 		# Selecting shapes
 		if selecting:
 			select_box = pygame.draw.rect(display, (0, 255, 0),
 				pygame.Rect(selecting_x, selecting_y, mouse_x - selecting_x, mouse_y - selecting_y),
-				g.scale(1, zoom))
+				2)
 			for obj in selectable_objects():
 				if not holding_shift():
 					obj.highlighted = obj.hitbox.colliderect(select_box)
@@ -435,7 +418,6 @@ def main():
 									anchor.pos["x"] += move_x
 									anchor.pos["y"] += move_y
 
-		old_true_mouse_pos = true_mouse_pos()
 		hl_objs = [o for o in selectable_objects() if o.highlighted]
 		if popup_active and len(hl_objs) == 1:
 			obj = hl_objs[0]
@@ -447,7 +429,7 @@ def main():
 				if gui_evnt == sg.WIN_CLOSED or gui_evnt == 'Exit':
 					popup.window.close()
 					popup_active = False
-				print(values)
+				# print(values)
 
 				
 				x = float(values[0])
@@ -476,6 +458,48 @@ def main():
 								anchor.pos["y"] += y_change
 			except ValueError:  # invalid position
 				pass
+		
+		mouse_change = list(map(float.__sub__, true_mouse_pos(), old_true_mouse_pos))
+
+		old_true_mouse_pos = true_mouse_pos()
+		
+		# Render Objects
+		for terrain in terrain_stretches:
+			terrain.render(display, camera, zoom, fg_color)
+		for water in water_blocks:
+			water.render(display, camera, zoom, fg_color)
+		for shape in custom_shapes:
+			shape.render(display, camera, zoom, hitboxes, {"draw_points": draw_points, "delete_points": delete_points, "add_points": add_points, "mouse_pos": [mouse_x, mouse_y], "mouse_change": mouse_change})
+		for pillar in pillars:
+			pillar.render(display, camera, zoom, hitboxes)
+		dyn_anc_ids = list(chain(*[shape.dynamic_anchor_ids for shape in custom_shapes]))
+		for anchor in anchors:
+			anchor.render(display, camera, zoom, dyn_anc_ids)
+
+		# Display mouse position, zoom and fps
+		font = pygame.font.SysFont('Courier', 20)
+		pos_msg = f"[{round(true_mouse_pos()[0], 2):>6},{round(true_mouse_pos()[1], 2):>6}]"
+		pos_text = font.render(pos_msg, True, fg_color)
+		display.blit(pos_text, (2, 5))
+		font = pygame.font.SysFont('Courier', 16)
+		zoom_msg = f"({str(zoom)[:4].ljust(4, '0').strip('.')})"
+		zoom_size = font.size(zoom_msg)
+		zoom_text = font.render(zoom_msg, True, fg_color)
+		display.blit(zoom_text, (round(size[0] / 2 - zoom_size[0] / 2), 5))
+		fps_msg = str(round(clock.get_fps())).rjust(2)
+		fps_size = font.size(fps_msg)
+		fps_text = font.render(fps_msg, True, fg_color)
+		display.blit(fps_text, (size[0] - fps_size[0] - 5, 5))
+
+		# Display controls
+		font_size = 16
+		font = pygame.font.SysFont('Courier', font_size, True)
+		help_msg = "Wheel: Zoom | LeftClick: Move / Pan | RightClick: Make selection | ShiftClick: Multiselect | S: Save + Quit | 0: Quit"
+		help_text = font.render(help_msg, True, fg_color)
+		display.blit(help_text, (5, size[1] - font_size*2 - 5))
+		help_msg = "Arrows: Move | E: Precise Move | C: Copy selected | D: Delete selected | H: Toggle hitboxes | B: Toggle color scheme"
+		help_text = font.render(help_msg, True, fg_color)
+		display.blit(help_text, (5, size[1] - font_size - 5))
 
 		pygame.display.flip()
 		clock.tick(FPS)
