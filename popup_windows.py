@@ -1,6 +1,5 @@
 import PySimpleGUI as sg
-#layout = [[sg.Input()],
-#		[sg.Button('Read'), sg.Exit()]]
+
 
 class Popup:
 	def __init__(self, data):

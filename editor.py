@@ -9,11 +9,10 @@ import json
 from uuid import uuid4
 from copy import deepcopy
 from itertools import chain
-from time import sleep
+from operator import add, sub
 from os import getcwd, listdir
 from os.path import isfile, join as pathjoin, getmtime as lastmodified
 from subprocess import run
-from tkinter import TclError
 import PySimpleGUI as sg
 
 
@@ -112,8 +111,8 @@ def main():
 	dragging = False
 	selecting = False
 	moving = False
-
 	point_moving = False
+
 	add_points = False
 	delete_points = False
 	selected_shape = None
@@ -128,11 +127,11 @@ def main():
 
 	terrain_stretches = g.LayoutList(g.TerrainStretch, layout)
 	water_blocks = g.LayoutList(g.WaterBlock, layout)
+	custom_shapes = g.LayoutList(g.CustomShape, layout)
 	pillars = g.LayoutList(g.Pillar, layout)
 	anchors = g.LayoutList(g.Anchor, layout)
-	custom_shapes = g.LayoutList(g.CustomShape, layout)
 	object_lists = {objs.list_name: objs for objs in
-	               [terrain_stretches, water_blocks, pillars, anchors, custom_shapes]}
+	                [terrain_stretches, water_blocks, custom_shapes, pillars, anchors]}
 
 	selectable_objects = lambda: tuple(chain(custom_shapes, pillars))
 	holding_shift = lambda: pygame.key.get_mods() & pygame.KMOD_SHIFT
@@ -155,8 +154,9 @@ def main():
 				return
 
 			if event.type == pygame.VIDEORESIZE:
+				display = pygame.display.set_mode(event.size, pygame.RESIZABLE)
 				size = event.size
-				display = pygame.display.set_mode(size, pygame.RESIZABLE)
+				g.HITBOX_SURFACE = pygame.Surface(event.size, pygame.SRCALPHA, 32)
 
 			elif event.type == pygame.MOUSEBUTTONDOWN:
 				selecting_x, selecting_y = 0, 0
@@ -166,23 +166,25 @@ def main():
 
 				if event.button == 1:  # left click
 					for obj in reversed(selectable_objects()):
-						if (obj.check_box.collidepoint(event.pos)):  # dragging and multiselect
-							clicked_point = [p for p in obj.point_hitboxes if p.collidepoint(event.pos)]
-							if clicked_point:
-								point_moving = True
-								obj.selected_points = [p.collidepoint(event.pos) for p in obj.point_hitboxes]
-								selected_shape = obj
-							else:
-								if not obj.hitbox.collidepoint(event.pos): break
-								if not holding_shift():
-									moving = True
-								if not obj.highlighted:
-									if not holding_shift():  # clear other selections
-										for o in selectable_objects():
-											o.highlighted = False
-									obj.highlighted = True
-								elif holding_shift():
-									obj.highlighted = False
+						if obj.click_hitbox.collidepoint(event.pos):  # dragging and multiselect
+							if type(obj) is g.CustomShape:
+								clicked_point = [p for p in obj.point_hitboxes if p.collidepoint(event.pos)]
+								if clicked_point:
+									point_moving = True
+									obj.selected_points = [p.collidepoint(event.pos) for p in obj.point_hitboxes]
+									selected_shape = obj
+									break
+							if not obj.hitbox.collidepoint(event.pos):
+								break
+							if not holding_shift():
+								moving = True
+							if not obj.highlighted:
+								if not holding_shift():  # clear other selections
+									for o in selectable_objects():
+										o.highlighted = False
+								obj.highlighted = True
+							elif holding_shift():
+								obj.highlighted = False
 							break
 					if not (moving or point_moving):
 						dragging = True
@@ -191,7 +193,8 @@ def main():
 				if event.button == 3:  # right click
 					selecting_x, selecting_y = event.pos
 					mouse_x, mouse_y = event.pos
-					if not (point_moving or moving): selecting = True
+					if not point_moving or moving:
+						selecting = True
 
 				if event.button == 4:  # mousewheel up
 					z_old_pos = true_mouse_pos()
@@ -199,7 +202,7 @@ def main():
 					if zoom > ZOOM_MAX:
 						zoom = ZOOM_MAX
 					z_new_pos = true_mouse_pos()
-					camera = [camera[0] + z_new_pos[0] - z_old_pos[0], camera[1] + z_new_pos[1] - z_old_pos[1]]
+					camera = [camera[i] + z_new_pos[i] - z_old_pos[i] for i in range(2)]
 
 				if event.button == 5:  # mousewheel down
 					z_old_pos = true_mouse_pos()
@@ -207,7 +210,7 @@ def main():
 					if zoom < ZOOM_MIN:
 						zoom = ZOOM_MIN
 					z_new_pos = true_mouse_pos()
-					camera = [camera[0] + z_new_pos[0] - z_old_pos[0], camera[1] + z_new_pos[1] - z_old_pos[1]]
+					camera = [camera[i] + z_new_pos[i] - z_old_pos[i] for i in range(2)]
 
 			elif event.type == pygame.MOUSEBUTTONUP:
 
@@ -215,12 +218,12 @@ def main():
 					dragging = False
 					moving = False
 					hl_objs = [o for o in selectable_objects() if o.highlighted]
-					if (point_moving): 
+					if point_moving:
 						selected_shape.selected_points = []
 						selected_shape = None
 						point_moving = False
-					# if len(hl_objs) == 1 and not holding_shift():  # "drop" object
-					# 	hl_objs[0].highlighted = False
+					if len(hl_objs) == 1 and not holding_shift():  # "drop" object
+						hl_objs[0].highlighted = False
 
 				if event.button == 3:  # right click
 					selecting = False
@@ -391,9 +394,9 @@ def main():
 
 		# Selecting shapes
 		if selecting:
-			select_box = pygame.draw.rect(display, (0, 255, 0),
+			select_box = pygame.draw.rect(display, g.HITBOX_COLOR,
 				pygame.Rect(selecting_x, selecting_y, mouse_x - selecting_x, mouse_y - selecting_y),
-				2)
+				g.HITBOX_LINE_WIDTH)
 			for obj in selectable_objects():
 				if not holding_shift():
 					obj.highlighted = obj.hitbox.colliderect(select_box)
@@ -422,16 +425,11 @@ def main():
 		if popup_active and len(hl_objs) == 1:
 			obj = hl_objs[0]
 			try:
-				# It drops most inputs when update is called just once (60 fps)
-				# Calling it a lot of times reduces the dropped inputs, but it's still not perfect
-				# Honestly, everything about tkinter is completely garbage
 				gui_evnt, values = popup.window.read(timeout=100)
 				if gui_evnt == sg.WIN_CLOSED or gui_evnt == 'Exit':
 					popup.window.close()
 					popup_active = False
-				# print(values)
-
-				
+					raise ValueError()
 				x = float(values[0])
 				y = float(values[1])
 				z = float(values[2])
@@ -459,8 +457,7 @@ def main():
 			except ValueError:  # invalid position
 				pass
 		
-		mouse_change = list(map(float.__sub__, true_mouse_pos(), old_true_mouse_pos))
-
+		true_mouse_change = tuple(map(sub, true_mouse_pos(), old_true_mouse_pos))
 		old_true_mouse_pos = true_mouse_pos()
 		
 		# Render Objects
@@ -468,8 +465,9 @@ def main():
 			terrain.render(display, camera, zoom, fg_color)
 		for water in water_blocks:
 			water.render(display, camera, zoom, fg_color)
+		point_mode = g.PointMode(draw_points, delete_points, add_points, (mouse_x, mouse_y), true_mouse_change)
 		for shape in custom_shapes:
-			shape.render(display, camera, zoom, hitboxes, {"draw_points": draw_points, "delete_points": delete_points, "add_points": add_points, "mouse_pos": [mouse_x, mouse_y], "mouse_change": mouse_change})
+			shape.render(display, camera, zoom, hitboxes, point_mode)
 		for pillar in pillars:
 			pillar.render(display, camera, zoom, hitboxes)
 		dyn_anc_ids = list(chain(*[shape.dynamic_anchor_ids for shape in custom_shapes]))
@@ -494,10 +492,12 @@ def main():
 		# Display controls
 		font_size = 16
 		font = pygame.font.SysFont('Courier', font_size, True)
-		help_msg = "Wheel: Zoom | LeftClick: Move / Pan | RightClick: Make selection | ShiftClick: Multiselect | S: Save + Quit | 0: Quit"
+		help_msg = "Wheel: Zoom | LeftClick: Move / Pan | RightClick: Make selection | " \
+		           "ShiftClick: Multiselect | S: Save + Quit | 0: Quit"
 		help_text = font.render(help_msg, True, fg_color)
 		display.blit(help_text, (5, size[1] - font_size*2 - 5))
-		help_msg = "Arrows: Move | E: Precise Move | C: Copy selected | D: Delete selected | H: Toggle hitboxes | B: Toggle color scheme"
+		help_msg = "Arrows: Move | E: Precise Move | C: Copy selected | D: Delete selected | " \
+		           "H: Toggle hitboxes | B: Toggle color scheme"
 		help_text = font.render(help_msg, True, fg_color)
 		display.blit(help_text, (5, size[1] - font_size - 5))
 
@@ -534,8 +534,8 @@ if __name__ == "__main__":
 				if not found_new:
 					print("It appears you don't have .NET installed.")
 					print("Please download 'PolyConverter including NET.exe' from "
-						 "https://github.com/JbCoder/PolyEditor/releases and place it in this same folder. "
-						 "Then run this program again.")
+					      "https://github.com/JbCoder/PolyEditor/releases and place it in this same folder. "
+					      "Then run this program again.")
 					sys.exit()
 			else:
 				print(f"Unexpected PolyConverter error:\n" + "\n".join([o for o in outputs if len(o) > 0]))
