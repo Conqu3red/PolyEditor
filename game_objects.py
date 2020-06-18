@@ -1,9 +1,11 @@
 import pygame
+import pygame.gfxdraw
 import math
 
 HIGHLIGHT_COLOR = (255, 255, 0)
 HITBOX_COLOR = (0, 255, 0)
-HITBOX_LINE_WIDTH = 1
+POINT_COLOR = (255, 255, 255)
+HITBOX_LINE_WIDTH = 1.5
 HITBOX_CENTER_WIDTH = 3
 SHAPE_HIGHLIGHTED_WIDTH = 2
 
@@ -286,21 +288,22 @@ class CustomShape(LayoutObject):
 		self.highlighted = False
 		self.hitbox = None
 
-	def render(self, display, camera, zoom, draw_hitbox):
+	def render(self, display, camera, zoom, draw_hitbox, draw_points):
 		# Add base position and adjust for the camera position
 		points_pixels = [[round(zoom * (self.pos["x"] + point[0] + camera[0])),
 		                  round(zoom * -(self.pos["y"] + point[1] + camera[1]))]
 		                 for point in self.points]
 
-		self.hitbox = pygame.draw.polygon(display, self.color, points_pixels)
+		self.hitbox = pygame.gfxdraw.filled_polygon(display, points_pixels, self.color)
+		pygame.gfxdraw.aapolygon(display, points_pixels, self.color)
 
 		# Draw static pins
 		for pin in self.static_pins:
-			rect = (round(zoom * (pin["x"] + camera[0] - PIN_RADIUS)),
-			        round(zoom * -(pin["y"] + camera[1] + PIN_RADIUS)),
-			        round(zoom * PIN_RADIUS * 2),
-			        round(zoom * PIN_RADIUS * 2))
-			pygame.draw.ellipse(display, STATIC_PIN_COLOR, rect)
+			rect = [round(zoom * (pin["x"] + camera[0])),
+			        round(zoom * -(pin["y"] + camera[1]))]
+			# pygame.draw.ellipse(display, STATIC_PIN_COLOR, rect)
+			pygame.gfxdraw.aacircle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
+			pygame.gfxdraw.filled_circle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
 		if draw_hitbox:
 			pygame.draw.rect(display, HITBOX_COLOR, self.hitbox, scale(HITBOX_LINE_WIDTH, zoom))
 			center_width = scale(HITBOX_CENTER_WIDTH, zoom)
@@ -309,7 +312,11 @@ class CustomShape(LayoutObject):
 			center_end = (center_start[0] + center_width, center_start[1])
 			pygame.draw.line(display, HITBOX_COLOR, center_start, center_end, center_width)
 		if self.highlighted:
-			pygame.draw.polygon(display, HIGHLIGHT_COLOR, points_pixels, scale(SHAPE_HIGHLIGHTED_WIDTH, zoom))
+			pygame.gfxdraw.aapolygon(display, points_pixels, HIGHLIGHT_COLOR)
+		if draw_points:
+			for point in points_pixels:
+				pygame.gfxdraw.aacircle(display, point[0], point[1], round(zoom * PIN_RADIUS / 2), POINT_COLOR)
+				pygame.gfxdraw.filled_circle(display, point[0], point[1], round(zoom * PIN_RADIUS / 2), POINT_COLOR)
 
 	@property
 	def pos(self):

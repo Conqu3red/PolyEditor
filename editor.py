@@ -104,6 +104,7 @@ def main():
 	clock = pygame.time.Clock()
 	popup = None
 	popup_active = False
+	points_active = False
 	hitboxes = False
 	dragging = False
 	selecting = False
@@ -178,7 +179,7 @@ def main():
 		for water in water_blocks:
 			water.render(display, camera, zoom, fg_color)
 		for shape in custom_shapes:
-			shape.render(display, camera, zoom, hitboxes)
+			shape.render(display, camera, zoom, hitboxes, points_active)
 		for pillar in pillars:
 			pillar.render(display, camera, zoom, hitboxes)
 		dyn_anc_ids = list(chain(*[shape.dynamic_anchor_ids for shape in custom_shapes]))
@@ -246,8 +247,8 @@ def main():
 					dragging = False
 					moving = False
 					hl_objs = [o for o in selectable_objects() if o.highlighted]
-					if len(hl_objs) == 1 and not holding_shift():  # "drop" object
-						hl_objs[0].highlighted = False
+					# if len(hl_objs) == 1 and not holding_shift():  # "drop" object
+					# 	hl_objs[0].highlighted = False
 
 				if event.button == 3:  # right click
 					selecting = False
@@ -278,6 +279,10 @@ def main():
 				elif event.key == ord('h'):
 					# Toggle hitboxes
 					hitboxes = not hitboxes
+				
+				elif event.key == ord('p'):
+					# Toggle showing points
+					points_active = not points_active
 
 				elif event.key == ord('d'):
 					# Delete selected
