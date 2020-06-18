@@ -22,8 +22,9 @@ from popup_windows import Popup
 BASE_SIZE = (1200, 600)
 FPS = 60
 ZOOM_MULT = 1.1
-ZOOM_MIN = 2.0
-ZOOM_MAX = 400.0
+ZOOM_INCR = 1
+ZOOM_MIN = 4
+ZOOM_MAX = 400
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 BACKGROUND_BLUE = (43, 70, 104)
@@ -101,7 +102,7 @@ def main():
 	print(f"[>] Opening {leveltoedit} in the editor")
 
 	size = BASE_SIZE
-	zoom = 20.0
+	zoom = 20
 	camera = [size[0] / zoom / 2, -(size[1] / zoom / 2 + 5)]
 	clock = pygame.time.Clock()
 	popup = None
@@ -200,7 +201,7 @@ def main():
 
 				if event.button == 4:  # mousewheel up
 					z_old_pos = true_mouse_pos()
-					zoom *= ZOOM_MULT
+					zoom = round(zoom * ZOOM_MULT if not holding_shift() else zoom + ZOOM_INCR)
 					if zoom > ZOOM_MAX:
 						zoom = ZOOM_MAX
 					z_new_pos = true_mouse_pos()
@@ -208,7 +209,7 @@ def main():
 
 				if event.button == 5:  # mousewheel down
 					z_old_pos = true_mouse_pos()
-					zoom /= ZOOM_MULT
+					zoom = round(zoom / ZOOM_MULT if not holding_shift() else zoom - ZOOM_INCR)
 					if zoom < ZOOM_MIN:
 						zoom = ZOOM_MIN
 					z_new_pos = true_mouse_pos()
@@ -484,7 +485,7 @@ def main():
 		pos_text = font.render(pos_msg, True, fg_color)
 		display.blit(pos_text, (2, 5))
 		font = pygame.font.SysFont('Courier', 16)
-		zoom_msg = f"({str(zoom)[:4].ljust(4, '0').strip('.')})"
+		zoom_msg = f"({zoom})"
 		zoom_size = font.size(zoom_msg)
 		zoom_text = font.render(zoom_msg, True, fg_color)
 		display.blit(zoom_text, (round(size[0] / 2 - zoom_size[0] / 2), 5))
