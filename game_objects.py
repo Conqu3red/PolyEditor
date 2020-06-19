@@ -323,13 +323,6 @@ class CustomShape(LayoutObject):
 			pygame.gfxdraw.aacircle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
 			pygame.gfxdraw.filled_circle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
 
-		if draw_hitbox:
-			pygame.draw.rect(display, HITBOX_COLOR, self.hitbox, 1)
-			center_width = scale(HITBOX_CENTER_WIDTH, zoom)
-			center_start = (round(zoom * (self.pos["x"] + camera[0]) - center_width / 2),
-			                round(zoom * -(self.pos["y"] + camera[1])))
-			center_end = (center_start[0] + center_width, center_start[1])
-			pygame.draw.line(display, HITBOX_COLOR, center_start, center_end, center_width)
 		if self.highlighted:
 			# TODO: Find an antialias solution
 			pygame.draw.polygon(display, HIGHLIGHT_COLOR, points_pixels, scale(SHAPE_HIGHLIGHTED_WIDTH, zoom, 60))
@@ -341,6 +334,15 @@ class CustomShape(LayoutObject):
 			                          self.hitbox.height + round(zoom * PIN_RADIUS))
 			self.click_hitbox.x -= round(zoom * PIN_RADIUS / 2)
 			self.click_hitbox.y -= round(zoom * PIN_RADIUS / 2)
+			# Update center to actual center of rectangle
+			if self.selected_points.count(1):
+				_pos = deepcopy(self.pos)
+				self.pos["x"] = self.hitbox.center[0] / zoom - camera[0]
+				self.pos["y"] = -(self.hitbox.center[1] / zoom) - camera[1]
+				self.points = tuple([(point[0] + _pos["x"] - self.pos["x"], 
+				point[1] + _pos["y"] - self.pos["y"])
+				for point in self.points])
+			# Render points
 			for i, point in enumerate(points_pixels):
 				self.point_hitboxes.append(
 					pygame.draw.circle(HITBOX_SURFACE, 0, point, round(zoom * PIN_RADIUS / 2), 0))
@@ -359,6 +361,14 @@ class CustomShape(LayoutObject):
 						display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), POINT_COLOR)
 		else:
 			self.click_hitbox = self.hitbox
+		if draw_hitbox:
+			pygame.draw.rect(display, HITBOX_COLOR, self.hitbox, 1)
+			if self.click_hitbox != self.hitbox: pygame.draw.rect(display, (255, 255, 255), self.click_hitbox, 1)
+			center_width = scale(HITBOX_CENTER_WIDTH, zoom)
+			center_start = (round(zoom * (self.pos["x"] + camera[0]) - center_width / 2),
+			                round(zoom * -(self.pos["y"] + camera[1])))
+			center_end = (center_start[0] + center_width, center_start[1])
+			pygame.draw.line(display, HITBOX_COLOR, center_start, center_end, center_width)
 
 	@property
 	def pos(self):
