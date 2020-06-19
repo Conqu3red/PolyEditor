@@ -15,7 +15,7 @@
 - Shift + Click: Multi-select
 - Arrow keys - Move selected
 - P - Point editing mode
-- E - Change object properties (just position for now)
+- E - Edit object properties
 - C - Copy selected
 - D - Delete selected
 - S - Save

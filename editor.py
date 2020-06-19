@@ -155,8 +155,11 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			if event.type == pygame.QUIT:
 				if popup is not None:
 					popup.window.close()
-				pygame.quit()
-				sys.exit()
+				answer = sg.popup_yes_no("Quit and lose any unsaved changes?",
+					no_titlebar=True, keep_on_top=True, grab_anywhere=True)
+				if answer == "Yes":
+					pygame.quit()
+					sys.exit()
 
 			if event.type == pygame.ACTIVEEVENT:
 				if event.state == 6:  # minimized
@@ -175,6 +178,9 @@ def main(layout, layoutfile, jsonfile, backupfile):
 							if type(obj) is g.CustomShape:
 								clicked_point = [p for p in obj.point_hitboxes if p.collidepoint(event.pos)]
 								if clicked_point:
+									if popup_active:
+										popup.window.close()
+										popup_active = False
 									point_moving = True
 									obj.selected_points = [p.collidepoint(event.pos) for p in obj.point_hitboxes]
 									selected_shape = obj
@@ -336,8 +342,11 @@ def main(layout, layoutfile, jsonfile, backupfile):
 				elif event.key == ord('0'):
 					if popup_active:
 						popup.window.close()
-					pygame.quit()
-					return
+					answer = sg.popup_yes_no("Quit and lose any unsaved changes?",
+						no_titlebar=True, keep_on_top=True, grab_anywhere=True)
+					if answer == "Yes":
+						pygame.quit()
+						return
 
 				elif event.key == ord("s"):
 					if popup_active:
