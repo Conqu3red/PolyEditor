@@ -334,6 +334,15 @@ class CustomShape(LayoutObject):
 			                          self.hitbox.height + round(zoom * PIN_RADIUS))
 			self.click_hitbox.x -= round(zoom * PIN_RADIUS / 2)
 			self.click_hitbox.y -= round(zoom * PIN_RADIUS / 2)
+			# Update center to actual center of rectangle
+			if self.selected_points.count(1):
+				_pos = deepcopy(self.pos)
+				self.pos["x"] = self.hitbox.center[0] / zoom - camera[0]
+				self.pos["y"] = -(self.hitbox.center[1] / zoom) - camera[1]
+				self.points = tuple([(point[0] + _pos["x"] - self.pos["x"], 
+				point[1] + _pos["y"] - self.pos["y"])
+				for point in self.points])
+			# Render points
 			for i, point in enumerate(points_pixels):
 				self.point_hitboxes.append(
 					pygame.draw.circle(HITBOX_SURFACE, 0, point, round(zoom * PIN_RADIUS / 2), 0))
@@ -355,9 +364,6 @@ class CustomShape(LayoutObject):
 		if draw_hitbox:
 			pygame.draw.rect(display, HITBOX_COLOR, self.hitbox, 1)
 			if self.click_hitbox != self.hitbox: pygame.draw.rect(display, (255, 255, 255), self.click_hitbox, 1)
-			if self.selected_points:
-				self.pos["x"] = self.hitbox.center[0]
-				self.pos["y"] = self.hitbox.center[1]
 			center_width = scale(HITBOX_CENTER_WIDTH, zoom)
 			center_start = (round(zoom * (self.pos["x"] + camera[0]) - center_width / 2),
 			                round(zoom * -(self.pos["y"] + camera[1])))
