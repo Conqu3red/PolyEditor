@@ -6,19 +6,19 @@ import sys
 import pygame
 import re
 import json
+import traceback
 import PySimpleGUI as sg
 from uuid import uuid4
 from copy import deepcopy
 from itertools import chain
 from operator import add, sub
 from os import getcwd, listdir
-from os.path import isfile, join as pathjoin, getmtime as lastmodified
+from os.path import exists, isfile, join as pathjoin, getmtime as lastmodified
 from subprocess import run
-import PySimpleGUI as sg
-
+from time import sleep
 
 import game_objects as g
-from popup_windows import Popup
+from popup_windows import EditObjectPopup
 
 BASE_SIZE = (1200, 600)
 FPS = 60
@@ -36,6 +36,10 @@ try:  # when bundled as single executable
 	POLYCONVERTER = pathjoin(sys._MEIPASS, "PolyConverter.exe")
 except AttributeError:
 	POLYCONVERTER = "PolyConverter.exe"
+try:
+	ICON = pathjoin(sys._MEIPASS, "icon.ico")
+except AttributeError:
+	ICON = None
 JSON_EXTENSION = ".layout.json"
 LAYOUT_EXTENSION = ".layout"
 BACKUP_EXTENSION = ".layout.backup"
@@ -47,29 +51,25 @@ FILE_ERROR_CODE = 3
 GAMEPATH_ERROR_CODE = 4
 
 
-def main():
+def choose_file():
 	currentdir = getcwd()
 	filelist = [f for f in listdir(currentdir) if isfile(pathjoin(currentdir, f))]
 	levellist = [match.group(1) for match in [FILE_REGEX.match(f) for f in filelist] if match]
 	levellist = list(dict.fromkeys(levellist))  # remove duplicates
 
 	if len(levellist) == 0:
-		print("[>] There are no levels to edit in the current folder")
-		return
-	elif len(levellist) == 1:
-		leveltoedit = levellist[0]
+		sg.Popup("There are no levels to edit in this folder", title="PolyEditor")
+		sys.exit()
+
+	listbox = sg.Listbox(
+		values=levellist, size=(60, 10), pad=((0, 0), (0, 5)), bind_return_key=True, default_values=[levellist[0]])
+	window = sg.Window("PolyEditor", layout=[[sg.Text("Choose a level to edit:")], [listbox], [sg.Ok()]])
+	event = window.read(close=True)
+	sleep(1)
+	if event[0] == sg.WIN_CLOSED:
+		sys.exit()
 	else:
-		print("[#] Enter the number of the level you want to edit:")
-		print("\n".join([f" ({i + 1}) {s}" for (i, s) in enumerate(levellist)]))
-		index = -1
-		while True:
-			try:
-				index = int(input())
-			except ValueError:
-				pass
-			if 0 < index < len(levellist) + 1:
-				leveltoedit = levellist[index - 1]
-				break
+		leveltoedit = event[1][0][0]
 
 	layoutfile = leveltoedit + LAYOUT_EXTENSION
 	jsonfile = leveltoedit + JSON_EXTENSION
@@ -78,14 +78,10 @@ def main():
 	if (layoutfile in filelist and
 			(jsonfile not in filelist or lastmodified(layoutfile) > lastmodified(jsonfile))):
 		program = run(f"{POLYCONVERTER} {layoutfile}", capture_output=True)
-		if program.returncode == SUCCESS_CODE:
-			output = program.stdout.decode().strip()
-			if len(output) > 0:
-				print(f"[>] {'Created' if 'Created' in output else 'Updated'} {jsonfile}")
-		else:
-			print(f"[Error] There was a problem converting {layoutfile} to json")
+		if program.returncode != SUCCESS_CODE:
 			outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
-			print("\n".join([o for o in outputs if len(o) > 0]))
+			sg.Popup(f"There was a problem converting {layoutfile} to json:",
+				"\n".join([o for o in outputs if len(o) > 0]), title="Error")
 			return
 
 	with open(jsonfile) as openfile:
@@ -93,13 +89,16 @@ def main():
 			layout = json.load(openfile)
 			layout["m_Bridge"]["m_Anchors"] = layout["m_Anchors"]  # both should update together in real-time
 		except json.JSONDecodeError as error:
-			print(f"[Error] Invalid syntax in line {error.lineno}, column {error.colno} of {jsonfile}")
+			sg.Popup(f"Invalid syntax in line {error.lineno}, column {error.colno} of {jsonfile}", title="Problem")
 			return
 		except ValueError:
-			print(f"[Error] {jsonfile} is either incomplete or not a valid level")
+			sg.Popup(f"{jsonfile} is either incomplete or not a valid level", title="Problem")
 			return
 
-	print(f"[>] Opening {leveltoedit} in the editor")
+	return layout, layoutfile, jsonfile, backupfile
+
+
+def main(layout, layoutfile, jsonfile, backupfile):
 
 	size = BASE_SIZE
 	zoom = 20
@@ -153,11 +152,10 @@ def main():
 				if popup is not None:
 					popup.window.close()
 				pygame.quit()
-				return
+				sys.exit()
 
 			if event.type == pygame.ACTIVEEVENT:
 				if event.state == 6:  # minimized
-					print(event)
 					if popup_active and not event.gain:
 						popup.window.minimize()
 
@@ -335,14 +333,12 @@ def main():
 					if popup_active:
 						popup.window.close()
 					pygame.quit()
-					print("[#] Closed without saving")
 					return
 
 				elif event.key == ord("s"):
 					if popup_active:
 						popup.window.close()
 						popup_active = False
-					print("[>] Saving...")
 					jsonstr = json.dumps(layout, indent=2)
 					jsonstr = re.sub(r"(\r\n|\r|\n)( ){6,}", r" ", jsonstr)  # limit depth to 3 levels
 					jsonstr = re.sub(r"(\r\n|\r|\n)( ){4,}([}\]])", r" \3", jsonstr)
@@ -352,18 +348,22 @@ def main():
 					if program.returncode == SUCCESS_CODE:
 						output = program.stdout.decode().strip()
 						if len(output) == 0:
-							print("[>] No new changes to apply")
+							sg.Popup("No new changes to apply.",
+								no_titlebar=True, keep_on_top=True, grab_anywhere=True)
 						else:
 							if "backup" in program.stdout.decode():
-								print(f"[>] Created backup {backupfile}")
-							print(f"[>] Applied changes to {layoutfile}")
-						print("[#] Done!")
-						return
-					elif program.returncode == FILE_ERROR_CODE:  # failed to save?
-						print(program.stdout.decode().strip())
+								sg.Popup(f"Applied changes to {layoutfile}!", f"(Created backup {backupfile})",
+									no_titlebar=True, keep_on_top=True, grab_anywhere=True)
+							else:
+								sg.Popup(f"Applied changes to {layoutfile}!",
+									no_titlebar=True, keep_on_top=True, grab_anywhere=True)
+					elif program.returncode == FILE_ERROR_CODE:  # failed to write file?
+						sg.Popup("Couldn't save:", program.stdout.decode().strip(),
+							no_titlebar=True, keep_on_top=True, grab_anywhere=True)
 					else:
 						outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
-						print(f"Unexpected error:\n" + "\n".join([o for o in outputs if len(o) > 0]))
+						sg.Popup(f"Unexpected error while trying to save:", "\n".join([o for o in outputs if len(o) > 0]),
+							no_titlebar=True, keep_on_top=True, grab_anywhere=True)
 				
 				elif event.key == ord('e'):
 					# Popup window to edit properties
@@ -388,7 +388,7 @@ def main():
 								["Y", popup_start_pos["y"]],
 								["Z", popup_start_pos["z"]]
 							]
-						popup = Popup(values)
+						popup = EditObjectPopup(values)
 						popup_active = True
 
 				# Move selection with keys
@@ -521,7 +521,7 @@ def main():
 		font_size = 16
 		font = pygame.font.SysFont('Courier', font_size, True)
 		help_msg = "LeftClick: Move / Pan | RightClick: Select | " \
-		           "ShiftClick: Multi-select | Arrows: Move | S: Save + Quit | 0: Quit"
+		           "ShiftClick: Multi-select | Arrows: Move | S: Save | 0: Change level"
 		help_text = font.render(help_msg, True, fg_color)
 		display.blit(help_text, (5, size[1] - font_size*2 - 5))
 		help_msg = "P: Edit points | E: Edit object | C: Copy selected | D: Delete selected | " \
@@ -534,18 +534,17 @@ def main():
 
 
 if __name__ == "__main__":
-	os.system("title PolyEditor Console")
-	print("[#] Booted up PolyEditor")
-
 	try:
+		sg.theme("Dark Blue 2")
+		sg.set_global_icon(ICON)
+
 		# Test run
 		lap = 0
 		while True:
 			lap += 1
 			program = run(f"{POLYCONVERTER} test", capture_output=True)
 			if program.returncode == GAMEPATH_ERROR_CODE:  # game install not found
-				print(program.stdout.decode().strip())
-				input("\nPress Enter to exit...")
+				sg.Popup(program.stdout.decode().strip(), title="Problem")
 				sys.exit()
 			elif program.returncode == FILE_ERROR_CODE:  # as "test" is not a valid file
 				break  # All OK
@@ -561,20 +560,22 @@ if __name__ == "__main__":
 							found_new = True
 							break
 					if not found_new:
-						print("It appears you don't have .NET installed.")
-						print("Please download 'PolyConverter including NET.exe' from "
-							  "https://github.com/JbCoder/PolyEditor/releases and place it in this same folder. "
-							  "Then run this program again.")
+						sg.Popup(
+							"It appears you don't have .NET installed.",
+							"Please download 'PolyConverter including NET.exe' from "
+							"https://github.com/JbCoder/PolyEditor/releases and place it in this same folder. "
+							"Then run this program again.",
+							title="Problem")
 						sys.exit()
 				else:
-					print(f"Unexpected PolyConverter error:\n" + "\n".join([o for o in outputs if len(o) > 0]))
-					input("\nPress Enter to exit...")
+					sg.Popup(f"Unexpected PolyConverter error:", "\n".join([o for o in outputs if len(o) > 0]), title="Error")
 					sys.exit()
 
 		# Meta loop
 		while True:
-			main()
-			input("\n[#] Press Enter to run the program again or Ctrl+C to exit\n")
+			args = choose_file()
+			if args is not None:
+				main(*args)
 
-	except BaseException as e:
-		sg.Popup("An unexpected error occurred while running PolyEditor:", e, title="Error")
+	except Exception as e:
+		sg.Popup("An unexpected error occurred while running PolyEditor.", traceback.format_exc(), title="Error")
