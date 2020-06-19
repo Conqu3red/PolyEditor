@@ -11,5 +11,7 @@ class Popup:
 				if c == 0:
 					self.layout[r].append(sg.Text(data))
 				else:
-					self.layout[r].append(sg.Input(data))
+					inp = sg.Input(data)
+					inp
+					self.layout[r].append(inp)
 		self.window = sg.Window("Object properties", self.layout, keep_on_top=True, alpha_channel=0.7)

@@ -6,6 +6,7 @@ import sys
 import pygame
 import re
 import json
+import PySimpleGUI as sg
 from uuid import uuid4
 from copy import deepcopy
 from itertools import chain
@@ -338,6 +339,9 @@ def main():
 					return
 
 				elif event.key == ord("s"):
+					if popup_active:
+						popup.window.close()
+						popup_active = False
 					print("[>] Saving...")
 					jsonstr = json.dumps(layout, indent=2)
 					jsonstr = re.sub(r"(\r\n|\r|\n)( ){6,}", r" ", jsonstr)  # limit depth to 3 levels
@@ -346,9 +350,6 @@ def main():
 						openfile.write(jsonstr)
 					program = run(f"{POLYCONVERTER} {jsonfile}", capture_output=True)
 					if program.returncode == SUCCESS_CODE:
-						if popup_active:
-							popup.window.close()
-						pygame.quit()
 						output = program.stdout.decode().strip()
 						if len(output) == 0:
 							print("[>] No new changes to apply")
@@ -536,43 +537,44 @@ if __name__ == "__main__":
 	os.system("title PolyEditor Console")
 	print("[#] Booted up PolyEditor")
 
-	# Test run
-	lap = 0
-	while True:
-		lap += 1
-		program = run(f"{POLYCONVERTER} test", capture_output=True)
-		if program.returncode == GAMEPATH_ERROR_CODE:  # game install not found
-			print(program.stdout.decode().strip())
-			input("\nPress Enter to exit...")
-			sys.exit()
-		elif program.returncode == FILE_ERROR_CODE:  # as "test" is not a valid file
-			break  # All OK
-		else:
-			outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
-			if lap == 1 and "dotnet" in outputs[1]:  # .NET not installed
-				currentdir = getcwd()
-				filelist = [f for f in listdir(currentdir) if isfile(pathjoin(currentdir, f))]
-				found_new = False
-				for file in filelist:
-					if re.compile(r"^PolyConverter(.+)?\.exe$").match(file):
-						POLYCONVERTER = file
-						found_new = True
-						break
-				if not found_new:
-					print("It appears you don't have .NET installed.")
-					print("Please download 'PolyConverter including NET.exe' from "
-					      "https://github.com/JbCoder/PolyEditor/releases and place it in this same folder. "
-					      "Then run this program again.")
-					sys.exit()
-			else:
-				print(f"Unexpected PolyConverter error:\n" + "\n".join([o for o in outputs if len(o) > 0]))
+	try:
+		# Test run
+		lap = 0
+		while True:
+			lap += 1
+			program = run(f"{POLYCONVERTER} test", capture_output=True)
+			if program.returncode == GAMEPATH_ERROR_CODE:  # game install not found
+				print(program.stdout.decode().strip())
 				input("\nPress Enter to exit...")
 				sys.exit()
+			elif program.returncode == FILE_ERROR_CODE:  # as "test" is not a valid file
+				break  # All OK
+			else:
+				outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
+				if lap == 1 and "dotnet" in outputs[1]:  # .NET not installed
+					currentdir = getcwd()
+					filelist = [f for f in listdir(currentdir) if isfile(pathjoin(currentdir, f))]
+					found_new = False
+					for file in filelist:
+						if re.compile(r"^PolyConverter(.+)?\.exe$").match(file):
+							POLYCONVERTER = file
+							found_new = True
+							break
+					if not found_new:
+						print("It appears you don't have .NET installed.")
+						print("Please download 'PolyConverter including NET.exe' from "
+							  "https://github.com/JbCoder/PolyEditor/releases and place it in this same folder. "
+							  "Then run this program again.")
+						sys.exit()
+				else:
+					print(f"Unexpected PolyConverter error:\n" + "\n".join([o for o in outputs if len(o) > 0]))
+					input("\nPress Enter to exit...")
+					sys.exit()
 
-	# Meta loop
-	try:
+		# Meta loop
 		while True:
 			main()
 			input("\n[#] Press Enter to run the program again or Ctrl+C to exit\n")
-	except KeyboardInterrupt:  # Ctrl+C
-		pass
+
+	except BaseException as e:
+		sg.Popup("An unexpected error occurred while running PolyEditor:", e, title="Error")
