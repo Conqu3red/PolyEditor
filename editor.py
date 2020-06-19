@@ -1,6 +1,6 @@
 import os
-os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
-os.environ['SDL_VIDEO_CENTERED'] = '1'
+os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "hide"
+os.environ["SDL_VIDEO_CENTERED"] = "1"
 
 import sys
 import pygame
@@ -12,14 +12,14 @@ import PySimpleGUI as sg
 from uuid import uuid4
 from copy import deepcopy
 from itertools import chain
-from operator import add, sub
+from operator import sub
 from os import getcwd, listdir
-from os.path import exists, isfile, join as pathjoin, getmtime as lastmodified
+from os.path import isfile, join as pathjoin, getmtime as lastmodified
 from subprocess import run
 from time import sleep
 
 import game_objects as g
-from popup_windows import EditObjectPopup
+import popup_windows as popup
 
 BASE_SIZE = (1200, 600)
 FPS = 60
@@ -34,6 +34,7 @@ BACKGROUND_GRAY_GRID = (178, 169, 211)
 BACKGROUND_GRAY = (162, 154, 194)
 
 try:  # When bundled as single executable
+	# noinspection PyUnresolvedReferences
 	TEMP_FILES = sys._MEIPASS
 	POLYCONVERTER = pathjoin(TEMP_FILES, "PolyConverter.exe")
 	ICON = pathjoin(TEMP_FILES, "favicon.ico")
@@ -52,36 +53,33 @@ FILE_ERROR_CODE = 3
 GAMEPATH_ERROR_CODE = 4
 
 
-def choose_file():
+def load_level():
 	currentdir = getcwd()
 	filelist = [f for f in listdir(currentdir) if isfile(pathjoin(currentdir, f))]
 	levellist = [match.group(1) for match in [FILE_REGEX.match(f) for f in filelist] if match]
 	levellist = list(dict.fromkeys(levellist))  # remove duplicates
 
 	if len(levellist) == 0:
-		sg.Popup("There are no levels to edit in this folder", title="PolyEditor")
+		popup.info("PolyEditor", "There are no levels to edit in this folder")
 		sys.exit()
 
-	listbox = sg.Listbox(
-		values=levellist, size=(60, 10), pad=((0, 0), (0, 5)), bind_return_key=True, default_values=[levellist[0]])
-	window = sg.Window("PolyEditor", layout=[[sg.Text("Choose a level to edit:")], [listbox], [sg.Ok()]])
-	event = window.read(close=True)
-	if event[0] == sg.WIN_CLOSED:
+	leveltoedit = popup.selection("PolyEditor", "Choose a level to edit:", levellist)
+	if leveltoedit is None:
 		sys.exit()
-	else:
-		leveltoedit = event[1][0][0]
 
 	layoutfile = leveltoedit + LAYOUT_EXTENSION
 	jsonfile = leveltoedit + JSON_EXTENSION
 	backupfile = leveltoedit + BACKUP_EXTENSION
 
-	if (layoutfile in filelist and
-			(jsonfile not in filelist or lastmodified(layoutfile) > lastmodified(jsonfile))):
+	if (
+			layoutfile in filelist
+			and (jsonfile not in filelist or lastmodified(layoutfile) > lastmodified(jsonfile))
+	):
 		program = run(f"{POLYCONVERTER} {layoutfile}", capture_output=True)
 		if program.returncode != SUCCESS_CODE:
 			outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
-			sg.Popup(f"There was a problem converting {layoutfile} to json:",
-				"\n".join([o for o in outputs if len(o) > 0]), title="Error")
+			popup.info("Error", f"There was a problem converting {layoutfile} to json:",
+			           "\n".join([o for o in outputs if len(o) > 0]),)
 			return
 
 	with open(jsonfile) as openfile:
@@ -89,12 +87,12 @@ def choose_file():
 			layout = json.load(openfile)
 			layout["m_Bridge"]["m_Anchors"] = layout["m_Anchors"]  # both should update together in real-time
 		except json.JSONDecodeError as error:
-			sg.Popup("Couldn't open level:",
-				f"Invalid syntax in line {error.lineno}, column {error.colno} of {jsonfile}", title="Problem")
+			popup.info("Problem", "Couldn't open level:",
+			           f"Invalid syntax in line {error.lineno}, column {error.colno} of {jsonfile}")
 			return
 		except ValueError:
-			sg.Popup("Couldn't open level:",
-				f"{jsonfile} is either incomplete or not actually a level", title="Problem")
+			popup.info("Problem", "Couldn't open level:",
+			           f"{jsonfile} is either incomplete or not actually a level")
 			return
 
 	return layout, layoutfile, jsonfile, backupfile
@@ -106,11 +104,10 @@ def main(layout, layoutfile, jsonfile, backupfile):
 	zoom = 20
 	camera = [size[0] / zoom / 2, -(size[1] / zoom / 2 + 5)]
 	clock = pygame.time.Clock()
-	popup = None
-	popup_active = False
+	edit_object_window = popup.EditObject(None)
 	draw_points = False
 	hitboxes = False
-	dragging = False
+	panning = False
 	selecting = False
 	moving = False
 	point_moving = False
@@ -153,18 +150,15 @@ def main(layout, layoutfile, jsonfile, backupfile):
 		for event in pygame.event.get():
 
 			if event.type == pygame.QUIT:
-				if popup is not None:
-					popup.window.close()
-				answer = sg.popup_yes_no("Quit and lose any unsaved changes?",
-					no_titlebar=True, keep_on_top=True, grab_anywhere=True)
-				if answer == "Yes":
+				edit_object_window.close()
+				if popup.yes_no("Quit and lose any unsaved changes?") == "Yes":
 					pygame.quit()
 					sys.exit()
 
 			if event.type == pygame.ACTIVEEVENT:
 				if event.state == 6:  # minimized
-					if popup_active and not event.gain:
-						popup.window.minimize()
+					if edit_object_window and not event.gain:
+						edit_object_window.window.minimize()
 
 			if event.type == pygame.VIDEORESIZE:
 				display = pygame.display.set_mode(event.size, pygame.RESIZABLE)
@@ -178,9 +172,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 							if type(obj) is g.CustomShape:
 								clicked_point = [p for p in obj.point_hitboxes if p.collidepoint(event.pos)]
 								if clicked_point:
-									if popup_active:
-										popup.window.close()
-										popup_active = False
+									edit_object_window.close()
 									point_moving = True
 									obj.selected_points = [p.collidepoint(event.pos) for p in obj.point_hitboxes]
 									selected_shape = obj
@@ -195,24 +187,18 @@ def main(layout, layoutfile, jsonfile, backupfile):
 									for o in selectable_objects():
 										o.highlighted = False
 								obj.highlighted = True
-								if popup_active:
-									popup.window.close()
-									popup_active = False
+								edit_object_window.close()
 							elif holding_shift():
 								obj.highlighted = False
-								if popup_active:
-									popup.window.close()
-									popup_active = False
+								edit_object_window.close()
 							break
 					if not (moving or point_moving):
-						dragging = True
+						panning = True
 						dragndrop_pos = true_mouse_pos()
 					old_mouse_pos = event.pos
 
 				if event.button == 3:  # right click
-					if popup_active:
-						popup.window.close()
-						popup_active = False
+					edit_object_window.close()
 					mouse_pos = event.pos
 					selecting_pos = event.pos
 					if not point_moving or moving:
@@ -247,21 +233,26 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						selected_shape.selected_points = []
 						selected_shape = None
 						point_moving = False
-					if not holding_shift() and dragndrop_pos is not None and\
-							((not dragging and dragndrop_pos != true_mouse_pos())
-							 or (dragging and dragndrop_pos == true_mouse_pos())):
+					if (
+							not holding_shift() and dragndrop_pos is not None
+							and ((not panning and dragndrop_pos != true_mouse_pos())
+							     or (panning and dragndrop_pos == true_mouse_pos()))
+					):
 						hl_objs = [o for o in selectable_objects() if o.highlighted]
 						if len(hl_objs) == 1:
 							hl_objs[0].highlighted = False
-					dragging = False
+					if not panning:
+						edit_object_window.close()
+					panning = False
 					moving = False
 
 				if event.button == 3:  # right click
 					selecting = False
+					edit_object_window.close()
 
 			elif event.type == pygame.MOUSEMOTION:
 				mouse_pos = event.pos
-				if dragging:
+				if panning:
 					camera[0] = camera[0] + (mouse_pos[0] - old_mouse_pos[0]) / zoom
 					camera[1] = camera[1] - (mouse_pos[1] - old_mouse_pos[1]) / zoom
 					old_mouse_pos = mouse_pos
@@ -270,7 +261,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 				move_x, move_y = 0, 0
 				move = False
 
-				if event.key == ord('b'):
+				if event.key == ord("b"):
 					# Toggle color scheme
 					if bg_color == BACKGROUND_GRAY:
 						bg_color = BACKGROUND_BLUE
@@ -281,15 +272,15 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						bg_color_2 = BACKGROUND_GRAY_GRID
 						fg_color = BLACK
 
-				elif event.key == ord('h'):
+				elif event.key == ord("h"):
 					# Toggle hitboxes
 					hitboxes = not hitboxes
 				
-				elif event.key == ord('p'):
+				elif event.key == ord("p"):
 					# Toggle showing points
 					draw_points = not draw_points
 
-				elif event.key == ord('d'):
+				elif event.key == ord("d"):
 					# Delete selected
 					for obj in [o for o in selectable_objects() if o.highlighted]:
 						if type(obj) is g.CustomShape:
@@ -339,51 +330,41 @@ def main(layout, layoutfile, jsonfile, backupfile):
 										anchor.pos["y"] -= 1
 						object_lists[new_obj.list_name].append(new_obj)
 
-				elif event.key == ord('0'):
-					if popup_active:
-						popup.window.close()
-					answer = sg.popup_yes_no("Quit and lose any unsaved changes?",
-						no_titlebar=True, keep_on_top=True, grab_anywhere=True)
-					if answer == "Yes":
+				elif event.key == ord("0"):
+					edit_object_window.close()
+					if popup.ok_cancel("You will lose any unsaved changes.") == "Ok":
 						pygame.quit()
 						return
 
 				elif event.key == ord("s"):
-					if popup_active:
-						popup.window.close()
-						popup_active = False
+					edit_object_window.close()
 					jsonstr = json.dumps(layout, indent=2)
 					jsonstr = re.sub(r"(\r\n|\r|\n)( ){6,}", r" ", jsonstr)  # limit depth to 3 levels
 					jsonstr = re.sub(r"(\r\n|\r|\n)( ){4,}([}\]])", r" \3", jsonstr)
-					with open(jsonfile, 'w') as openfile:
+					with open(jsonfile, "w") as openfile:
 						openfile.write(jsonstr)
 					program = run(f"{POLYCONVERTER} {jsonfile}", capture_output=True)
 					if program.returncode == SUCCESS_CODE:
 						output = program.stdout.decode().strip()
 						if len(output) == 0:
-							sg.Popup("No new changes to apply.",
-								no_titlebar=True, keep_on_top=True, grab_anywhere=True)
+							popup.notif("No new changes to apply.")
 						else:
 							if "backup" in program.stdout.decode():
-								sg.Popup(f"Applied changes to {layoutfile}!", f"(Created backup {backupfile})",
-									no_titlebar=True, keep_on_top=True, grab_anywhere=True)
+								popup.notif(f"Applied changes to {layoutfile}!", f"(Created backup {backupfile})")
 							else:
-								sg.Popup(f"Applied changes to {layoutfile}!",
-									no_titlebar=True, keep_on_top=True, grab_anywhere=True)
+								popup.notif(f"Applied changes to {layoutfile}!")
 					elif program.returncode == FILE_ERROR_CODE:  # failed to write file?
-						sg.Popup("Couldn't save:", program.stdout.decode().strip(),
-							no_titlebar=True, keep_on_top=True, grab_anywhere=True)
+						popup.notif("Couldn't save:", program.stdout.decode().strip())
 					else:
 						outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
-						sg.Popup(f"Unexpected error while trying to save:", "\n".join([o for o in outputs if len(o) > 0]),
-							no_titlebar=True, keep_on_top=True, grab_anywhere=True)
+						popup.notif(f"Unexpected error while trying to save:",
+						            "\n".join([o for o in outputs if len(o) > 0]))
 				
-				elif event.key == ord('e'):
+				elif event.key == ord("e"):
 					# Popup window to edit properties
 					hl_objs = [o for o in selectable_objects() if o.highlighted]
-					if popup_active:  # remove previous
-						popup.window.close()
-						popup_active = False
+					if edit_object_window:  # remove previous
+						edit_object_window.close()
 						for obj in hl_objs:
 							obj.highlighted = False
 						hl_objs.clear()
@@ -411,8 +392,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 								["Rot. X", rot[0]],
 								["Rot. Y", rot[1]]
 							])
-						popup = EditObjectPopup(values)
-						popup_active = True
+						edit_object_window = popup.EditObject(values)
 
 				# Move selection with keys
 				if move:
@@ -444,9 +424,9 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 		# Selecting shapes
 		if selecting:
-			select_box = pygame.draw.rect(display, g.SELECT_COLOR,
-				pygame.Rect(selecting_pos[0], selecting_pos[1],
-				            mouse_pos[0] - selecting_pos[0], mouse_pos[1] - selecting_pos[1]), 1)
+			rect = pygame.Rect(selecting_pos[0], selecting_pos[1],
+			                   mouse_pos[0] - selecting_pos[0], mouse_pos[1] - selecting_pos[1]), 1
+			select_box = pygame.draw.rect(display, g.SELECT_COLOR, rect)
 			for obj in selectable_objects():
 				if not holding_shift():
 					obj.highlighted = obj.hitbox.colliderect(select_box)
@@ -472,14 +452,13 @@ def main(layout, layoutfile, jsonfile, backupfile):
 									anchor.pos["y"] += move_y
 
 		hl_objs = [o for o in selectable_objects() if o.highlighted]
-		if popup_active and len(hl_objs) == 1:
+		if edit_object_window and len(hl_objs) == 1:
 			obj = hl_objs[0]
 			try:
 				# TODO: Still drops a few inputs, even more with lower timeout
-				gui_evnt, values = popup.window.read(timeout=100)
-				if gui_evnt == sg.WIN_CLOSED or gui_evnt == 'Exit':
-					popup.window.close()
-					popup_active = False
+				gui_evnt, values = edit_object_window.window.read(timeout=100)
+				if gui_evnt == sg.WIN_CLOSED or gui_evnt == "Exit":
+					edit_object_window.close()
 					raise ValueError()
 
 				# TODO: Change input color to red when value is invalid
@@ -570,6 +549,8 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 			except ValueError:  # invalid position
 				pass
+		else:
+			edit_object_window.close()
 		
 		true_mouse_change = tuple(map(sub, true_mouse_pos(), old_true_mouse_pos))
 		old_true_mouse_pos = true_mouse_pos()
@@ -589,11 +570,11 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			anchor.render(display, camera, zoom, dyn_anc_ids)
 
 		# Display mouse position, zoom and fps
-		font = pygame.font.SysFont('Courier', 20)
+		font = pygame.font.SysFont("Courier", 20)
 		pos_msg = f"[{round(true_mouse_pos()[0], 2):>6},{round(true_mouse_pos()[1], 2):>6}]"
 		pos_text = font.render(pos_msg, True, fg_color)
 		display.blit(pos_text, (2, 5))
-		font = pygame.font.SysFont('Courier', 16)
+		font = pygame.font.SysFont("Courier", 16)
 		zoom_msg = f"({zoom})"
 		zoom_size = font.size(zoom_msg)
 		zoom_text = font.render(zoom_msg, True, fg_color)
@@ -605,7 +586,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 		# Display controls
 		font_size = 16
-		font = pygame.font.SysFont('Courier', font_size, True)
+		font = pygame.font.SysFont("Courier", font_size, True)
 		help_msg = "LeftClick: Move / Pan | RightClick: Select | " \
 		           "ShiftClick: Multi-select | Arrows: Move | S: Save | 0: Change level"
 		help_text = font.render(help_msg, True, fg_color)
@@ -623,14 +604,14 @@ if __name__ == "__main__":
 	try:
 		# PySimpleGUI
 		sg.LOOK_AND_FEEL_TABLE["PolyEditor"] = {
-			'BACKGROUND': '#1F2E3F',
-			'TEXT': '#FFFFFF',
-			'INPUT': '#2B4668',
-			'TEXT_INPUT': '#FFFFFF',
-			'SCROLL': '#2B4668',
-			'BUTTON': ('#FFFFFF', '#2B4668'),
-			'PROGRESS': ('#01826B', '#D0D0D0'),
-			'BORDER': 1, 'SLIDER_DEPTH': 0, 'PROGRESS_DEPTH': 0
+			"BACKGROUND": "#1F2E3F",
+			"TEXT": "#FFFFFF",
+			"INPUT": "#2B4668",
+			"TEXT_INPUT": "#FFFFFF",
+			"SCROLL": "#2B4668",
+			"BUTTON": ("#FFFFFF", "#2B4668"),
+			"PROGRESS": ("#01826B", "#D0D0D0"),
+			"BORDER": 1, "SLIDER_DEPTH": 0, "PROGRESS_DEPTH": 0
 		}
 		sg.theme("PolyEditor")
 		sg.set_global_icon(ICON)
@@ -639,48 +620,47 @@ if __name__ == "__main__":
 		if TEMP_FILES is not None:
 			print("Finished loading!")
 			sleep(0.5)
-			kernel32 = ctypes.WinDLL('kernel32')
-			user32 = ctypes.WinDLL('user32')
+			kernel32 = ctypes.WinDLL("kernel32")
+			user32 = ctypes.WinDLL("user32")
 			user32.ShowWindow(kernel32.GetConsoleWindow(), 0)
 
-		# Test run
+		# Ensure the converter is working
 		lap = 0
 		while True:
 			lap += 1
-			program = run(f"{POLYCONVERTER} test", capture_output=True)
-			if program.returncode == GAMEPATH_ERROR_CODE:  # game install not found
-				sg.Popup(program.stdout.decode().strip(), title="Problem")
+			test_program = run(f"{POLYCONVERTER} test", capture_output=True)
+			if test_program.returncode == GAMEPATH_ERROR_CODE:  # game install not found
+				popup.info("Problem", test_program.stdout.decode().strip())
 				sys.exit()
-			elif program.returncode == FILE_ERROR_CODE:  # as "test" is not a valid file
+			elif test_program.returncode == FILE_ERROR_CODE:  # as "test" is not a valid file
 				break  # All OK
 			else:
-				outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
-				if lap == 1 and "dotnet" in outputs[1]:  # .NET not installed
-					currentdir = getcwd()
-					filelist = [f for f in listdir(currentdir) if isfile(pathjoin(currentdir, f))]
-					found_new = False
-					for file in filelist:
+				test_outputs = [test_program.stdout.decode().strip(), test_program.stderr.decode().strip()]
+				if lap == 1 and "dotnet" in test_outputs[1]:  # .NET not installed
+					test_dir = getcwd()
+					test_filelist = [f for f in listdir(test_dir) if isfile(pathjoin(test_dir, f))]
+					test_found = False
+					for file in test_filelist:
 						if re.compile(r"^PolyConverter(.+)?\.exe$").match(file):
 							POLYCONVERTER = file
-							found_new = True
+							test_found = True
 							break
-					if not found_new:
-						sg.Popup(
-							"It appears you don't have .NET installed.",
-							"Please download 'PolyConverter including NET.exe' from "
-							"https://github.com/JbCoder/PolyEditor/releases and place it in this same folder. "
-							"Then run this program again.",
-							title="Problem")
+					if not test_found:
+						popup.info("Problem",
+						           "It appears you don't have .NET installed.",
+						           "Please download 'PolyConverter including NET.exe' from "
+						           "https://github.com/JbCoder/PolyEditor/releases and place it in this same folder. "
+						           "Then run this program again.")
 						sys.exit()
 				else:
-					sg.Popup(f"Unexpected converter error:", "\n".join([o for o in outputs if len(o) > 0]), title="Error")
+					popup.info("Error", "Unexpected converter error:", "\n".join([o for o in test_outputs if len(o) > 0]))
 					sys.exit()
 
 		# Meta loop
 		while True:
-			args = choose_file()
+			args = load_level()
 			if args is not None:
 				main(*args)
 
 	except Exception as e:
-		sg.Popup("An unexpected error occurred while running PolyEditor:", traceback.format_exc(), title="Error")
+		popup.info("Error", "An unexpected error occurred while running PolyEditor:", traceback.format_exc())

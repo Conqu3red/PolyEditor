@@ -41,7 +41,7 @@ def scale(min_width, zoom, factor=30):
 	return max(min_width, round(zoom / (factor / min_width)))
 
 
-def rotate(point, angle, origin=(0,0), deg=True):
+def rotate(point, angle, origin=(0, 0), deg=True):
 	"""Rotate a point by a given angle counterclockwise around (0,0)"""
 	if deg:
 		angle = math.radians(angle)
@@ -252,9 +252,9 @@ class Pillar(LayoutObject):
 
 	def render(self, display, camera, zoom, draw_hitbox):
 		rect = (round(zoom * (self.pos["x"] - PILLAR_WIDTH / 2 + camera[0])),
-				round(zoom * -(self.pos["y"] + self.height + camera[1])),
-				round(zoom * PILLAR_WIDTH),
-				round(zoom * self.height))
+		        round(zoom * -(self.pos["y"] + self.height + camera[1])),
+		        round(zoom * PILLAR_WIDTH),
+		        round(zoom * self.height))
 		self.hitbox = pygame.Rect(rect)
 		self.click_hitbox = self.hitbox
 		surf = pygame.Surface((rect[2], rect[3]))
@@ -267,7 +267,7 @@ class Pillar(LayoutObject):
 			pygame.draw.rect(display, HITBOX_COLOR, self.hitbox, 1)
 			center_width = scale(HITBOX_CENTER_WIDTH, zoom)
 			center_start = (round(zoom * (self.pos["x"] + camera[0]) - center_width / 2),
-							round(zoom * -(self.pos["y"] + camera[1])))
+			                round(zoom * -(self.pos["y"] + camera[1])))
 			center_end = (center_start[0] + center_width, center_start[1])
 			pygame.draw.line(display, HITBOX_COLOR, center_start, center_end, center_width)
 		if self.highlighted:
@@ -339,9 +339,8 @@ class CustomShape(LayoutObject):
 				_pos = deepcopy(self.pos)
 				self.pos["x"] = self.hitbox.center[0] / zoom - camera[0]
 				self.pos["y"] = -(self.hitbox.center[1] / zoom) - camera[1]
-				self.points = tuple([(point[0] + _pos["x"] - self.pos["x"], 
-				point[1] + _pos["y"] - self.pos["y"])
-				for point in self.points])
+				self.points = tuple([(point[0] + _pos["x"] - self.pos["x"], point[1] + _pos["y"] - self.pos["y"])
+				                     for point in self.points])
 			# Render points
 			for i, point in enumerate(points_pixels):
 				self.point_hitboxes.append(
@@ -410,14 +409,14 @@ class CustomShape(LayoutObject):
 
 	@property
 	def points(self):
-		list = []
+		pts = []
 		for p in self._dict["m_PointsLocalSpace"]:
 			point = (p["x"] * self.scale["x"], p["y"] * self.scale["y"])
 			if self.flipped:
 				point = (-point[0], point[1])
 			point = rotate(point, self.rotations[2])
-			list.append(point)
-		return tuple(list)
+			pts.append(point)
+		return tuple(pts)
 	@points.setter
 	def points(self, values):
 		values = [rotate(p, -self.rotations[2]) for p in values]
