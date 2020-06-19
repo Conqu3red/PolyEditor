@@ -29,8 +29,8 @@ WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 BACKGROUND_BLUE = (43, 70, 104)
 BACKGROUND_BLUE_GRID = (38, 63, 94)
-BACKGROUND_GRAY = (162, 154, 194)
 BACKGROUND_GRAY_GRID = (178, 169, 211)
+BACKGROUND_GRAY = (162, 154, 194)
 
 try:  # when bundled as single executable
 	POLYCONVERTER = pathjoin(sys._MEIPASS, "PolyConverter.exe")
@@ -535,7 +535,17 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 if __name__ == "__main__":
 	try:
-		sg.theme("Dark Blue 2")
+		sg.LOOK_AND_FEEL_TABLE["PolyEditor"] = {
+			'BACKGROUND': '#222A32',
+			'TEXT': '#fff',
+			'INPUT': '#3a4755',
+			'TEXT_INPUT': '#fff',
+			'SCROLL': '#1b6497',
+			'BUTTON': ('#000000', '#e8ebed'),
+			'PROGRESS': ('#01826B', '#D0D0D0'),
+			'BORDER': 1, 'SLIDER_DEPTH': 0, 'PROGRESS_DEPTH': 0
+		}
+		sg.theme("PolyEditor")
 		sg.set_global_icon(ICON)
 
 		# Test run
