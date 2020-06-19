@@ -423,7 +423,7 @@ class CustomShape(LayoutObject):
 		values = [rotate(p, -self.rotations[2]) for p in values]
 		if self.flipped:
 			values = [(-p[0], p[1]) for p in values]
-		self._dict["m_PointsLocalSpace"] = [{"x": p[0], "y": p[1]} for p in values]
+		self._dict["m_PointsLocalSpace"] = [{"x": p[0] / self.scale["x"], "y": p[1] / self.scale["y"]} for p in values]
 
 	@property
 	def static_pins(self):
