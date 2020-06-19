@@ -9,8 +9,9 @@ class EditObjectPopup:
 			self.layout.append([])
 			for c, data in enumerate(row):
 				if c == 0:
-					self.layout[r].append(sg.Text(data))
+					self.layout[r].append(sg.Text(data, justification='center', size=(6, None)))
 				else:
-					inp = sg.Input(data)
+					inp = sg.Input(data, justification='left', size=(10, None))
 					self.layout[r].append(inp)
-		self.window = sg.Window("Object properties", self.layout, keep_on_top=True, alpha_channel=0.7)
+		self.window = sg.Window(
+			"Object properties", self.layout, keep_on_top=True, alpha_channel=0.7, disable_minimize=True)

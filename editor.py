@@ -386,12 +386,22 @@ def main(layout, layoutfile, jsonfile, backupfile):
 								hl_objs.append(obj)
 								break
 					if len(hl_objs) == 1:
-						popup_start_pos = deepcopy(hl_objs[0].pos)
+						obj = hl_objs[0]
 						values = [
-								["X", popup_start_pos["x"]],
-								["Y", popup_start_pos["y"]],
-								["Z", popup_start_pos["z"]]
-							]
+							["X", obj.pos["x"]],
+							["Y", obj.pos["y"]],
+							["Z", obj.pos["z"]]
+						]
+						if type(obj) is g.CustomShape:
+							rot = obj.rotations
+							values.extend([
+								["Scale X", obj.scale["x"]],
+								["Scale Y", obj.scale["y"]],
+								["Scale Z", obj.scale["z"]],
+								["Rotation", rot[2]],
+								["Rot. X", rot[0]],
+								["Rot. Y", rot[1]]
+							])
 						popup = EditObjectPopup(values)
 						popup_active = True
 
@@ -462,21 +472,28 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					popup.window.close()
 					popup_active = False
 					raise ValueError()
-				x = float(values[0])
-				y = float(values[1])
-				z = float(values[2])
-				if abs(x) > 100000 or abs(y) > 100000 or abs(z) > 1000:
-					raise ValueError()
+
+				# TODO: Change input color to red when value is invalid
+
+				# Position
+				try:
+					x = float(values[0])
+					x = max(min(x, 10000), -10000)
+				except ValueError:
+					x = obj.pos["x"]
+				try:
+					y = float(values[1])
+					y = max(min(y, 10000), -10000)
+				except ValueError:
+					y = obj.pos["y"]
+				try:
+					z = float(values[2])
+					z = max(min(z, 10000), -10000)
+				except ValueError:
+					z = obj.pos["z"]
+
 				x_change, y_change, z_change = x - obj.pos["x"], y - obj.pos["y"], z - obj.pos["z"]
-				if abs(x_change) < 0.00001:  # prevent rounding-based microchanges
-					x_change = 0
-				if abs(y_change) < 0.00001:
-					y_change = 0
-				if abs(z_change) < 0.00001:
-					z_change = 0
-				obj.pos["x"] += x_change
-				obj.pos["y"] += y_change
-				obj.pos["z"] += z_change
+				obj.pos = {"x": x, "y": y, "z": z}
 				if type(obj) is g.CustomShape:
 					for pin in obj.static_pins:
 						pin["x"] += x_change
@@ -486,6 +503,62 @@ def main(layout, layoutfile, jsonfile, backupfile):
 							if anchor.id == anchor_id:
 								anchor.pos["x"] += x_change
 								anchor.pos["y"] += y_change
+
+				if type(obj) is g.CustomShape:
+
+					# Scale (Has no effect on pins and anchors in-game)
+					try:
+						scalex = float(values[3])
+						scalex = max(min(scalex, 10), 0.01)
+					except ValueError:
+						scalex = obj.scale["x"]
+					try:
+						scaley = float(values[4])
+						scaley = max(min(scaley, 10), 0.01)
+					except ValueError:
+						scaley = obj.scale["y"]
+					try:
+						scalez = float(values[5])
+						scalez = max(min(scalez, 10), 0.01)
+					except ValueError:
+						scalez = obj.scale["z"]
+
+					obj.scale = {"x": scalex, "y": scaley, "z": scalez}
+
+					# Rotation
+					oldrot = obj.rotations
+					try:
+						rotz = float(values[6])
+						rotz = max(min(rotz, 180), -180)
+					except ValueError:
+						rotz = oldrot[2]
+					try:
+						rotx = float(values[7])
+						rotx = max(min(rotx, 180), -180)
+					except ValueError:
+						rotx = oldrot[0]
+					try:
+						roty = float(values[8])
+						roty = max(min(roty, 180), -180)
+					except ValueError:
+						roty = oldrot[1]
+
+					rotx_change, roty_change, rotz_change = rotx - oldrot[0], roty - oldrot[1], rotz - oldrot[2]
+					obj.rotations = (rotx, roty, rotz)
+					if abs(rotz_change) > 0.000009:
+						for pin in obj.static_pins:
+							newpin = g.rotate(
+								(pin["x"], pin["y"]), rotz_change, (obj.pos["x"], obj.pos["y"]))
+							pin["x"] = newpin[0]
+							pin["y"] = newpin[1]
+						for anchor_id in obj.dynamic_anchor_ids:
+							for anchor in anchors:
+								if anchor.id == anchor_id:
+									newanchor = g.rotate(
+										(anchor.pos["x"], anchor.pos["y"]), rotz_change, (obj.pos["x"], obj.pos["y"]))
+									anchor.pos["x"] = newanchor[0]
+									anchor.pos["y"] = newanchor[1]
+
 			except ValueError:  # invalid position
 				pass
 		

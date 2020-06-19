@@ -41,13 +41,13 @@ def scale(min_width, zoom, factor=30):
 	return max(min_width, round(zoom / (factor / min_width)))
 
 
-def rotate(point, angle, deg=True):
+def rotate(point, angle, origin=(0,0), deg=True):
 	"""Rotate a point by a given angle counterclockwise around (0,0)"""
 	if deg:
 		angle = math.radians(angle)
-	px, py = point
-	x = math.cos(angle) * px - math.sin(angle) * py
-	y = math.sin(angle) * px + math.cos(angle) * py
+	px, py = tuple(map(sub, point, origin))
+	x = math.cos(angle) * px - math.sin(angle) * py + origin[0]
+	y = math.sin(angle) * px + math.cos(angle) * py + origin[1]
 	return x, y
 
 
