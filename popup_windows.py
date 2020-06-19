@@ -104,3 +104,5 @@ class EditObject:
 	def close(self):
 		if self.window is not None:
 			self.window.close()
+
+	# TODO: Move all input validations to this class, somehow.
