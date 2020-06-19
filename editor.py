@@ -154,16 +154,18 @@ def main():
 				pygame.quit()
 				return
 
+			if event.type == pygame.ACTIVEEVENT:
+				if event.state == 6:  # minimized
+					print(event)
+					if popup_active and not event.gain:
+						popup.window.minimize()
+
 			if event.type == pygame.VIDEORESIZE:
 				display = pygame.display.set_mode(event.size, pygame.RESIZABLE)
 				size = event.size
 				g.HITBOX_SURFACE = pygame.Surface(event.size, pygame.SRCALPHA, 32)
 
 			elif event.type == pygame.MOUSEBUTTONDOWN:
-				if popup_active:
-					popup.window.close()
-					popup_active = False
-
 				if event.button == 1:  # left click
 					for obj in reversed(selectable_objects()):
 						if obj.click_hitbox.collidepoint(event.pos):  # dragging and multiselect
@@ -184,8 +186,14 @@ def main():
 									for o in selectable_objects():
 										o.highlighted = False
 								obj.highlighted = True
+								if popup_active:
+									popup.window.close()
+									popup_active = False
 							elif holding_shift():
 								obj.highlighted = False
+								if popup_active:
+									popup.window.close()
+									popup_active = False
 							break
 					if not (moving or point_moving):
 						dragging = True
@@ -193,6 +201,9 @@ def main():
 					old_mouse_pos = event.pos
 
 				if event.button == 3:  # right click
+					if popup_active:
+						popup.window.close()
+						popup_active = False
 					mouse_pos = event.pos
 					selecting_pos = event.pos
 					if not point_moving or moving:
@@ -320,6 +331,8 @@ def main():
 						object_lists[new_obj.list_name].append(new_obj)
 
 				elif event.key == ord('0'):
+					if popup_active:
+						popup.window.close()
 					pygame.quit()
 					print("[#] Closed without saving")
 					return
@@ -333,6 +346,8 @@ def main():
 						openfile.write(jsonstr)
 					program = run(f"{POLYCONVERTER} {jsonfile}", capture_output=True)
 					if program.returncode == SUCCESS_CODE:
+						if popup_active:
+							popup.window.close()
 						pygame.quit()
 						output = program.stdout.decode().strip()
 						if len(output) == 0:
@@ -436,6 +451,7 @@ def main():
 		if popup_active and len(hl_objs) == 1:
 			obj = hl_objs[0]
 			try:
+				# TODO: Still drops a few inputs, even more with lower timeout
 				gui_evnt, values = popup.window.read(timeout=100)
 				if gui_evnt == sg.WIN_CLOSED or gui_evnt == 'Exit':
 					popup.window.close()
@@ -447,11 +463,11 @@ def main():
 				if abs(x) > 100000 or abs(y) > 100000 or abs(z) > 1000:
 					raise ValueError()
 				x_change, y_change, z_change = x - obj.pos["x"], y - obj.pos["y"], z - obj.pos["z"]
-				if abs(x_change) < 0.0001:  # prevent rounding-based microchanges
+				if abs(x_change) < 0.00001:  # prevent rounding-based microchanges
 					x_change = 0
-				if abs(y_change) < 0.0001:
+				if abs(y_change) < 0.00001:
 					y_change = 0
-				if abs(z_change) < 0.0001:
+				if abs(z_change) < 0.00001:
 					z_change = 0
 				obj.pos["x"] += x_change
 				obj.pos["y"] += y_change
