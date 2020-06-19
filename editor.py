@@ -7,6 +7,7 @@ import pygame
 import re
 import json
 import traceback
+import ctypes
 import PySimpleGUI as sg
 from uuid import uuid4
 from copy import deepcopy
@@ -32,13 +33,13 @@ BACKGROUND_BLUE_GRID = (38, 63, 94)
 BACKGROUND_GRAY = (162, 154, 194)
 BACKGROUND_GRAY_GRID = (178, 169, 211)
 
-try:  # when bundled as single executable
-	POLYCONVERTER = pathjoin(sys._MEIPASS, "PolyConverter.exe")
+try:  # When bundled as single executable
+	TEMP_FILES = sys._MEIPASS
+	POLYCONVERTER = pathjoin(TEMP_FILES, "PolyConverter.exe")
+	ICON = pathjoin(TEMP_FILES, "favicon.ico")
 except AttributeError:
+	TEMP_FILES = None
 	POLYCONVERTER = "PolyConverter.exe"
-try:
-	ICON = pathjoin(sys._MEIPASS, "icon.ico")
-except AttributeError:
 	ICON = None
 JSON_EXTENSION = ".layout.json"
 LAYOUT_EXTENSION = ".layout"
@@ -65,7 +66,6 @@ def choose_file():
 		values=levellist, size=(60, 10), pad=((0, 0), (0, 5)), bind_return_key=True, default_values=[levellist[0]])
 	window = sg.Window("PolyEditor", layout=[[sg.Text("Choose a level to edit:")], [listbox], [sg.Ok()]])
 	event = window.read(close=True)
-	sleep(1)
 	if event[0] == sg.WIN_CLOSED:
 		sys.exit()
 	else:
@@ -89,10 +89,12 @@ def choose_file():
 			layout = json.load(openfile)
 			layout["m_Bridge"]["m_Anchors"] = layout["m_Anchors"]  # both should update together in real-time
 		except json.JSONDecodeError as error:
-			sg.Popup(f"Invalid syntax in line {error.lineno}, column {error.colno} of {jsonfile}", title="Problem")
+			sg.Popup("Couldn't open level:",
+				f"Invalid syntax in line {error.lineno}, column {error.colno} of {jsonfile}", title="Problem")
 			return
 		except ValueError:
-			sg.Popup(f"{jsonfile} is either incomplete or not a valid level", title="Problem")
+			sg.Popup("Couldn't open level:",
+				f"{jsonfile} is either incomplete or not actually a level", title="Problem")
 			return
 
 	return layout, layoutfile, jsonfile, backupfile
@@ -140,6 +142,8 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 	display = pygame.display.set_mode(size, pygame.RESIZABLE)
 	pygame.display.set_caption("PolyEditor")
+	if ICON is not None:
+		pygame.display.set_icon(pygame.image.load(ICON))
 	pygame.init()
 
 	# Pygame loop
@@ -535,8 +539,17 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 if __name__ == "__main__":
 	try:
+		# PySimpleGUI
 		sg.theme("Dark Blue 2")
 		sg.set_global_icon(ICON)
+
+		# Hide console at runtime. We enable it with PyInstaller so that the user knows it's doing something.
+		if TEMP_FILES is not None:
+			print("Finished loading!")
+			sleep(0.5)
+			kernel32 = ctypes.WinDLL('kernel32')
+			user32 = ctypes.WinDLL('user32')
+			user32.ShowWindow(kernel32.GetConsoleWindow(), 0)
 
 		# Test run
 		lap = 0
@@ -568,7 +581,7 @@ if __name__ == "__main__":
 							title="Problem")
 						sys.exit()
 				else:
-					sg.Popup(f"Unexpected PolyConverter error:", "\n".join([o for o in outputs if len(o) > 0]), title="Error")
+					sg.Popup(f"Unexpected converter error:", "\n".join([o for o in outputs if len(o) > 0]), title="Error")
 					sys.exit()
 
 		# Meta loop
@@ -578,4 +591,4 @@ if __name__ == "__main__":
 				main(*args)
 
 	except Exception as e:
-		sg.Popup("An unexpected error occurred while running PolyEditor.", traceback.format_exc(), title="Error")
+		sg.Popup("An unexpected error occurred while running PolyEditor:", traceback.format_exc(), title="Error")

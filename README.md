@@ -14,10 +14,11 @@
 - Right click and drag - Make selection
 - Shift + Click: Multi-select
 - Arrow keys - Move selected
-- E - Set position values
+- P - Point editing mode
+- E - Change object properties (just position for now)
 - C - Copy selected
 - D - Delete selected
-- S - Save and close the program
-- 0 - Close without saving
+- S - Save
+- 0 - Choose a different level
 - H - Toggle hitboxes display
 - B - Toggle color scheme
