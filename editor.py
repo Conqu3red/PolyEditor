@@ -12,7 +12,7 @@ import PySimpleGUI as sg
 from uuid import uuid4
 from copy import deepcopy
 from itertools import chain
-from operator import sub
+from operator import add, sub
 from os import getcwd, listdir
 from os.path import isfile, join as pathjoin, getmtime as lastmodified
 from subprocess import run
@@ -26,12 +26,16 @@ FPS = 60
 ZOOM_MULT = 1.1
 ZOOM_MIN = 4
 ZOOM_MAX = 400
+MENU_EVENT = pygame.USEREVENT + 1
+SAVE_EVENT = pygame.USEREVENT + 2
+
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 BACKGROUND_BLUE = (43, 70, 104)
+BACKGROUND_BLUE_DARK = (31, 46, 63)
 BACKGROUND_BLUE_GRID = (38, 63, 94)
-BACKGROUND_GRAY_GRID = (178, 169, 211)
 BACKGROUND_GRAY = (162, 154, 194)
+BACKGROUND_GRAY_GRID = (178, 169, 211)
 
 try:  # When bundled as single executable
 	# noinspection PyUnresolvedReferences
@@ -143,6 +147,13 @@ def main(layout, layoutfile, jsonfile, backupfile):
 		pygame.display.set_icon(pygame.image.load(ICON))
 	pygame.init()
 
+	menu_button_font = pygame.font.SysFont("Courier", 20, True)
+	menu_button = pygame.Surface(tuple(map(add, (10, 6), menu_button_font.size("Menu"))))
+	menu_button.fill(BACKGROUND_BLUE_DARK)
+	pygame.draw.rect(menu_button, BLACK, menu_button.get_rect(), 1)
+	menu_button.blit(menu_button_font.render("Menu", True, WHITE), (5, 4))
+	menu_button_rect = None
+
 	# Pygame loop
 	while True:
 
@@ -155,18 +166,99 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					pygame.quit()
 					sys.exit()
 
-			if event.type == pygame.ACTIVEEVENT:
+			elif event.type == pygame.ACTIVEEVENT:
 				if event.state == 6:  # minimized
 					if edit_object_window and not event.gain:
 						edit_object_window.window.minimize()
 
-			if event.type == pygame.VIDEORESIZE:
+			elif event.type == pygame.VIDEORESIZE:
 				display = pygame.display.set_mode(event.size, pygame.RESIZABLE)
 				size = event.size
 				g.HITBOX_SURFACE = pygame.Surface(event.size, pygame.SRCALPHA, 32)
 
+			elif event.type == MENU_EVENT:
+				controls = "Escape: Menu\nMouse Wheel: Zoom\nLeft Click: Move or pan\nRight Click: Make selection\n" \
+				           "Shift+Click: Multi-select\nE: Edit shape properties\nP: Edit shape points\n" \
+				           "C: Copy selected\nD: Delete selected\nS: Save changes"
+				edit_object_window.close()
+				window = sg.Window(
+					"PolyEditor",
+					[[sg.Button("Back to editor", size=(28, None), pad=(3, 3))],
+					 [sg.Button("Save", size=(28, None), pad=(3, 3))],
+					 [sg.Button("Toggle hitboxes", size=(13, None), pad=(3, 3)),
+					  sg.Button("Color scheme", size=(13, None), pad=(3, 3))],
+					 [sg.Button("Change level", size=(13, None), pad=(3, 20)),
+					  sg.Button("Quit", size=(13, None), pad=(3, 20))],
+
+					 [sg.Text("Controls", relief=sg.RELIEF_RIDGE, border_width=4)],
+					 [sg.Text(controls, justification='left')]],
+					no_titlebar=True, keep_on_top=True, return_keyboard_events=True,
+					element_justification='center', margins=(5, 10)
+				)
+				if not event.clicked:
+					window.read()  # Ignore escape key released event
+				while True:
+					action = window.read()[0]
+					pygame.event.clear()
+					if action == "Back to editor" or action == "Escape:27":
+						break
+					if action == "Save":
+						pygame.event.post(pygame.event.Event(SAVE_EVENT, {}))
+						break
+					elif action == "Toggle hitboxes":
+						hitboxes = not hitboxes
+						break
+					elif action == "Color scheme":
+						if bg_color == BACKGROUND_GRAY:
+							bg_color = BACKGROUND_BLUE
+							bg_color_2 = BACKGROUND_BLUE_GRID
+							fg_color = WHITE
+						else:
+							bg_color = BACKGROUND_GRAY
+							bg_color_2 = BACKGROUND_GRAY_GRID
+							fg_color = BLACK
+						break
+					if action == "Change level":
+						if popup.ok_cancel("You will lose any unsaved changes.") == "Ok":
+							window.close()
+							pygame.quit()
+							return
+						break
+					elif action == "Quit":
+						pygame.event.post(pygame.event.Event(pygame.QUIT, {}))
+						break
+				window.close()
+
+			elif event.type == SAVE_EVENT:
+				edit_object_window.close()
+				jsonstr = json.dumps(layout, indent=2)
+				jsonstr = re.sub(r"(\r\n|\r|\n)( ){6,}", r" ", jsonstr)  # limit depth to 3 levels
+				jsonstr = re.sub(r"(\r\n|\r|\n)( ){4,}([}\]])", r" \3", jsonstr)
+				with open(jsonfile, "w") as openfile:
+					openfile.write(jsonstr)
+				program = run(f"{POLYCONVERTER} {jsonfile}", capture_output=True)
+				if program.returncode == SUCCESS_CODE:
+					output = program.stdout.decode().strip()
+					if len(output) == 0:
+						popup.notif("No new changes to apply.")
+					else:
+						if "backup" in program.stdout.decode():
+							popup.notif(f"Applied changes to {layoutfile}!", f"(Created backup {backupfile})")
+						else:
+							popup.notif(f"Applied changes to {layoutfile}!")
+				elif program.returncode == FILE_ERROR_CODE:  # failed to write file?
+					popup.notif("Couldn't save:", program.stdout.decode().strip())
+				else:
+					outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
+					popup.notif(f"Unexpected error while trying to save:",
+					            "\n".join([o for o in outputs if len(o) > 0]))
+
 			elif event.type == pygame.MOUSEBUTTONDOWN:
 				if event.button == 1:  # left click
+					if menu_button_rect.collidepoint(event.pos):
+						pygame.event.post(pygame.event.Event(MENU_EVENT, {"clicked": True}))
+						continue
+
 					for obj in reversed(selectable_objects()):
 						if obj.click_hitbox.collidepoint(event.pos):  # dragging and multiselect
 							if type(obj) is g.CustomShape:
@@ -261,34 +353,8 @@ def main(layout, layoutfile, jsonfile, backupfile):
 				move_x, move_y = 0, 0
 				move = False
 
-				if event.key == ord("b"):
-					# Toggle color scheme
-					if bg_color == BACKGROUND_GRAY:
-						bg_color = BACKGROUND_BLUE
-						bg_color_2 = BACKGROUND_BLUE_GRID
-						fg_color = WHITE
-					else:
-						bg_color = BACKGROUND_GRAY
-						bg_color_2 = BACKGROUND_GRAY_GRID
-						fg_color = BLACK
-
-				elif event.key == ord("h"):
-					# Toggle hitboxes
-					hitboxes = not hitboxes
-				
-				elif event.key == ord("p"):
-					# Toggle showing points
-					draw_points = not draw_points
-
-				elif event.key == ord("d"):
-					# Delete selected
-					for obj in [o for o in selectable_objects() if o.highlighted]:
-						if type(obj) is g.CustomShape:
-							for dyn_anc_id in obj.dynamic_anchor_ids:
-								for anchor in [a for a in anchors]:
-									if anchor.id == dyn_anc_id:
-										anchors.remove(anchor)
-						object_lists[obj.list_name].remove(obj)
+				if event.key == pygame.K_ESCAPE:
+					pygame.event.post(pygame.event.Event(MENU_EVENT, {"clicked": False}))
 
 				elif event.key == pygame.K_LEFT:
 					move_x = -1
@@ -306,7 +372,26 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					move_y = -1
 					move = True
 
-				elif event.key == ord("c"):
+				elif event.key == pygame.K_s:
+					pygame.event.post(pygame.event.Event(SAVE_EVENT, {}))
+
+				elif event.key == pygame.K_p:
+					draw_points = not draw_points
+
+				elif event.key == pygame.K_h:
+					hitboxes = not hitboxes
+
+				elif event.key == pygame.K_d:
+					# Delete selected
+					for obj in [o for o in selectable_objects() if o.highlighted]:
+						if type(obj) is g.CustomShape:
+							for dyn_anc_id in obj.dynamic_anchor_ids:
+								for anchor in [a for a in anchors]:
+									if anchor.id == dyn_anc_id:
+										anchors.remove(anchor)
+						object_lists[obj.list_name].remove(obj)
+
+				elif event.key == pygame.K_c:
 					# Copy Selected
 					for old_obj in [o for o in selectable_objects() if o.highlighted]:
 						new_obj = deepcopy(old_obj)
@@ -330,37 +415,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 										anchor.pos["y"] -= 1
 						object_lists[new_obj.list_name].append(new_obj)
 
-				elif event.key == ord("0"):
-					edit_object_window.close()
-					if popup.ok_cancel("You will lose any unsaved changes.") == "Ok":
-						pygame.quit()
-						return
-
-				elif event.key == ord("s"):
-					edit_object_window.close()
-					jsonstr = json.dumps(layout, indent=2)
-					jsonstr = re.sub(r"(\r\n|\r|\n)( ){6,}", r" ", jsonstr)  # limit depth to 3 levels
-					jsonstr = re.sub(r"(\r\n|\r|\n)( ){4,}([}\]])", r" \3", jsonstr)
-					with open(jsonfile, "w") as openfile:
-						openfile.write(jsonstr)
-					program = run(f"{POLYCONVERTER} {jsonfile}", capture_output=True)
-					if program.returncode == SUCCESS_CODE:
-						output = program.stdout.decode().strip()
-						if len(output) == 0:
-							popup.notif("No new changes to apply.")
-						else:
-							if "backup" in program.stdout.decode():
-								popup.notif(f"Applied changes to {layoutfile}!", f"(Created backup {backupfile})")
-							else:
-								popup.notif(f"Applied changes to {layoutfile}!")
-					elif program.returncode == FILE_ERROR_CODE:  # failed to write file?
-						popup.notif("Couldn't save:", program.stdout.decode().strip())
-					else:
-						outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
-						popup.notif(f"Unexpected error while trying to save:",
-						            "\n".join([o for o in outputs if len(o) > 0]))
-				
-				elif event.key == ord("e"):
+				elif event.key == pygame.K_e:
 					# Popup window to edit properties
 					hl_objs = [o for o in selectable_objects() if o.highlighted]
 					if edit_object_window:  # remove previous
@@ -425,8 +480,8 @@ def main(layout, layoutfile, jsonfile, backupfile):
 		# Selecting shapes
 		if selecting:
 			rect = pygame.Rect(selecting_pos[0], selecting_pos[1],
-			                   mouse_pos[0] - selecting_pos[0], mouse_pos[1] - selecting_pos[1]), 1
-			select_box = pygame.draw.rect(display, g.SELECT_COLOR, rect)
+			                   mouse_pos[0] - selecting_pos[0], mouse_pos[1] - selecting_pos[1])
+			select_box = pygame.draw.rect(display, g.SELECT_COLOR, rect, 1)
 			for obj in selectable_objects():
 				if not holding_shift():
 					obj.highlighted = obj.hitbox.colliderect(select_box)
@@ -584,17 +639,8 @@ def main(layout, layoutfile, jsonfile, backupfile):
 		fps_text = font.render(fps_msg, True, fg_color)
 		display.blit(fps_text, (size[0] - fps_size[0] - 5, 5))
 
-		# Display controls
-		font_size = 16
-		font = pygame.font.SysFont("Courier", font_size, True)
-		help_msg = "LeftClick: Move / Pan | RightClick: Select | " \
-		           "ShiftClick: Multi-select | Arrows: Move | S: Save | 0: Change level"
-		help_text = font.render(help_msg, True, fg_color)
-		display.blit(help_text, (5, size[1] - font_size*2 - 5))
-		help_msg = "P: Edit points | E: Edit object | C: Copy selected | D: Delete selected | " \
-		           "H: Toggle hitboxes | B: Toggle color scheme"
-		help_text = font.render(help_msg, True, fg_color)
-		display.blit(help_text, (5, size[1] - font_size - 5))
+		# Display buttons
+		menu_button_rect = display.blit(menu_button, (10, size[1] - menu_button.get_size()[1] - 10))
 
 		pygame.display.flip()
 		clock.tick(FPS)
@@ -611,7 +657,9 @@ if __name__ == "__main__":
 			"SCROLL": "#2B4668",
 			"BUTTON": ("#FFFFFF", "#2B4668"),
 			"PROGRESS": ("#01826B", "#D0D0D0"),
-			"BORDER": 1, "SLIDER_DEPTH": 0, "PROGRESS_DEPTH": 0
+			"BORDER": 1,
+			"SLIDER_DEPTH": 0,
+			"PROGRESS_DEPTH": 0
 		}
 		sg.theme("PolyEditor")
 		sg.set_global_icon(ICON)
