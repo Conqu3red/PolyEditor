@@ -177,28 +177,14 @@ def main(layout, layoutfile, jsonfile, backupfile):
 				g.HITBOX_SURFACE = pygame.Surface(event.size, pygame.SRCALPHA, 32)
 
 			elif event.type == MENU_EVENT:
-				controls = "Escape: Menu\nMouse Wheel: Zoom\nLeft Click: Move or pan\nRight Click: Make selection\n" \
-				           "Shift+Click: Multi-select\nE: Edit shape properties\nP: Edit shape points\n" \
-				           "C: Copy selected\nD: Delete selected\nS: Save changes"
 				edit_object_window.close()
-				window = sg.Window(
-					"PolyEditor",
-					[[sg.Button("Back to editor", size=(28, None), pad=(3, 3))],
-					 [sg.Button("Save", size=(28, None), pad=(3, 3))],
-					 [sg.Button("Toggle hitboxes", size=(13, None), pad=(3, 3)),
-					  sg.Button("Color scheme", size=(13, None), pad=(3, 3))],
-					 [sg.Button("Change level", size=(13, None), pad=(3, 20)),
-					  sg.Button("Quit", size=(13, None), pad=(3, 20))],
 
-					 [sg.Text("Controls", relief=sg.RELIEF_RIDGE, border_width=4)],
-					 [sg.Text(controls, justification='left')]],
-					no_titlebar=True, keep_on_top=True, return_keyboard_events=True,
-					element_justification='center', margins=(5, 10)
-				)
+				menu_window = popup.open_menu()
 				if not event.clicked:
-					window.read()  # Ignore escape key released event
+					menu_window.read()  # Ignore escape key released event
+
 				while True:
-					action = window.read()[0]
+					action = menu_window.read()[0]
 					pygame.event.clear()
 					if action == "Back to editor" or action == "Escape:27":
 						break
@@ -220,14 +206,14 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						break
 					if action == "Change level":
 						if popup.ok_cancel("You will lose any unsaved changes.") == "Ok":
-							window.close()
+							menu_window.close()
 							pygame.quit()
 							return
-						break
 					elif action == "Quit":
-						pygame.event.post(pygame.event.Event(pygame.QUIT, {}))
-						break
-				window.close()
+						if popup.yes_no("Quit and lose any unsaved changes?") == "Yes":
+							pygame.quit()
+							sys.exit()
+				menu_window.close()
 
 			elif event.type == SAVE_EVENT:
 				edit_object_window.close()
