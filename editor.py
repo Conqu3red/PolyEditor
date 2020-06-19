@@ -425,8 +425,8 @@ def main(layout, layoutfile, jsonfile, backupfile):
 		# Selecting shapes
 		if selecting:
 			rect = pygame.Rect(selecting_pos[0], selecting_pos[1],
-			                   mouse_pos[0] - selecting_pos[0], mouse_pos[1] - selecting_pos[1]), 1
-			select_box = pygame.draw.rect(display, g.SELECT_COLOR, rect)
+			                   mouse_pos[0] - selecting_pos[0], mouse_pos[1] - selecting_pos[1])
+			select_box = pygame.draw.rect(display, g.SELECT_COLOR, rect, 1)
 			for obj in selectable_objects():
 				if not holding_shift():
 					obj.highlighted = obj.hitbox.colliderect(select_box)
