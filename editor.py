@@ -30,8 +30,8 @@ WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 BACKGROUND_BLUE = (43, 70, 104)
 BACKGROUND_BLUE_GRID = (38, 63, 94)
-BACKGROUND_GRAY = (162, 154, 194)
 BACKGROUND_GRAY_GRID = (178, 169, 211)
+BACKGROUND_GRAY = (162, 154, 194)
 
 try:  # When bundled as single executable
 	TEMP_FILES = sys._MEIPASS
@@ -540,7 +540,17 @@ def main(layout, layoutfile, jsonfile, backupfile):
 if __name__ == "__main__":
 	try:
 		# PySimpleGUI
-		sg.theme("Dark Blue 2")
+		sg.LOOK_AND_FEEL_TABLE["PolyEditor"] = {
+			'BACKGROUND': '#1F2E3F',
+			'TEXT': '#FFFFFF',
+			'INPUT': '#2B4668',
+			'TEXT_INPUT': '#FFFFFF',
+			'SCROLL': '#2B4668',
+			'BUTTON': ('#FFFFFF', '#2B4668'),
+			'PROGRESS': ('#01826B', '#D0D0D0'),
+			'BORDER': 1, 'SLIDER_DEPTH': 0, 'PROGRESS_DEPTH': 0
+		}
+		sg.theme("PolyEditor")
 		sg.set_global_icon(ICON)
 
 		# Hide console at runtime. We enable it with PyInstaller so that the user knows it's doing something.
