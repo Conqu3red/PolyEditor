@@ -302,15 +302,16 @@ class Pillar(SelectableObject):
 class CustomShape(SelectableObject):
 	list_name = "m_CustomShapes"
 
-	def __init__(self, dictionary, anchorsList):
+	def __init__(self, dictionary, anchorsList=None):
 		super().__init__(dictionary)
 		self.selected_points = []
 		self.point_hitboxes = []
 		self.anchors = []
-		for dyn_anc_id in self.dynamic_anchor_ids:
-			for anchor in anchorsList:
-				if anchor.id == dyn_anc_id:
-					self.anchors.append(anchor)
+		if anchorsList:
+			for dyn_anc_id in self.dynamic_anchor_ids:
+				for anchor in anchorsList:
+					if anchor.id == dyn_anc_id:
+						self.anchors.append(anchor)
 
 	def render(self, display, camera, zoom, point_mode):
 		# TODO: Move point editing logic to its own function
@@ -389,7 +390,7 @@ class CustomShape(SelectableObject):
 			pin["x"] += change[0]
 			pin["y"] += change[1]
 		for anchor in self.anchors:
-			anchor.pos = (anchor.pos[0] + value[0], anchor.pos[1] + value[1])
+			anchor.pos = (anchor.pos[0] + change[0], anchor.pos[1] + change[1])
 
 	@property
 	def rotations(self):

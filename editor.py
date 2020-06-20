@@ -382,23 +382,19 @@ def main(layout, layoutfile, jsonfile, backupfile):
 				elif event.key == pygame.K_c:
 					# Copy Selected
 					for old_obj in [o for o in selectable_objects() if o.highlighted]:
-						new_obj = deepcopy(old_obj)
+						new_obj = type(old_obj)(deepcopy(old_obj.dictionary))
 						old_obj.highlighted = False
-						new_obj.pos = (new_obj.pos[0] + 1, new_obj.pos[1] - 1)
-						if type(new_obj) is g.CustomShape:
-							new_obj.dynamic_anchor_ids = [str(uuid4()) for _ in old_obj.dynamic_anchor_ids]
-							for i in range(len(new_obj.dynamic_anchor_ids)):
+						if type(old_obj) is g.CustomShape:
+							new_anchors = []
+							for i in range(len(old_obj.dynamic_anchor_ids)):
 								for anchor in [a for a in anchors if a.id == old_obj.dynamic_anchor_ids[i]]:
 									new_anchor = deepcopy(anchor)
-									new_anchor.id = new_obj.dynamic_anchor_ids[i]
-									anchors.append(new_anchor)
-							for c, pin in enumerate(new_obj.static_pins):
-								new_obj.static_pins[c]["x"] += 1
-								new_obj.static_pins[c]["y"] -= 1
-							for dyn_anc_id in new_obj.dynamic_anchor_ids:
-								for anchor in anchors:
-									if anchor.id == dyn_anc_id:
-										anchor.pos = (anchor.pos[0] + 1, anchor.pos[1] - 1)
+									new_anchor.id = str(uuid4())
+									new_anchors.append(new_anchor)
+							anchors.extend(new_anchors)
+							new_obj.dynamic_anchor_ids = [a.id for a in new_anchors]
+							new_obj.anchors = new_anchors
+						new_obj.pos = (new_obj.pos[0] + 1, new_obj.pos[1] - 1)
 						object_lists[new_obj.list_name].append(new_obj)
 
 				elif event.key == pygame.K_e:
@@ -480,22 +476,14 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			elif event == sg.TIMEOUT_KEY:
 				pass
 			else:
-				# Position
 				x, y, z = values[popup.POS_X], values[popup.POS_Y], values[popup.POS_Z]
 				x_change, y_change, z_change = x - obj.pos[0], y - obj.pos[1], z - obj.pos[2]
 				if abs(x_change) > 0.000001 or abs(y_change) > 0.000001 or abs(z_change) > 0.000001:
 					obj.pos = (x, y, z)
 
 				if type(obj) is g.CustomShape:
-					# Scale (Has no effect on pins and anchors in-game)
-					obj.scale = {"x": values[popup.SCALE_X], "y": values[popup.SCALE_Y], "z": values[popup.SCALE_Z]}
-					# Rotation
-					oldrot = obj.rotations
-					rotx, roty, rotz = values[popup.ROT_X], values[popup.ROT_Y], values[popup.ROT_Z]
-					rotx_change, roty_change, rotz_change = rotx - oldrot[0], roty - oldrot[1], rotz - oldrot[2]
-					if abs(rotx_change) > 0.000001 or abs(roty_change) > 0.000001 or abs(rotz_change) > 0.000001:
-						obj.rotations = (rotx, roty, rotz)
-					# Flipped
+					obj.scale = (values[popup.SCALE_X], values[popup.SCALE_Y], values[popup.SCALE_Z])
+					obj.rotations = (values[popup.ROT_X], values[popup.ROT_Y], values[popup.ROT_Z])
 					obj.flipped = values[popup.FLIP]
 		else:
 			edit_object_window.close()
