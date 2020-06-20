@@ -382,6 +382,7 @@ class CustomShape(LayoutObject):
 		return euler_angles(rot["x"], rot["y"], rot["z"], rot["w"])
 	@rotations.setter
 	def rotations(self, values):
+		"""Does not automatically rotate pins and anchors"""
 		q = quaternion(*values)
 		self._dict["m_Rot"] = {"x": q[0], "y": q[1], "z": q[2], "w": q[3]}
 		self._dict["m_RotationDegrees"] = values[2]
@@ -391,6 +392,7 @@ class CustomShape(LayoutObject):
 		return self._dict["m_Flipped"]
 	@flipped.setter
 	def flipped(self, value):
+		"""Does not automatically flip pins and anchors"""
 		self._dict["m_Flipped"] = value
 
 	@property

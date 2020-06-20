@@ -21,6 +21,7 @@ from time import sleep
 import game_objects as g
 import popup_windows as popup
 
+# Window properties
 BASE_SIZE = (1200, 600)
 FPS = 60
 ZOOM_MULT = 1.1
@@ -28,7 +29,7 @@ ZOOM_MIN = 4
 ZOOM_MAX = 400
 MENU_EVENT = pygame.USEREVENT + 1
 SAVE_EVENT = pygame.USEREVENT + 2
-
+# Colors
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 BACKGROUND_BLUE = (43, 70, 104)
@@ -109,7 +110,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 	zoom = 20
 	camera = [size[0] / zoom / 2, -(size[1] / zoom / 2 + 5)]
 	clock = pygame.time.Clock()
-	edit_object_window = popup.EditObject(None)
+	edit_object_window = popup.EditObjectWindow(None)
 	draw_points = False
 	hitboxes = False
 	panning = False
@@ -173,7 +174,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					moused_over = event.gain == 1
 				if event.state == 6:  # minimized
 					if edit_object_window and not event.gain:
-						edit_object_window.window.minimize()
+						edit_object_window._window.minimize()
 
 			elif event.type == pygame.VIDEORESIZE:
 				display = pygame.display.set_mode(event.size, pygame.RESIZABLE)
@@ -424,22 +425,19 @@ def main(layout, layoutfile, jsonfile, backupfile):
 								break
 					if len(hl_objs) == 1:
 						obj = hl_objs[0]
-						values = [
-							["X", obj.pos["x"]],
-							["Y", obj.pos["y"]],
-							["Z", obj.pos["z"]]
-						]
+						values = {popup.POS_X: obj.pos["x"],
+						          popup.POS_Y: obj.pos["y"],
+						          popup.POS_Z: obj.pos["z"]}
 						if type(obj) is g.CustomShape:
 							rot = obj.rotations
-							values.extend([
-								["Scale X", obj.scale["x"]],
-								["Scale Y", obj.scale["y"]],
-								["Scale Z", obj.scale["z"]],
-								["Rotation", rot[2]],
-								["Rot. X", rot[0]],
-								["Rot. Y", rot[1]]
-							])
-						edit_object_window = popup.EditObject(values)
+							values[popup.SCALE_X] = obj.scale["x"]
+							values[popup.SCALE_Y] = obj.scale["y"]
+							values[popup.SCALE_Z] = obj.scale["z"]
+							values[popup.ROT_Z] = rot[2]  # Z first
+							values[popup.ROT_X] = rot[0]
+							values[popup.ROT_Y] = rot[1]
+							values[popup.FLIP] = obj.flipped
+						edit_object_window = popup.EditObjectWindow(values)
 
 				# Move selection with keys
 				if move:
@@ -508,83 +506,36 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			#  but that currently carries the old tkinter problem where most key inputs are missed/ignored
 			#  as long as the window remains non-blocking.
 			timeout = 10 if moused_over else None
-			gui_evnt, values = edit_object_window.window.read(timeout)
-			if gui_evnt == sg.WIN_CLOSED or gui_evnt == "Exit":
+			event, values = edit_object_window.read(timeout)
+			if event == sg.WIN_CLOSED or event == "Exit":
 				edit_object_window.close()
+			elif event == "Leave" or event == sg.TIMEOUT_KEY:
+				pass
 			else:
-				# TODO: Change input color to red when value is invalid
-
 				# Position
-				try:
-					x = float(values[0])
-					x = max(min(x, 10000), -10000)
-				except ValueError:
-					x = obj.pos["x"]
-				try:
-					y = float(values[1])
-					y = max(min(y, 10000), -10000)
-				except ValueError:
-					y = obj.pos["y"]
-				try:
-					z = float(values[2])
-					z = max(min(z, 10000), -10000)
-				except ValueError:
-					z = obj.pos["z"]
-
+				x, y, z = values[popup.POS_X], values[popup.POS_Y], values[popup.POS_Z]
 				x_change, y_change, z_change = x - obj.pos["x"], y - obj.pos["y"], z - obj.pos["z"]
-				obj.pos = {"x": x, "y": y, "z": z}
-				if type(obj) is g.CustomShape:
-					for pin in obj.static_pins:
-						pin["x"] += x_change
-						pin["y"] += y_change
-					for anchor_id in obj.dynamic_anchor_ids:
-						for anchor in anchors:
-							if anchor.id == anchor_id:
-								anchor.pos["x"] += x_change
-								anchor.pos["y"] += y_change
+				if abs(x_change) > 0.000001 or abs(y_change) > 0.000001 or abs(z_change) > 0.000001:
+					obj.pos = {"x": x, "y": y, "z": z}
+					if type(obj) is g.CustomShape:
+						for pin in obj.static_pins:
+							pin["x"] += x_change
+							pin["y"] += y_change
+						for anchor_id in obj.dynamic_anchor_ids:
+							for anchor in anchors:
+								if anchor.id == anchor_id:
+									anchor.pos["x"] += x_change
+									anchor.pos["y"] += y_change
 
 				if type(obj) is g.CustomShape:
-
 					# Scale (Has no effect on pins and anchors in-game)
-					try:
-						scalex = float(values[3])
-						scalex = max(min(scalex, 10), 0.01)
-					except ValueError:
-						scalex = obj.scale["x"]
-					try:
-						scaley = float(values[4])
-						scaley = max(min(scaley, 10), 0.01)
-					except ValueError:
-						scaley = obj.scale["y"]
-					try:
-						scalez = float(values[5])
-						scalez = max(min(scalez, 10), 0.01)
-					except ValueError:
-						scalez = obj.scale["z"]
-
-					obj.scale = {"x": scalex, "y": scaley, "z": scalez}
-
+					obj.scale = {"x": values[popup.SCALE_X], "y": values[popup.SCALE_Y], "z": values[popup.SCALE_Z]}
 					# Rotation
 					oldrot = obj.rotations
-					try:
-						rotz = float(values[6])
-						rotz = max(min(rotz, 180), -180)
-					except ValueError:
-						rotz = oldrot[2]
-					try:
-						rotx = float(values[7])
-						rotx = max(min(rotx, 180), -180)
-					except ValueError:
-						rotx = oldrot[0]
-					try:
-						roty = float(values[8])
-						roty = max(min(roty, 180), -180)
-					except ValueError:
-						roty = oldrot[1]
-
+					rotx, roty, rotz = values[popup.ROT_X], values[popup.ROT_Y], values[popup.ROT_Z]
 					rotx_change, roty_change, rotz_change = rotx - oldrot[0], roty - oldrot[1], rotz - oldrot[2]
-					obj.rotations = (rotx, roty, rotz)
-					if abs(rotz_change) > 0.000009:
+					if abs(rotx_change) > 0.000001 or abs(roty_change) > 0.000001 or abs(rotz_change) > 0.000001:
+						obj.rotations = (rotx, roty, rotz)
 						for pin in obj.static_pins:
 							newpin = g.rotate(
 								(pin["x"], pin["y"]), rotz_change, (obj.pos["x"], obj.pos["y"]))
@@ -595,6 +546,24 @@ def main(layout, layoutfile, jsonfile, backupfile):
 								if anchor.id == anchor_id:
 									newanchor = g.rotate(
 										(anchor.pos["x"], anchor.pos["y"]), rotz_change, (obj.pos["x"], obj.pos["y"]))
+									anchor.pos["x"] = newanchor[0]
+									anchor.pos["y"] = newanchor[1]
+					# Flipped
+					old_flipped = obj.flipped
+					obj.flipped = values[popup.FLIP]
+					if old_flipped != obj.flipped:
+						for pin in obj.static_pins:
+							newpin = g.rotate((pin["x"], pin["y"]), -oldrot[2], (obj.pos["x"], obj.pos["y"]))
+							newpin = (2 * obj.pos["x"] - newpin[0], newpin[1])
+							newpin = g.rotate(newpin, oldrot[2], (obj.pos["x"], obj.pos["y"]))
+							pin["x"] = newpin[0]
+							pin["y"] = newpin[1]
+						for anchor_id in obj.dynamic_anchor_ids:
+							for anchor in anchors:
+								if anchor.id == anchor_id:
+									newanchor = g.rotate((anchor.pos["x"], anchor.pos["y"]), -oldrot[2], (obj.pos["x"], obj.pos["y"]))
+									newanchor = (2 * obj.pos["x"] - newanchor[0], newanchor[1])
+									newanchor = g.rotate(newanchor, oldrot[2], (obj.pos["x"], obj.pos["y"]))
 									anchor.pos["x"] = newanchor[0]
 									anchor.pos["y"] = newanchor[1]
 		else:
