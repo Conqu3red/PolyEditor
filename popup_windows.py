@@ -110,6 +110,7 @@ class EditObjectWindow:
 		self._window = sg.Window("Object properties", self._layout, keep_on_top=True, element_justification="center",
 		                         alpha_channel=0.7, disable_minimize=True, return_keyboard_events=True)
 		self._window.read(timeout=0)  # initialize
+		# TODO: Move this to a Frame so that it only activates once
 		self._window.bind("<Leave>", "Leave")  # mouse leaves an element
 
 	def __bool__(self):
