@@ -2,8 +2,10 @@ import pygame
 import pygame.gfxdraw
 import math
 from copy import deepcopy
-from operator import add, sub
+from operator import add
+from editor import BASE_SIZE
 
+HITBOX_SURFACE = pygame.Surface(BASE_SIZE, pygame.SRCALPHA, 32)
 
 HIGHLIGHT_COLOR = (255, 255, 0)
 SELECT_COLOR = (0, 255, 0)
@@ -41,13 +43,13 @@ def scale(min_width, zoom, factor=30):
 
 
 def rotate(point, angle, origin=(0, 0), deg=True):
-	"""Rotate a point by a given angle counterclockwise around (0,0)"""
+	"""Rotate a point by a given angle counterclockwise around the origin"""
 	if deg:
 		angle = math.radians(angle)
-	px, py = tuple(map(sub, point, origin))
+	px, py = point[0] - origin[0], point[1] - origin[1]
 	x = math.cos(angle) * px - math.sin(angle) * py + origin[0]
 	y = math.sin(angle) * px + math.cos(angle) * py + origin[1]
-	return x, y
+	return (x, y) if len(point) == 2 else (x, y, point[2])
 
 
 def quaternion(x, y, z, deg=True):
@@ -106,10 +108,13 @@ class LayoutObject:
 
 	@property
 	def pos(self):
-		return self._dict["m_Pos"]
+		return self._dict["m_Pos"]["x"], self._dict["m_Pos"]["y"], self._dict["m_Pos"]["z"]
 	@pos.setter
 	def pos(self, value):
-		self._dict["m_Pos"] = value
+		if len(value) == 2:
+			self._dict["m_Pos"] = {"x": value[0], "y": value[1], "z": self._dict["m_Pos"]["z"]}
+		else:
+			self._dict["m_Pos"] = {"x": value[0], "y": value[1], "z": value[2]}
 
 
 class SelectableObject(LayoutObject):
@@ -123,21 +128,19 @@ class SelectableObject(LayoutObject):
 
 	def collidepoint(self, point, camera):
 		oldpoint = point
-		point = (round(point[0] - self._hitbox_camera[0] + camera[0]),
-		         round(point[1] - self._hitbox_camera[1] + camera[1]))
+		point = (round(point[0] - self._hitbox_zoom * (camera[0] - self._hitbox_camera[0])),
+		         round(point[1] + self._hitbox_zoom * (camera[1] - self._hitbox_camera[1])))
 		size = self._hitbox.get_size()
+		print(oldpoint, self._hitbox_zoom * (camera[0] - self._hitbox_camera[0]), point)
 		return bool(self._hitbox.get_at(point)) if 0 <= point[0] <= size[0] and 0 <= point[1] <= size[1] else False
 
 	def colliderect(self, point, camera):
 		return False
 
-	@property
-	def pos(self):
-		return self._dict["m_Pos"]
-	@pos.setter
+	@LayoutObject.pos.setter
 	def pos(self, value):
-		print("Moved")
-		self._dict["m_Pos"] = value
+		LayoutObject.pos.__set__(self, value)
+		self._hitbox_moved = True
 
 
 class LayoutList:
@@ -146,7 +149,11 @@ class LayoutList:
 	def __init__(self, cls, layout):
 		if not issubclass(cls, LayoutObject): raise TypeError()
 		self._dictlist = layout[cls.list_name]
-		self._objlist = [cls(o) for o in self._dictlist]
+		if cls is CustomShape:
+			anchorsList = [Anchor(a) for a in layout[Anchor.list_name]]
+			self._objlist = [CustomShape(o, anchorsList) for o in self._dictlist]
+		else:
+			self._objlist = [cls(o) for o in self._dictlist]
 		self.list_name = cls.list_name
 		self.cls = cls
 
@@ -184,8 +191,8 @@ class Anchor(LayoutObject):
 			if self.id == dyn_anc_id:
 				color = DYNAMIC_ANCHOR_COLOR
 				break
-		rect = (round(zoom * (self.pos["x"] + camera[0] - ANCHOR_RADIUS)),
-		        round(zoom * -(self.pos["y"] + camera[1] + ANCHOR_RADIUS)),
+		rect = (round(zoom * (self.pos[0] + camera[0] - ANCHOR_RADIUS)),
+		        round(zoom * -(self.pos[1] + camera[1] + ANCHOR_RADIUS)),
 		        round(zoom * ANCHOR_RADIUS * 2),
 		        round(zoom * ANCHOR_RADIUS * 2))
 		pygame.draw.rect(display, color, rect)
@@ -207,9 +214,9 @@ class TerrainStretch(LayoutObject):
 
 	def render(self, display, camera, zoom, color):
 		if self.width == TERRAIN_MAIN_WIDTH:  # main terrain
-			x = zoom * (self.pos["x"] - (0 if self.flipped else self.width) + camera[0])
+			x = zoom * (self.pos[0] - (0 if self.flipped else self.width) + camera[0])
 		else:
-			x = zoom * (self.pos["x"] - self.width / 2 * (-1 if self.flipped else 1) + camera[0])
+			x = zoom * (self.pos[0] - self.width / 2 * (-1 if self.flipped else 1) + camera[0])
 		rect = (round(x), round(zoom * -(self.height + camera[1])), round(zoom * self.width), round(zoom * self.height))
 		pygame.draw.rect(display, color, rect, scale(TERRAIN_BORDER_WIDTH, zoom))
 
@@ -226,7 +233,7 @@ class TerrainStretch(LayoutObject):
 
 	@property
 	def height(self):
-		return TERRAIN_BASE_HEIGHT + self.pos["y"]
+		return TERRAIN_BASE_HEIGHT + self.pos[1]
 
 
 class WaterBlock(LayoutObject):
@@ -236,8 +243,8 @@ class WaterBlock(LayoutObject):
 		super().__init__(dictionary)
 
 	def render(self, display, camera, zoom, color):
-		start = (zoom * (self.pos["x"] - self.width/2 + camera[0]), zoom * -(self.height + camera[1]))
-		end = (zoom * (self.pos["x"] + self.width/2 + camera[0]), zoom * -(self.height + camera[1]))
+		start = (zoom * (self.pos[0] - self.width/2 + camera[0]), zoom * -(self.height + camera[1]))
+		end = (zoom * (self.pos[0] + self.width/2 + camera[0]), zoom * -(self.height + camera[1]))
 		pygame.draw.line(display, color, start, end, scale(WATER_EDGE_WIDTH, zoom))
 
 	@property
@@ -263,8 +270,8 @@ class Pillar(SelectableObject):
 		self._surface = None
 
 	def render(self, display, camera, zoom):
-		rect = (round(zoom * (self.pos["x"] - PILLAR_WIDTH / 2 + camera[0])),
-		        round(zoom * -(self.pos["y"] + self.height + camera[1])),
+		rect = (round(zoom * (self.pos[0] - PILLAR_WIDTH / 2 + camera[0])),
+		        round(zoom * -(self.pos[1] + self.height + camera[1])),
 		        round(zoom * PILLAR_WIDTH),
 		        round(zoom * self.height))
 		if self._hitbox is None or self._hitbox.get_size() != display.get_size():
@@ -295,10 +302,15 @@ class Pillar(SelectableObject):
 class CustomShape(SelectableObject):
 	list_name = "m_CustomShapes"
 
-	def __init__(self, dictionary):
+	def __init__(self, dictionary, anchorsList):
 		super().__init__(dictionary)
 		self.selected_points = []
 		self.point_hitboxes = []
+		self.anchors = []
+		for dyn_anc_id in self.dynamic_anchor_ids:
+			for anchor in anchorsList:
+				if anchor.id == dyn_anc_id:
+					self.anchors.append(anchor)
 
 	def render(self, display, camera, zoom, point_mode):
 		# TODO: Move point editing logic to its own function
@@ -313,18 +325,18 @@ class CustomShape(SelectableObject):
 					self.points = base_points
 					break
 
-		points_pixels = [[round(zoom * (self.pos["x"] + point[0] + camera[0])),
-		                  round(zoom * -(self.pos["y"] + point[1] + camera[1]))]
+		points_pixels = [[round(zoom * (self.pos[0] + point[0] + camera[0])),
+		                  round(zoom * -(self.pos[1] + point[1] + camera[1]))]
 		                 for point in base_points]
 
 		if self._hitbox is None or zoom != self._hitbox_zoom or self._hitbox_moved:
-			surface = pygame.Surface(display.get_size(), pygame.SRCALPHA, 32)
-			rect = pygame.draw.polygon(surface, (0, 0, 0), points_pixels)
-			self._hitbox = pygame.mask.from_surface(surface, 0)
+			HITBOX_SURFACE.fill(0)
+			pygame.draw.polygon(HITBOX_SURFACE, (0, 0, 0), points_pixels)
+			self._hitbox = pygame.mask.from_surface(HITBOX_SURFACE, 0)
 			self._hitbox_camera = camera.copy()
 			self._hitbox_zoom = zoom
 			self._hitbox_moved = False
-			print("Created polygon hitbox")
+			print(f"Created polygon hitbox {camera}")
 
 		pygame.gfxdraw.aapolygon(display, points_pixels, self.color)
 		pygame.gfxdraw.filled_polygon(display, points_pixels, self.color)
@@ -344,9 +356,9 @@ class CustomShape(SelectableObject):
 			if self.selected_points.count(1):
 				_pos = deepcopy(self.pos)
 				# TODO
-				self.pos["x"] = self._hitbox.center[0] / zoom - camera[0]
-				self.pos["y"] = -(self._hitbox.center[1] / zoom) - camera[1]
-				self.points = tuple([(point[0] + _pos["x"] - self.pos["x"], point[1] + _pos["y"] - self.pos["y"])
+				self.pos = (self._hitbox.center[0] / zoom - camera[0],
+				            -(self._hitbox.center[1] / zoom) - camera[1])
+				self.points = tuple([(point[0] + _pos[0] - self.pos[0], point[1] + _pos[1] - self.pos[1])
 				                     for point in self.points])
 			# Render points
 			for i, point in enumerate(points_pixels):
@@ -369,31 +381,73 @@ class CustomShape(SelectableObject):
 					pygame.gfxdraw.filled_circle(
 						display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), POINT_COLOR)
 
+	@SelectableObject.pos.setter
+	def pos(self, value):
+		change = (value[0] - self.pos[0], value[1] - self.pos[1])
+		SelectableObject.pos.__set__(self, value)
+		for pin in self.static_pins:
+			pin["x"] += change[0]
+			pin["y"] += change[1]
+		for anchor in self.anchors:
+			anchor.pos = (anchor.pos[0] + value[0], anchor.pos[1] + value[1])
+
 	@property
 	def rotations(self):
+		"""Rotation degrees in the X, Y, and Z axis, calculated from a quaternion"""
 		rot = self._dict["m_Rot"]
 		return euler_angles(rot["x"], rot["y"], rot["z"], rot["w"])
 	@rotations.setter
 	def rotations(self, values):
-		"""Does not automatically rotate pins and anchors"""
 		q = quaternion(*values)
 		self._dict["m_Rot"] = {"x": q[0], "y": q[1], "z": q[2], "w": q[3]}
 		self._dict["m_RotationDegrees"] = values[2]
+		basepos = self.pos
+		for pin in self.static_pins:
+			newpin = rotate((pin["x"], pin["y"]), values[2], basepos)
+			pin["x"] = newpin[0]
+			pin["y"] = newpin[1]
+		for anchor in self.anchors:
+			anchor.pos = rotate(anchor.pos, values[2], basepos)
+
+	@property
+	def rotation(self):
+		"""Rotation degrees only in the Z axis"""
+		return self._dict["m_RotationDegrees"]
+	@rotation.setter
+	def rotation(self, value):
+		x, y, _ = self.rotations
+		self.rotations = (x, y, value)
 
 	@property
 	def flipped(self) -> bool:
 		return self._dict["m_Flipped"]
 	@flipped.setter
 	def flipped(self, value):
-		"""Does not automatically flip pins and anchors"""
+		old_flipped = self._dict["m_Flipped"]
 		self._dict["m_Flipped"] = value
+		if old_flipped != value:
+			basepos = self.pos
+			for pin in self.static_pins:
+				newpin = rotate((pin["x"], pin["y"]), -self.rotation, basepos)
+				newpin = (2 * basepos[0] - newpin[0], newpin[1])
+				newpin = rotate(newpin, self.rotation, basepos)
+				pin["x"] = newpin[0]
+				pin["y"] = newpin[1]
+			for anchor in self.anchors:
+				newanchorpos = rotate(anchor.pos, -self.rotation, basepos)
+				newanchorpos = (2 * basepos[0] - newanchorpos[0], newanchorpos[1])
+				newanchorpos = rotate(newanchorpos, self.rotation, basepos)
+				anchor.pos = newanchorpos
 
 	@property
 	def scale(self):
-		return self._dict["m_Scale"]
+		return self._dict["m_Scale"]["x"], self._dict["m_Scale"]["y"], self._dict["m_Scale"]["z"]
 	@scale.setter
 	def scale(self, value):
-		self._dict["m_Scale"] = value
+		if len(value) == 2:
+			self._dict["m_Scale"] = {"x": value[0], "y": value[1], "z": self._dict["m_Scale"]["z"]}
+		else:
+			self._dict["m_Scale"] = {"x": value[0], "y": value[1], "z": value[2]}
 
 	@property
 	def color(self):
@@ -405,19 +459,21 @@ class CustomShape(SelectableObject):
 	@property
 	def points(self):
 		pts = []
+		pts_scale = self.scale
 		for p in self._dict["m_PointsLocalSpace"]:
-			point = (p["x"] * self.scale["x"], p["y"] * self.scale["y"])
+			point = (p["x"] * pts_scale[0], p["y"] * pts_scale[1])
 			if self.flipped:
 				point = (-point[0], point[1])
-			point = rotate(point, self.rotations[2])
+			point = rotate(point, self.rotation)
 			pts.append(point)
 		return tuple(pts)
 	@points.setter
 	def points(self, values):
-		values = [rotate(p, -self.rotations[2]) for p in values]
+		values = [rotate(p, -self.rotation) for p in values]
+		pts_scale = self.scale
 		if self.flipped:
 			values = [(-p[0], p[1]) for p in values]
-		self._dict["m_PointsLocalSpace"] = [{"x": p[0] / self.scale["x"], "y": p[1] / self.scale["y"]} for p in values]
+		self._dict["m_PointsLocalSpace"] = [{"x": p[0] / pts_scale[0], "y": p[1] / pts_scale[1]} for p in values]
 
 	@property
 	def static_pins(self):

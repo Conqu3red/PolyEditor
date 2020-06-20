@@ -176,8 +176,9 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						edit_object_window._window.minimize()
 
 			elif event.type == pygame.VIDEORESIZE:
-				display = pygame.display.set_mode(event.size, pygame.RESIZABLE)
 				size = event.size
+				display = pygame.display.set_mode(size, pygame.RESIZABLE)
+				g.HITBOX_SURFACE = pygame.Surface(size, pygame.SRCALPHA, 32)
 
 			elif event.type == MENU_EVENT:
 				edit_object_window.close()
@@ -383,8 +384,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					for old_obj in [o for o in selectable_objects() if o.highlighted]:
 						new_obj = deepcopy(old_obj)
 						old_obj.highlighted = False
-						new_obj.pos["x"] += 1
-						new_obj.pos["y"] -= 1
+						new_obj.pos = (new_obj.pos[0] + 1, new_obj.pos[1] - 1)
 						if type(new_obj) is g.CustomShape:
 							new_obj.dynamic_anchor_ids = [str(uuid4()) for _ in old_obj.dynamic_anchor_ids]
 							for i in range(len(new_obj.dynamic_anchor_ids)):
@@ -398,8 +398,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 							for dyn_anc_id in new_obj.dynamic_anchor_ids:
 								for anchor in anchors:
 									if anchor.id == dyn_anc_id:
-										anchor.pos["x"] += 1
-										anchor.pos["y"] -= 1
+										anchor.pos = (anchor.pos[0] + 1, anchor.pos[1] - 1)
 						object_lists[new_obj.list_name].append(new_obj)
 
 				elif event.key == pygame.K_e:
@@ -418,14 +417,14 @@ def main(layout, layoutfile, jsonfile, backupfile):
 								break
 					if len(hl_objs) == 1:
 						obj = hl_objs[0]
-						values = {popup.POS_X: obj.pos["x"],
-						          popup.POS_Y: obj.pos["y"],
-						          popup.POS_Z: obj.pos["z"]}
+						values = {popup.POS_X: obj.pos[0],
+						          popup.POS_Y: obj.pos[1],
+						          popup.POS_Z: obj.pos[2]}
 						if type(obj) is g.CustomShape:
 							rot = obj.rotations
-							values[popup.SCALE_X] = obj.scale["x"]
-							values[popup.SCALE_Y] = obj.scale["y"]
-							values[popup.SCALE_Z] = obj.scale["z"]
+							values[popup.SCALE_X] = obj.scale[0]
+							values[popup.SCALE_Y] = obj.scale[1]
+							values[popup.SCALE_Z] = obj.scale[2]
 							values[popup.ROT_Z] = rot[2]  # Z first
 							values[popup.ROT_X] = rot[0]
 							values[popup.ROT_Y] = rot[1]
@@ -435,23 +434,13 @@ def main(layout, layoutfile, jsonfile, backupfile):
 				# Move selection with keys
 				if move:
 					hl_objs = [o for o in selectable_objects() if o.highlighted]
+					for obj in hl_objs:
+						obj.pos = (obj.pos[0] + move_x, obj.pos[1] + move_y)
 					if len(hl_objs) == 0:
 						camera = [camera[0] - move_x, camera[1] - move_y]
 					elif edit_object_window and len(hl_objs) == 1 and edit_object_window.obj == hl_objs[0]:
-						edit_object_window.inputs[popup.POS_X].update(str(hl_objs[0].pos["x"]))
-						edit_object_window.inputs[popup.POS_Y].update(str(hl_objs[0].pos["y"]))
-					for obj in hl_objs:
-						obj.pos["x"] += move_x
-						obj.pos["y"] += move_y
-						if type(obj) is g.CustomShape:
-							for pin in obj.static_pins:
-								pin["x"] += move_x
-								pin["y"] += move_y
-							for dyn_anc_id in obj.dynamic_anchor_ids:
-								for anchor in anchors:
-									if anchor.id == dyn_anc_id:
-										anchor.pos["x"] += move_x
-										anchor.pos["y"] += move_y
+						edit_object_window.inputs[popup.POS_X].update(str(hl_objs[0].pos[0]))
+						edit_object_window.inputs[popup.POS_Y].update(str(hl_objs[0].pos[1]))
 
 		# Render background
 		display.fill(bg_color)
@@ -465,24 +454,12 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 		# Move selection with mouse
 		if moving:
-			move_x = true_mouse_pos()[0] - old_true_mouse_pos[0]
-			move_y = true_mouse_pos()[1] - old_true_mouse_pos[1]
 			hl_objs = [o for o in selectable_objects() if o.highlighted]
-			if edit_object_window and len(hl_objs) == 1 and edit_object_window.obj == hl_objs[0]:
-				edit_object_window.inputs[popup.POS_X].update(str(hl_objs[0].pos["x"]))
-				edit_object_window.inputs[popup.POS_Y].update(str(hl_objs[0].pos["y"]))
 			for obj in hl_objs:
-				obj.pos["x"] += move_x
-				obj.pos["y"] += move_y
-				if type(obj) is g.CustomShape:
-					for pin in obj.static_pins:
-						pin["x"] += move_x
-						pin["y"] += move_y
-					for dyn_anc_id in obj.dynamic_anchor_ids:
-						for anchor in anchors:
-							if anchor.id == dyn_anc_id:
-								anchor.pos["x"] += move_x
-								anchor.pos["y"] += move_y
+				obj.pos = tuple(obj.pos[i] + true_mouse_pos()[i] - old_true_mouse_pos[i] for i in range(2))
+			if edit_object_window and len(hl_objs) == 1 and edit_object_window.obj == hl_objs[0]:
+				edit_object_window.inputs[popup.POS_X].update(str(hl_objs[0].pos[0]))
+				edit_object_window.inputs[popup.POS_Y].update(str(hl_objs[0].pos[1]))
 
 		# Edit object window
 		hl_objs = [o for o in selectable_objects() if o.highlighted]
@@ -505,18 +482,9 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			else:
 				# Position
 				x, y, z = values[popup.POS_X], values[popup.POS_Y], values[popup.POS_Z]
-				x_change, y_change, z_change = x - obj.pos["x"], y - obj.pos["y"], z - obj.pos["z"]
+				x_change, y_change, z_change = x - obj.pos[0], y - obj.pos[1], z - obj.pos[2]
 				if abs(x_change) > 0.000001 or abs(y_change) > 0.000001 or abs(z_change) > 0.000001:
-					obj.pos = {"x": x, "y": y, "z": z}
-					if type(obj) is g.CustomShape:
-						for pin in obj.static_pins:
-							pin["x"] += x_change
-							pin["y"] += y_change
-						for anchor_id in obj.dynamic_anchor_ids:
-							for anchor in anchors:
-								if anchor.id == anchor_id:
-									anchor.pos["x"] += x_change
-									anchor.pos["y"] += y_change
+					obj.pos = (x, y, z)
 
 				if type(obj) is g.CustomShape:
 					# Scale (Has no effect on pins and anchors in-game)
@@ -527,36 +495,8 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					rotx_change, roty_change, rotz_change = rotx - oldrot[0], roty - oldrot[1], rotz - oldrot[2]
 					if abs(rotx_change) > 0.000001 or abs(roty_change) > 0.000001 or abs(rotz_change) > 0.000001:
 						obj.rotations = (rotx, roty, rotz)
-						for pin in obj.static_pins:
-							newpin = g.rotate(
-								(pin["x"], pin["y"]), rotz_change, (obj.pos["x"], obj.pos["y"]))
-							pin["x"] = newpin[0]
-							pin["y"] = newpin[1]
-						for anchor_id in obj.dynamic_anchor_ids:
-							for anchor in anchors:
-								if anchor.id == anchor_id:
-									newanchor = g.rotate(
-										(anchor.pos["x"], anchor.pos["y"]), rotz_change, (obj.pos["x"], obj.pos["y"]))
-									anchor.pos["x"] = newanchor[0]
-									anchor.pos["y"] = newanchor[1]
 					# Flipped
-					old_flipped = obj.flipped
 					obj.flipped = values[popup.FLIP]
-					if old_flipped != obj.flipped:
-						for pin in obj.static_pins:
-							newpin = g.rotate((pin["x"], pin["y"]), -oldrot[2], (obj.pos["x"], obj.pos["y"]))
-							newpin = (2 * obj.pos["x"] - newpin[0], newpin[1])
-							newpin = g.rotate(newpin, oldrot[2], (obj.pos["x"], obj.pos["y"]))
-							pin["x"] = newpin[0]
-							pin["y"] = newpin[1]
-						for anchor_id in obj.dynamic_anchor_ids:
-							for anchor in anchors:
-								if anchor.id == anchor_id:
-									newanchor = g.rotate((anchor.pos["x"], anchor.pos["y"]), -oldrot[2], (obj.pos["x"], obj.pos["y"]))
-									newanchor = (2 * obj.pos["x"] - newanchor[0], newanchor[1])
-									newanchor = g.rotate(newanchor, oldrot[2], (obj.pos["x"], obj.pos["y"]))
-									anchor.pos["x"] = newanchor[0]
-									anchor.pos["y"] = newanchor[1]
 		else:
 			edit_object_window.close()
 		
