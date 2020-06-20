@@ -5,6 +5,7 @@ SCALE, ROT = "Scale", "Rot"
 SCALE_X, SCALE_Y, SCALE_Z = SCALE+" X", SCALE+" Y", SCALE+" Z"
 ROT_X, ROT_Y, ROT_Z = ROT+". X", ROT+". Y", ROT+"ation"
 FLIP = "Flip"
+RGB_R, RGB_G, RGB_B = "Red" , "Green", "Blue"
 
 BACKGROUND_COLOR = "#2A4567"
 ERROR_BACKGROUND_COLOR = "#9F2A2A"
@@ -153,9 +154,13 @@ class EditObjectWindow:
 				elif ROT in key:
 					invalid = not -180.0 <= self.data[key] <= 180.0
 					self.data[key] = max(min(self.data[key], 180.0), -180.0)
+				elif key in [RGB_R, RGB_G, RGB_B]:
+					invalid = not (self.data[key]<=255 and self.data[key]>=0)
+					self.data[key] = max(min(self.data[key],255),0)
 				else:
 					print(f"Warning: Didn't validate {key} input as its name couldn't be recognized")
-
+				
+					
 			if invalid:
 				self._inputs[key].update(background_color=ERROR_BACKGROUND_COLOR)
 			else:

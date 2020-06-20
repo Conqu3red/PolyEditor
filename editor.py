@@ -449,9 +449,20 @@ def main(layout, layoutfile, jsonfile, backupfile):
 							values[popup.ROT_Z] = rot[2]  # Z first
 							values[popup.ROT_X] = rot[0]
 							values[popup.ROT_Y] = rot[1]
+							values[popup.RGB_R] = obj.color[0]
+							values[popup.RGB_G] = obj.color[1]
+							values[popup.RGB_B] = obj.color[2]
 							values[popup.FLIP] = obj.flipped
-						edit_object_window = popup.EditObjectWindow(values)
 
+						edit_object_window = popup.EditObjectWindow(values)
+					if len(hl_objs) > 1:
+						obj = hl_objs[0]
+						values = {}
+						if type(obj) is g.CustomShape:
+							values[popup.RGB_R] = obj.color[0]
+							values[popup.RGB_G] = obj.color[1]
+							values[popup.RGB_B] = obj.color[2]
+						edit_object_window = popup.EditObjectWindow(values)
 				# Move selection with keys
 				if move:
 					hl_objs = [o for o in selectable_objects() if o.highlighted]
@@ -579,6 +590,29 @@ def main(layout, layoutfile, jsonfile, backupfile):
 									newanchor = g.rotate(newanchor, oldrot[2], (obj.pos["x"], obj.pos["y"]))
 									anchor.pos["x"] = newanchor[0]
 									anchor.pos["y"] = newanchor[1]
+					# RGB color values
+					obj.color = (
+						values[popup.RGB_R],
+						values[popup.RGB_G],
+						values[popup.RGB_B],
+						obj.color[3]
+						)
+		elif edit_object_window and len(hl_objs) > 1:
+			timeout = 10 if moused_over else None
+			event, values = edit_object_window.read(timeout)
+			if event == sg.WIN_CLOSED or event == "Exit":
+				edit_object_window.close()
+			elif event == "Leave" or event == sg.TIMEOUT_KEY:
+				pass
+			else:
+				for obj in hl_objs:
+					if type(obj) is g.CustomShape:
+						obj.color = (
+							values[popup.RGB_R],
+							values[popup.RGB_G],
+							values[popup.RGB_B],
+							255
+							)
 		else:
 			edit_object_window.close()
 		
