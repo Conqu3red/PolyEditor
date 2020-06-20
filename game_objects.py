@@ -12,6 +12,7 @@ HIGHLIGHT_COLOR = (255, 255, 0)
 SELECT_COLOR = (0, 255, 0)
 HITBOX_COLOR = (255, 0, 255)
 POINT_COLOR = (255, 255, 255)
+ADD_POINT_COLOR = (80, 80, 255, 150)
 HITBOX_CENTER_WIDTH = 3
 SHAPE_HIGHLIGHTED_WIDTH = 2
 
@@ -93,6 +94,31 @@ def euler_angles(qx, qy, qz, qw, deg=True):
 		z = math.degrees(z)
 	return x, y, z
 
+def closest_point(l1, l2, p):
+	"""Finds the closest point on a line given a start and end point, and a point to check from."""
+	try:
+		s1 = (l2[1] - l1[1]) / (l2[0] - l1[0])
+		s2 = -1 / s1
+		a1 = (l1[1] - l1[0] * s1)
+		a2 = (p[1] - p[0] * s2)
+		x = -(a2 - a1) / (s2 - s1)
+		if l1[0] <= x <= l2[0] or l2[0] <= x <= l1[0]:
+			return x, s1 * x + a1
+		else:
+			return None
+	except:
+		if l2[0] - l1[0] == 0: 
+			# Vertical line
+			if l1[1] <= p[1] <= l2[1] or l2[1] <= p[1] <= l1[1]:
+				return l1[0], p[1]
+			else:
+				return None
+		else:
+			# Horizontal Line
+			if l1[0] <= p[0] <= l2[0] or l2[0] <= p[0] <= l1[0]:
+				return p[0], l1[1]
+			else:
+				return None
 
 class LayoutObject:
 	"""Acts as a wrapper for the dictionary that represents an object in the layout."""
@@ -150,9 +176,9 @@ class Anchor(LayoutObject):
 				color = DYNAMIC_ANCHOR_COLOR
 				break
 		rect = (round(zoom * (self.pos["x"] + camera[0] - ANCHOR_RADIUS)),
-		        round(zoom * -(self.pos["y"] + camera[1] + ANCHOR_RADIUS)),
-		        round(zoom * ANCHOR_RADIUS * 2),
-		        round(zoom * ANCHOR_RADIUS * 2))
+				round(zoom * -(self.pos["y"] + camera[1] + ANCHOR_RADIUS)),
+				round(zoom * ANCHOR_RADIUS * 2),
+				round(zoom * ANCHOR_RADIUS * 2))
 		pygame.draw.rect(display, color, rect)
 		pygame.draw.rect(display, ANCHOR_BORDER, rect, max(1, round(rect[2] / 15)))
 
@@ -252,9 +278,9 @@ class Pillar(LayoutObject):
 
 	def render(self, display, camera, zoom, draw_hitbox):
 		rect = (round(zoom * (self.pos["x"] - PILLAR_WIDTH / 2 + camera[0])),
-		        round(zoom * -(self.pos["y"] + self.height + camera[1])),
-		        round(zoom * PILLAR_WIDTH),
-		        round(zoom * self.height))
+				round(zoom * -(self.pos["y"] + self.height + camera[1])),
+				round(zoom * PILLAR_WIDTH),
+				round(zoom * self.height))
 		self.hitbox = pygame.Rect(rect)
 		self.click_hitbox = self.hitbox
 		surf = pygame.Surface((rect[2], rect[3]))
@@ -267,7 +293,7 @@ class Pillar(LayoutObject):
 			pygame.draw.rect(display, HITBOX_COLOR, self.hitbox, 1)
 			center_width = scale(HITBOX_CENTER_WIDTH, zoom)
 			center_start = (round(zoom * (self.pos["x"] + camera[0]) - center_width / 2),
-			                round(zoom * -(self.pos["y"] + camera[1])))
+							round(zoom * -(self.pos["y"] + camera[1])))
 			center_end = (center_start[0] + center_width, center_start[1])
 			pygame.draw.line(display, HITBOX_COLOR, center_start, center_end, center_width)
 		if self.highlighted:
@@ -301,6 +327,8 @@ class CustomShape(LayoutObject):
 
 	def render(self, display, camera, zoom, draw_hitbox, point_mode):
 		# TODO: Move point editing logic to its own function
+		self.zoom = zoom
+		self.camera = camera
 		# Move point if a point is selected
 		if self.selected_points:
 			for i, point in enumerate(self.points):
@@ -311,8 +339,8 @@ class CustomShape(LayoutObject):
 					break
 
 		points_pixels = [[round(zoom * (self.pos["x"] + point[0] + camera[0])),
-		                  round(zoom * -(self.pos["y"] + point[1] + camera[1]))]
-		                 for point in self.points]
+						  round(zoom * -(self.pos["y"] + point[1] + camera[1]))]
+						 for point in self.points]
 
 		self.hitbox = pygame.draw.polygon(HITBOX_SURFACE, 0, points_pixels, 1)
 		pygame.gfxdraw.filled_polygon(display, points_pixels, self.color)
@@ -329,19 +357,40 @@ class CustomShape(LayoutObject):
 			pygame.draw.polygon(display, HIGHLIGHT_COLOR, points_pixels, scale(SHAPE_HIGHLIGHTED_WIDTH, zoom, 60))
 
 		self.point_hitboxes = []
+		self.add_point_hitbox = None
 		if point_mode.draw_points:
+			expand_size = zoom / 7 * 2 if point_mode.holding_shift else zoom * PIN_RADIUS
 			self.click_hitbox = deepcopy(self.hitbox)
-			self.click_hitbox.size = (self.hitbox.width + round(zoom * PIN_RADIUS),
-			                          self.hitbox.height + round(zoom * PIN_RADIUS))
-			self.click_hitbox.x -= round(zoom * PIN_RADIUS / 2)
-			self.click_hitbox.y -= round(zoom * PIN_RADIUS / 2)
+			self.click_hitbox.size = (self.hitbox.width + round(expand_size),
+									  self.hitbox.height + round(expand_size))
+			self.click_hitbox.x -= round(expand_size / 2)
+			self.click_hitbox.y -= round(expand_size / 2)
+
+			# Show overlay of where a point will be added
+			if point_mode.holding_shift and self.click_hitbox.collidepoint(point_mode.mouse_pos):
+				closest = [None, zoom / 7, -1]
+				for i in range(len(self.points)):
+					ni = 0 if i + 1 == len(self.points) else i + 1
+					_point = closest_point(points_pixels[i], points_pixels[ni], point_mode.mouse_pos)
+					if not _point: continue
+					distance = ((_point[0] - point_mode.mouse_pos[0]) ** 2 + (_point[1] - point_mode.mouse_pos[1]) ** 2) ** 0.5
+					if distance < closest[1]:
+						closest = [_point, distance, ni]
+				if closest[0]:
+					self.add_point = closest
+					self.add_point_hitbox = pygame.draw.circle(HITBOX_SURFACE, 0, (round(closest[0][0]), round(closest[0][1])), round(zoom * PIN_RADIUS / 2), 0)
+					pygame.gfxdraw.aacircle(
+						display, round(closest[0][0]), round(closest[0][1]), round(zoom * PIN_RADIUS / 2), ADD_POINT_COLOR)
+					pygame.gfxdraw.filled_circle(
+						display, round(closest[0][0]), round(closest[0][1]), round(zoom * PIN_RADIUS / 2), ADD_POINT_COLOR)
+
 			# Update center to actual center of rectangle
 			if self.selected_points.count(1):
 				_pos = deepcopy(self.pos)
 				self.pos["x"] = self.hitbox.center[0] / zoom - camera[0]
 				self.pos["y"] = -(self.hitbox.center[1] / zoom) - camera[1]
 				self.points = tuple([(point[0] + _pos["x"] - self.pos["x"], point[1] + _pos["y"] - self.pos["y"])
-				                     for point in self.points])
+									 for point in self.points])
 			# Render points
 			for i, point in enumerate(points_pixels):
 				self.point_hitboxes.append(
@@ -366,9 +415,16 @@ class CustomShape(LayoutObject):
 			if self.click_hitbox != self.hitbox: pygame.draw.rect(display, (255, 255, 255), self.click_hitbox, 1)
 			center_width = scale(HITBOX_CENTER_WIDTH, zoom)
 			center_start = (round(zoom * (self.pos["x"] + camera[0]) - center_width / 2),
-			                round(zoom * -(self.pos["y"] + camera[1])))
+							round(zoom * -(self.pos["y"] + camera[1])))
 			center_end = (center_start[0] + center_width, center_start[1])
 			pygame.draw.line(display, HITBOX_COLOR, center_start, center_end, center_width)
+
+	def append_point(self, index, point):
+		_points = list(self.points)
+		_points.insert(index, (point[0] / self.zoom - self.camera[0] - self.pos["x"],
+						-(point[1] / self.zoom) - self.camera[1] - self.pos["y"]))
+		self.points = tuple(_points)
+		self.selected_points = [0 for _ in self.points]
 
 	@property
 	def pos(self):
@@ -444,9 +500,10 @@ class CustomShape(LayoutObject):
 
 class PointMode:
 	"""Contains the relevant states while the editor is in custom shaoe point editing mode"""
-	def __init__(self, draw_points, delete_points, add_points, mouse_pos, mouse_change):
+	def __init__(self, draw_points, delete_points, add_points, mouse_pos, mouse_change, holding_shift):
 		self.draw_points = draw_points
 		self.delete_points = delete_points
 		self.add_points = add_points
 		self.mouse_pos = mouse_pos
 		self.mouse_change = mouse_change
+		self.holding_shift = holding_shift
