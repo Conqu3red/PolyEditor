@@ -12,6 +12,7 @@ HIGHLIGHT_COLOR = (255, 255, 0)
 SELECT_COLOR = (0, 255, 0)
 HITBOX_COLOR = (255, 0, 255)
 POINT_COLOR = (255, 255, 255)
+ADD_POINT_COLOR = (80, 80, 255, 150)
 HITBOX_CENTER_WIDTH = 3
 SHAPE_HIGHLIGHTED_WIDTH = 2
 
@@ -101,20 +102,20 @@ def closest_point(l1, l2, p):
 		a1 = (l1[1] - l1[0] * s1)
 		a2 = (p[1] - p[0] * s2)
 		x = -(a2 - a1) / (s2 - s1)
-		if l1[0] <= x <= l2[0]:
+		if l1[0] <= x <= l2[0] or l2[0] <= x <= l1[0]:
 			return x, s1 * x + a1
 		else:
 			return None
 	except:
 		if l2[0] - l1[0] == 0: 
 			# Vertical line
-			if l1[1] <= p[1] <= l2[1]:
+			if l1[1] <= p[1] <= l2[1] or l2[1] <= p[1] <= l1[1]:
 				return l1[0], p[1]
 			else:
 				return None
 		else:
 			# Horizontal Line
-			if l1[0] <= p[0] <= l2[0]:
+			if l1[0] <= p[0] <= l2[0] or l2[0] <= p[0] <= l1[0]:
 				return p[0], l1[1]
 			else:
 				return None
@@ -325,6 +326,8 @@ class CustomShape(LayoutObject):
 		self.point_hitboxes = []
 
 	def render(self, display, camera, zoom, draw_hitbox, point_mode):
+		self.zoom = zoom
+		self.camera = camera
 		# Move point if a point is selected
 		if self.selected_points:
 			for i, point in enumerate(self.points):
@@ -353,28 +356,32 @@ class CustomShape(LayoutObject):
 			pygame.draw.polygon(display, HIGHLIGHT_COLOR, points_pixels, scale(SHAPE_HIGHLIGHTED_WIDTH, zoom, 60))
 
 		self.point_hitboxes = []
+		self.add_point_hitbox = None
 		if point_mode.draw_points:
+			expand_size = zoom / 7 * 2 if point_mode.holding_shift else zoom * PIN_RADIUS
 			self.click_hitbox = deepcopy(self.hitbox)
-			self.click_hitbox.size = (self.hitbox.width + round(zoom * PIN_RADIUS),
-									  self.hitbox.height + round(zoom * PIN_RADIUS))
-			self.click_hitbox.x -= round(zoom * PIN_RADIUS / 2)
-			self.click_hitbox.y -= round(zoom * PIN_RADIUS / 2)
+			self.click_hitbox.size = (self.hitbox.width + round(expand_size),
+									  self.hitbox.height + round(expand_size))
+			self.click_hitbox.x -= round(expand_size / 2)
+			self.click_hitbox.y -= round(expand_size / 2)
 
 			# Show overlay of where a point will be added
 			if point_mode.holding_shift and self.click_hitbox.collidepoint(point_mode.mouse_pos):
-				closest = [None, zoom / 7]
+				closest = [None, zoom / 7, -1]
 				for i in range(len(self.points)):
-					nextpoint = points_pixels[0] if i + 1 == len(self.points) else points_pixels[i + 1]
-					_point = closest_point(points_pixels[i], nextpoint, point_mode.mouse_pos)
+					ni = 0 if i + 1 == len(self.points) else i + 1
+					_point = closest_point(points_pixels[i], points_pixels[ni], point_mode.mouse_pos)
 					if not _point: continue
 					distance = ((_point[0] - point_mode.mouse_pos[0]) ** 2 + (_point[1] - point_mode.mouse_pos[1]) ** 2) ** 0.5
 					if distance < closest[1]:
-						closest = [_point, distance]
+						closest = [_point, distance, ni]
 				if closest[0]:
+					self.add_point = closest
+					self.add_point_hitbox = pygame.draw.circle(HITBOX_SURFACE, 0, (round(closest[0][0]), round(closest[0][1])), round(zoom * PIN_RADIUS / 2), 0)
 					pygame.gfxdraw.aacircle(
-						display, round(closest[0][0]), round(closest[0][1]), round(zoom * PIN_RADIUS / 2), (255, 255, 255, 100))
+						display, round(closest[0][0]), round(closest[0][1]), round(zoom * PIN_RADIUS / 2), ADD_POINT_COLOR)
 					pygame.gfxdraw.filled_circle(
-						display, round(closest[0][0]), round(closest[0][1]), round(zoom * PIN_RADIUS / 2), (255, 255, 255, 100))
+						display, round(closest[0][0]), round(closest[0][1]), round(zoom * PIN_RADIUS / 2), ADD_POINT_COLOR)
 
 			# Update center to actual center of rectangle
 			if self.selected_points.count(1):
@@ -410,6 +417,13 @@ class CustomShape(LayoutObject):
 							round(zoom * -(self.pos["y"] + camera[1])))
 			center_end = (center_start[0] + center_width, center_start[1])
 			pygame.draw.line(display, HITBOX_COLOR, center_start, center_end, center_width)
+
+	def append_point(self, index, point):
+		_points = list(self.points)
+		_points.insert(index, (round(point[0] / self.zoom - self.camera[0] - self.pos["x"]),
+						round(-(point[1] / self.zoom) - self.camera[1] - self.pos["y"])))
+		self.points = tuple(_points)
+		self.selected_points = [0 for _ in self.points]
 
 	@property
 	def pos(self):
