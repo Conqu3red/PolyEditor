@@ -258,7 +258,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 								if clicked_point:
 									point_moving = True
 									obj.selected_points = [p.collidepoint(event.pos) for p in obj.point_hitboxes]
-									point_editing_shape = obj
+									selected_shape = obj
 									for o in selectable_objects():
 										o.highlighted = False
 									edit_object_window.close()
