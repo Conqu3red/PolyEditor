@@ -255,7 +255,11 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						if obj.click_hitbox.collidepoint(event.pos):  # dragging and multiselect
 							if type(obj) is g.CustomShape:
 								clicked_point = [p for p in obj.point_hitboxes if p.collidepoint(event.pos)]
-								if clicked_point:
+								if holding_shift() and obj.add_point_hitbox:
+									if obj.add_point_hitbox.collidepoint(event.pos):
+										obj.append_point(obj.add_point[2], obj.add_point[0])
+										break
+								elif clicked_point:
 									point_moving = True
 									obj.selected_points = [p.collidepoint(event.pos) for p in obj.point_hitboxes]
 									selected_shape = obj
@@ -263,35 +267,37 @@ def main(layout, layoutfile, jsonfile, backupfile):
 										o.highlighted = False
 									edit_object_window.close()
 									break
-								elif holding_shift() and obj.add_point_hitbox:
-									if obj.add_point_hitbox.collidepoint(event.pos):
-										obj.append_point(obj.add_point[2], obj.add_point[0])
-										break
-							if not obj.hitbox.collidepoint(event.pos):
-								break
-							if not holding_shift():
-								moving = True
-								dragndrop_pos = true_mouse_pos() if not obj.highlighted else None
-							if not obj.highlighted:
-								if not holding_shift():  # clear other selections
-									for o in selectable_objects():
-										o.highlighted = False
-								obj.highlighted = True
-								edit_object_window.close()
-							elif holding_shift():
-								obj.highlighted = False
-								edit_object_window.close()
-							break
+							if obj.hitbox.collidepoint(event.pos):
+								if not holding_shift():
+									moving = True
+									dragndrop_pos = true_mouse_pos() if not obj.highlighted else None
+								if not obj.highlighted:
+									if not holding_shift():  # clear other selections
+										for o in selectable_objects():
+											o.highlighted = False
+									obj.highlighted = True
+									edit_object_window.close()
+								elif holding_shift():
+									obj.highlighted = False
+									edit_object_window.close()
 					if not (moving or point_moving):
 						panning = True
 						dragndrop_pos = true_mouse_pos()
 					old_mouse_pos = event.pos
 
 				if event.button == 3:  # right click
-					edit_object_window.close()
+					edit_object_window.close
+					for obj in reversed(selectable_objects()):
+						if obj.click_hitbox.collidepoint(event.pos):
+							if type(obj) is g.CustomShape:
+								if len(obj.points) <= 3: continue
+								for i, point in enumerate(obj.point_hitboxes):
+									if point.collidepoint(event.pos):
+										obj.del_point(i)
+										break
 					mouse_pos = event.pos
 					selecting_pos = event.pos
-					if not point_moving or moving:
+					if not point_moving or moving or holding_shift():
 						selecting = True
 
 				if event.button == 4:  # mousewheel up

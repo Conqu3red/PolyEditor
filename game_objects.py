@@ -12,7 +12,7 @@ HIGHLIGHT_COLOR = (255, 255, 0)
 SELECT_COLOR = (0, 255, 0)
 HITBOX_COLOR = (255, 0, 255)
 POINT_COLOR = (255, 255, 255)
-ADD_POINT_COLOR = (80, 80, 255, 150)
+ADD_POINT_COLOR = (80, 80, 255)
 HITBOX_CENTER_WIDTH = 3
 SHAPE_HIGHLIGHTED_WIDTH = 2
 
@@ -366,24 +366,6 @@ class CustomShape(LayoutObject):
 			self.click_hitbox.x -= round(expand_size / 2)
 			self.click_hitbox.y -= round(expand_size / 2)
 
-			# Show overlay of where a point will be added
-			if point_mode.holding_shift and self.click_hitbox.collidepoint(point_mode.mouse_pos):
-				closest = [None, zoom / 7, -1]
-				for i in range(len(self.points)):
-					ni = 0 if i + 1 == len(self.points) else i + 1
-					_point = closest_point(points_pixels[i], points_pixels[ni], point_mode.mouse_pos)
-					if not _point: continue
-					distance = ((_point[0] - point_mode.mouse_pos[0]) ** 2 + (_point[1] - point_mode.mouse_pos[1]) ** 2) ** 0.5
-					if distance < closest[1]:
-						closest = [_point, distance, ni]
-				if closest[0]:
-					self.add_point = closest
-					self.add_point_hitbox = pygame.draw.circle(HITBOX_SURFACE, 0, (round(closest[0][0]), round(closest[0][1])), round(zoom * PIN_RADIUS / 2), 0)
-					pygame.gfxdraw.aacircle(
-						display, round(closest[0][0]), round(closest[0][1]), round(zoom * PIN_RADIUS / 2), ADD_POINT_COLOR)
-					pygame.gfxdraw.filled_circle(
-						display, round(closest[0][0]), round(closest[0][1]), round(zoom * PIN_RADIUS / 2), ADD_POINT_COLOR)
-
 			# Update center to actual center of rectangle
 			if self.selected_points.count(1):
 				_pos = deepcopy(self.pos)
@@ -404,10 +386,29 @@ class CustomShape(LayoutObject):
 					pygame.gfxdraw.filled_circle(
 						display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), HIGHLIGHT_COLOR)
 				else:
+					_point_color = POINT_COLOR if not point_mode.holding_shift else (*POINT_COLOR, 100)
 					pygame.gfxdraw.aacircle(
-						display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), POINT_COLOR)
+						display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), _point_color)
 					pygame.gfxdraw.filled_circle(
-						display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), POINT_COLOR)
+						display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), _point_color)
+			
+			# Show overlay of where a point will be added
+			if point_mode.holding_shift and self.click_hitbox.collidepoint(point_mode.mouse_pos):
+				closest = [None, zoom / 7, -1]
+				for i in range(len(self.points)):
+					ni = 0 if i + 1 == len(self.points) else i + 1
+					_point = closest_point(points_pixels[i], points_pixels[ni], point_mode.mouse_pos)
+					if not _point: continue
+					distance = ((_point[0] - point_mode.mouse_pos[0]) ** 2 + (_point[1] - point_mode.mouse_pos[1]) ** 2) ** 0.5
+					if distance < closest[1]:
+						closest = [_point, distance, ni]
+				if closest[0]:
+					self.add_point = closest
+					self.add_point_hitbox = pygame.draw.circle(HITBOX_SURFACE, 0, (round(closest[0][0]), round(closest[0][1])), round(zoom * PIN_RADIUS / 2), 0)
+					pygame.gfxdraw.aacircle(
+						display, round(closest[0][0]), round(closest[0][1]), round(zoom * PIN_RADIUS / 2), ADD_POINT_COLOR)
+					pygame.gfxdraw.filled_circle(
+						display, round(closest[0][0]), round(closest[0][1]), round(zoom * PIN_RADIUS / 2), ADD_POINT_COLOR)
 		else:
 			self.click_hitbox = self.hitbox
 		if draw_hitbox:
@@ -425,6 +426,11 @@ class CustomShape(LayoutObject):
 						-(point[1] / self.zoom) - self.camera[1] - self.pos["y"]))
 		self.points = tuple(_points)
 		self.selected_points = [0 for _ in self.points]
+
+	def del_point(self, index):
+		_points = list(self.points)
+		_points.pop(index)
+		self.points = tuple(_points)
 
 	@property
 	def pos(self):
