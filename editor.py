@@ -251,10 +251,11 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						continue
 
 					for obj in reversed(selectable_objects()):
-						# Point editing
-						if draw_points:
-							point_collisions = [hitbox.collidepoint(*event.pos) for hitbox in
-							                    (obj.point_hitboxes if type(obj) is g.CustomShape else [])]
+						if (  # Point editing
+								draw_points and type(obj) is g.CustomShape
+								and obj.points_bounding_box.collidepoint(*event.pos)
+						):
+							point_collisions = [hitbox.collidepoint(*event.pos) for hitbox in obj.point_hitboxes]
 							if point_collisions.count(True) > 0:
 								point_moving = True
 								obj.selected_points = point_collisions
@@ -509,16 +510,14 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 		# Selecting shapes
 		if selecting:
-			rect = pygame.Rect(selecting_pos[0], selecting_pos[1],
-			                   mouse_pos[0] - selecting_pos[0], mouse_pos[1] - selecting_pos[1])
-			surface = pygame.Surface(size, pygame.SRCALPHA, 32)
-			pygame.draw.rect(surface, g.SELECT_COLOR, rect)
-			mask = pygame.mask.from_surface(surface)
+			rect = (min(selecting_pos[0], mouse_pos[0]), min(selecting_pos[1], mouse_pos[1]),
+			        abs(mouse_pos[0] - selecting_pos[0]), abs(mouse_pos[1] - selecting_pos[1]))
 			pygame.draw.rect(display, g.SELECT_COLOR, rect, 1)
+			mask = g.rect_hitbox_mask(rect, zoom)
 			for obj in selectable_objects():
 				if not holding_shift():
-					obj.highlighted = True if obj.collide(mask) else False
-				elif obj.collide(mask):  # multiselect
+					obj.highlighted = obj.colliderect(rect, mask)
+				elif obj.colliderect(rect, mask):  # multiselect
 					obj.highlighted = True
 
 		# Display mouse position, zoom and fps
