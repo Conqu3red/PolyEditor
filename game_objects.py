@@ -7,6 +7,7 @@ from editor import BASE_SIZE
 
 HITBOX_SURFACE = pygame.Surface(BASE_SIZE, pygame.SRCALPHA, 32)
 
+WHITE = (255, 255, 255)
 HIGHLIGHT_COLOR = (255, 255, 0)
 SELECT_COLOR = (0, 255, 0)
 HITBOX_COLOR = (255, 0, 255)
@@ -102,6 +103,9 @@ class LayoutObject:
 	def __init__(self, dictionary):
 		self._dict = dictionary
 
+	def render(self, display, camera, zoom, args=None):
+		raise NotImplementedError(f"{type(self).render}")
+
 	@property
 	def dictionary(self):
 		return self._dict
@@ -118,6 +122,7 @@ class LayoutObject:
 
 
 class SelectableObject(LayoutObject):
+	"""A LayoutObject that can be selected and moved around"""
 	def __init__(self, dictionary):
 		super().__init__(dictionary)
 		self.highlighted = False
@@ -126,12 +131,13 @@ class SelectableObject(LayoutObject):
 		self._hitbox_camera = None
 		self._hitbox = None
 
+	def render(self, display, camera, zoom, args=None):
+		super().render(display, camera, zoom, args)
+
 	def collidepoint(self, point, camera):
-		oldpoint = point
 		point = (round(point[0] - self._hitbox_zoom * (camera[0] - self._hitbox_camera[0])),
 		         round(point[1] + self._hitbox_zoom * (camera[1] - self._hitbox_camera[1])))
 		size = self._hitbox.get_size()
-		print(oldpoint, self._hitbox_zoom * (camera[0] - self._hitbox_camera[0]), point)
 		return bool(self._hitbox.get_at(point)) if 0 <= point[0] <= size[0] and 0 <= point[1] <= size[1] else False
 
 	def colliderect(self, point, camera):
@@ -145,7 +151,6 @@ class SelectableObject(LayoutObject):
 
 class LayoutList:
 	"""Acts a wrapper for a list of dictionaries in the layout, allowing you to treat them as objects."""
-
 	def __init__(self, cls, layout):
 		if not issubclass(cls, LayoutObject): raise TypeError()
 		self._dictlist = layout[cls.list_name]
@@ -185,7 +190,7 @@ class Anchor(LayoutObject):
 	def __init__(self, dictionary):
 		super().__init__(dictionary)
 
-	def render(self, display, camera, zoom, dynamic_anchor_ids):
+	def render(self, display, camera, zoom, dynamic_anchor_ids=tuple()):
 		color = ANCHOR_COLOR
 		for dyn_anc_id in dynamic_anchor_ids:
 			if self.id == dyn_anc_id:
@@ -212,7 +217,7 @@ class TerrainStretch(LayoutObject):
 	def __init__(self, dictionary):
 		super().__init__(dictionary)
 
-	def render(self, display, camera, zoom, color):
+	def render(self, display, camera, zoom, color=WHITE):
 		if self.width == TERRAIN_MAIN_WIDTH:  # main terrain
 			x = zoom * (self.pos[0] - (0 if self.flipped else self.width) + camera[0])
 		else:
@@ -242,7 +247,7 @@ class WaterBlock(LayoutObject):
 	def __init__(self, dictionary):
 		super().__init__(dictionary)
 
-	def render(self, display, camera, zoom, color):
+	def render(self, display, camera, zoom, color=WHITE):
 		start = (zoom * (self.pos[0] - self.width/2 + camera[0]), zoom * -(self.height + camera[1]))
 		end = (zoom * (self.pos[0] + self.width/2 + camera[0]), zoom * -(self.height + camera[1]))
 		pygame.draw.line(display, color, start, end, scale(WATER_EDGE_WIDTH, zoom))
@@ -269,13 +274,12 @@ class Pillar(SelectableObject):
 		super().__init__(dictionary)
 		self._surface = None
 
-	def render(self, display, camera, zoom):
+	def render(self, display, camera, zoom, none=None):
 		rect = (round(zoom * (self.pos[0] - PILLAR_WIDTH / 2 + camera[0])),
 		        round(zoom * -(self.pos[1] + self.height + camera[1])),
 		        round(zoom * PILLAR_WIDTH),
 		        round(zoom * self.height))
 		if self._hitbox is None or self._hitbox.get_size() != display.get_size():
-			print("Created pillar surface")
 			self._surface = pygame.Surface(display.get_size(), pygame.SRCALPHA, 32)
 			self._surface.set_alpha(PILLAR_COLOR[3])
 		else:
@@ -313,7 +317,7 @@ class CustomShape(SelectableObject):
 					if anchor.id == dyn_anc_id:
 						self.anchors.append(anchor)
 
-	def render(self, display, camera, zoom, point_mode):
+	def render(self, display, camera, zoom, point_mode=None):
 		# TODO: Move point editing logic to its own function
 		base_points = self.points
 		# Move point if a point is selected
@@ -337,7 +341,6 @@ class CustomShape(SelectableObject):
 			self._hitbox_camera = camera.copy()
 			self._hitbox_zoom = zoom
 			self._hitbox_moved = False
-			print(f"Created polygon hitbox {camera}")
 
 		pygame.gfxdraw.aapolygon(display, points_pixels, self.color)
 		pygame.gfxdraw.filled_polygon(display, points_pixels, self.color)
@@ -399,16 +402,19 @@ class CustomShape(SelectableObject):
 		return euler_angles(rot["x"], rot["y"], rot["z"], rot["w"])
 	@rotations.setter
 	def rotations(self, values):
+		oldrotz = self.rotation
 		q = quaternion(*values)
 		self._dict["m_Rot"] = {"x": q[0], "y": q[1], "z": q[2], "w": q[3]}
 		self._dict["m_RotationDegrees"] = values[2]
-		basepos = self.pos
-		for pin in self.static_pins:
-			newpin = rotate((pin["x"], pin["y"]), values[2], basepos)
-			pin["x"] = newpin[0]
-			pin["y"] = newpin[1]
-		for anchor in self.anchors:
-			anchor.pos = rotate(anchor.pos, values[2], basepos)
+		change = self.rotation - oldrotz
+		if abs(change) > 0.000001:
+			basepos = self.pos
+			for pin in self.static_pins:
+				newpin = rotate((pin["x"], pin["y"]), change, basepos)
+				pin["x"] = newpin[0]
+				pin["y"] = newpin[1]
+			for anchor in self.anchors:
+				anchor.pos = rotate(anchor.pos, change, basepos)
 
 	@property
 	def rotation(self):

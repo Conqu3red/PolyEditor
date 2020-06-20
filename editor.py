@@ -384,6 +384,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					for old_obj in [o for o in selectable_objects() if o.highlighted]:
 						new_obj = type(old_obj)(deepcopy(old_obj.dictionary))
 						old_obj.highlighted = False
+						new_obj.highlighted = True
 						if type(old_obj) is g.CustomShape:
 							new_anchors = []
 							for i in range(len(old_obj.dynamic_anchor_ids)):
