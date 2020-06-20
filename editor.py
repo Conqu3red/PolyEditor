@@ -104,6 +104,7 @@ def load_level():
 
 def main(layout, layoutfile, jsonfile, backupfile):
 
+	moused_over = True
 	size = BASE_SIZE
 	zoom = 20
 	camera = [size[0] / zoom / 2, -(size[1] / zoom / 2 + 5)]
@@ -115,6 +116,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 	selecting = False
 	moving = False
 	point_moving = False
+	last_zoom = 0
 
 	add_points = False
 	delete_points = False
@@ -167,6 +169,8 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					sys.exit()
 
 			elif event.type == pygame.ACTIVEEVENT:
+				if event.state == 1:
+					moused_over = event.gain == 1
 				if event.state == 6:  # minimized
 					if edit_object_window and not event.gain:
 						edit_object_window.window.minimize()
@@ -292,6 +296,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						zoom = ZOOM_MAX
 					new_pos = true_mouse_pos()
 					camera = [camera[i] + new_pos[i] - old_pos[i] for i in range(2)]
+					last_zoom = 30
 
 				if event.button == 5:  # mousewheel down
 					old_pos = true_mouse_pos()
@@ -303,6 +308,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						zoom = ZOOM_MIN
 					new_pos = true_mouse_pos()
 					camera = [camera[i] + new_pos[i] - old_pos[i] for i in range(2)]
+					last_zoom = 30
 
 			elif event.type == pygame.MOUSEBUTTONUP:
 
@@ -495,13 +501,17 @@ def main(layout, layoutfile, jsonfile, backupfile):
 		hl_objs = [o for o in selectable_objects() if o.highlighted]
 		if edit_object_window and len(hl_objs) == 1:
 			obj = hl_objs[0]
-			try:
-				# TODO: Still drops a few inputs, even more with lower timeout
-				gui_evnt, values = edit_object_window.window.read(timeout=100)
-				if gui_evnt == sg.WIN_CLOSED or gui_evnt == "Exit":
-					edit_object_window.close()
-					raise ValueError()
-
+			# The current solution to running both the edit window GUI and the pygame GUI is to make the
+			#  popup window blocking, but run a single frame of the main window whenever an event is read
+			#  (such as pressing a key or moving the mouse).
+			# The popup window will also be non-blocking when your mouse is not over the popup window,
+			#  but that currently carries the old tkinter problem where most key inputs are missed/ignored
+			#  as long as the window remains non-blocking.
+			timeout = 10 if moused_over else None
+			gui_evnt, values = edit_object_window.window.read(timeout)
+			if gui_evnt == sg.WIN_CLOSED or gui_evnt == "Exit":
+				edit_object_window.close()
+			else:
 				# TODO: Change input color to red when value is invalid
 
 				# Position
@@ -587,9 +597,6 @@ def main(layout, layoutfile, jsonfile, backupfile):
 										(anchor.pos["x"], anchor.pos["y"]), rotz_change, (obj.pos["x"], obj.pos["y"]))
 									anchor.pos["x"] = newanchor[0]
 									anchor.pos["y"] = newanchor[1]
-
-			except ValueError:  # invalid position
-				pass
 		else:
 			edit_object_window.close()
 		
@@ -628,8 +635,10 @@ def main(layout, layoutfile, jsonfile, backupfile):
 		# Display buttons
 		menu_button_rect = display.blit(menu_button, (10, size[1] - menu_button.get_size()[1] - 10))
 
+		last_zoom = max(0, last_zoom - 1)
 		pygame.display.flip()
-		clock.tick(FPS)
+		if not edit_object_window or moused_over:  # Don't run the clock while other window is focused
+			clock.tick(FPS)
 
 
 if __name__ == "__main__":

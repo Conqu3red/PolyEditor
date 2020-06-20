@@ -1,4 +1,5 @@
 import PySimpleGUI as sg
+from time import sleep
 
 PAD = (5, 5)
 FRAME_OPTIONS = {
@@ -23,7 +24,7 @@ def info(title, *msg):
 
 def notif(*msg):
 	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(4, 1), pad=PAD)]]
-	window = sg.Window("", layout, **NOTIF_OPTIONS)
+	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS)
 	return window.read(close=True)[0]
 
 
@@ -53,12 +54,10 @@ def selection(title, msg, items):
 			return content[0][0]
 		elif event == "Up:38" or event == "Left:37":
 			index = items.index(content[0][0]) - 1
-			index %= len(items)
-			listbox.set_value([items[index]])
+			listbox.set_value([items[index % len(items)]])
 		elif event == "Down:40" or event == "Right:39":
 			index = items.index(content[0][0]) + 1
-			index %= len(items)
-			listbox.set_value([items[index]])
+			listbox.set_value([items[index % len(items)]])
 
 
 def open_menu():
@@ -95,11 +94,18 @@ class EditObject:
 				else:
 					inp = sg.Input(data, justification='left', size=(10, None))
 					self.layout[r].append(inp)
-		self.window = sg.Window(
-			"Object properties", self.layout, keep_on_top=True, alpha_channel=0.7, disable_minimize=True)
+		self.window = sg.Window("Object properties", self.layout, keep_on_top=True,
+		                        alpha_channel=0.7, disable_minimize=True, return_keyboard_events=True
+		)
+		self.window.read(timeout=0)  # initialize
+		self.window.bind("<Leave>", "Leave")
 
 	def __bool__(self):
 		return self.window is not None and not self.window.TKrootDestroyed
+
+	def read(self, timeout=None):
+		if not self.__bool__(): raise ValueError("The window was destroyed")
+		return self.window.read(timeout)
 
 	def close(self):
 		if self.window is not None:
