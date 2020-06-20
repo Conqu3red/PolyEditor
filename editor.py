@@ -608,7 +608,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			terrain.render(display, camera, zoom, fg_color)
 		for water in water_blocks:
 			water.render(display, camera, zoom, fg_color)
-		point_mode = g.PointMode(draw_points, delete_points, add_points, mouse_pos, true_mouse_change)
+		point_mode = g.PointMode(draw_points, delete_points, add_points, mouse_pos, true_mouse_change, holding_shift())
 		for shape in custom_shapes:
 			shape.render(display, camera, zoom, hitboxes, point_mode)
 		for pillar in pillars:
