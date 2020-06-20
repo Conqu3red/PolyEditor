@@ -252,18 +252,19 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 					for obj in reversed(selectable_objects()):
 						# Point editing
-						point_collisions = [hitbox.collidepoint(*event.pos) for hitbox in
-						                    (obj.point_hitboxes if type(obj) is g.CustomShape else [])]
-						if len([v for v in point_collisions if v]) > 0:
-							point_moving = True
-							obj.selected_points = point_collisions
-							point_editing_shape = obj
-							for o in selectable_objects():
-								o.highlighted = False
-							edit_object_window.close()
-							break
+						if draw_points:
+							point_collisions = [hitbox.collidepoint(*event.pos) for hitbox in
+							                    (obj.point_hitboxes if type(obj) is g.CustomShape else [])]
+							if point_collisions.count(True) > 0:
+								point_moving = True
+								obj.selected_points = point_collisions
+								point_editing_shape = obj
+								for o in selectable_objects():
+									o.highlighted = False
+								edit_object_window.close()
+								break
 						# Selecting and dragging
-						if obj.collidepoint(event.pos, camera):
+						if obj.collidepoint(event.pos):
 							if not holding_shift():
 								moving = True
 								dragndrop_pos = true_mouse_pos() if not obj.highlighted else None
@@ -408,7 +409,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						hl_objs.clear()
 					if len(hl_objs) == 0:  # under cursor
 						for obj in reversed(selectable_objects()):
-							if obj.collidepoint(mouse_pos, camera):
+							if obj.collidepoint(mouse_pos):
 								obj.highlighted = True
 								hl_objs.append(obj)
 								break
@@ -510,14 +511,14 @@ def main(layout, layoutfile, jsonfile, backupfile):
 		if selecting:
 			rect = pygame.Rect(selecting_pos[0], selecting_pos[1],
 			                   mouse_pos[0] - selecting_pos[0], mouse_pos[1] - selecting_pos[1])
-			surface = pygame.Surface(display.get_size(), pygame.SRCALPHA, 32)
+			surface = pygame.Surface(size, pygame.SRCALPHA, 32)
+			pygame.draw.rect(surface, g.SELECT_COLOR, rect)
 			mask = pygame.mask.from_surface(surface)
-			select_box = pygame.draw.rect(surface, g.SELECT_COLOR, rect, 1)
-			display.blit(surface, (0, 0))
+			pygame.draw.rect(display, g.SELECT_COLOR, rect, 1)
 			for obj in selectable_objects():
 				if not holding_shift():
-					obj.highlighted = True if obj._hitbox.overlap(mask, (0, 0)) else False
-				elif obj._hitbox.overlap(mask, (0, 0)):  # multiselect
+					obj.highlighted = True if obj.collide(mask) else False
+				elif obj.collide(mask):  # multiselect
 					obj.highlighted = True
 
 		# Display mouse position, zoom and fps
