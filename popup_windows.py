@@ -91,26 +91,31 @@ def open_menu():
 
 
 class EditObjectWindow:
-	def __init__(self, data):
+	def __init__(self, data, obj):
 		if data is None:
 			self._window = None
+			self.data = None
+			self.obj = None
 			return
 		self.data = data.copy()
-		self._inputs = {}
-		self._layout = []
+		self.obj = obj
+		self.inputs = {}
+		layout = []
 		for name, value in self.data.items():
 			if name == FLIP:
 				row = [sg.Button(name, size=(8, 1))]
-				self._layout.append(row)
+				layout.append(row)
 			else:
 				row = [sg.Text(name, justification="center", size=(6, 1)),
 				       sg.Input(value, justification="left", size=(10, 1))]
-				self._inputs[name] = row[1]
-				self._layout.append(row)
-		self._window = sg.Window("Object properties", self._layout, keep_on_top=True, element_justification="center",
-		                         alpha_channel=0.7, disable_minimize=True, return_keyboard_events=True)
+				layout.append(row)
+				self.inputs[name] = row[1]
+
+		self._window = sg.Window(
+			"Object properties", layout, return_keyboard_events=True, keep_on_top=True, disable_minimize=True,
+			alpha_channel=0.7, element_justification="center", use_default_focus=False
+		)
 		self._window.read(timeout=0)  # initialize
-		# TODO: Move this to a Frame so that it only activates once
 		self._window.bind("<Leave>", "Leave")  # mouse leaves an element
 
 	def __bool__(self):
@@ -129,7 +134,6 @@ class EditObjectWindow:
 			return event, self.data
 
 		# Validate and set data when key is pressed
-		print(event)
 		for i, key in enumerate(self.data.keys()):
 			invalid = False
 
@@ -157,9 +161,9 @@ class EditObjectWindow:
 					print(f"Warning: Didn't validate {key} input as its name couldn't be recognized")
 
 			if invalid:
-				self._inputs[key].update(background_color=ERROR_BACKGROUND_COLOR)
+				self.inputs[key].update(background_color=ERROR_BACKGROUND_COLOR)
 			else:
-				self._inputs[key].update(background_color=BACKGROUND_COLOR)
+				self.inputs[key].update(background_color=BACKGROUND_COLOR)
 
 		return event, self.data
 

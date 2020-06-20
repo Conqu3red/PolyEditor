@@ -300,6 +300,7 @@ class CustomShape(LayoutObject):
 		self.point_hitboxes = []
 
 	def render(self, display, camera, zoom, draw_hitbox, point_mode):
+		# TODO: Move point editing logic to its own function
 		# Move point if a point is selected
 		if self.selected_points:
 			for i, point in enumerate(self.points):
