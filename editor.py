@@ -262,6 +262,10 @@ def main(layout, layoutfile, jsonfile, backupfile):
 										o.highlighted = False
 									edit_object_window.close()
 									break
+								elif holding_shift() and obj.add_point_hitbox:
+									if obj.add_point_hitbox.collidepoint(event.pos):
+										obj.append_point(obj.add_point[2], obj.add_point[0])
+										break
 							if not obj.hitbox.collidepoint(event.pos):
 								break
 							if not holding_shift():
@@ -581,7 +585,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			terrain.render(display, camera, zoom, fg_color)
 		for water in water_blocks:
 			water.render(display, camera, zoom, fg_color)
-		point_mode = g.PointMode(draw_points, delete_points, add_points, mouse_pos, true_mouse_change)
+		point_mode = g.PointMode(draw_points, delete_points, add_points, mouse_pos, true_mouse_change, holding_shift())
 		for shape in custom_shapes:
 			shape.render(display, camera, zoom, draw_hitboxes, point_mode)
 		for pillar in pillars:
