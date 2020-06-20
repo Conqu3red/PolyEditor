@@ -251,19 +251,23 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						continue
 
 					for obj in reversed(selectable_objects()):
-						# Point editing
-						point_collisions = [hitbox.collidepoint(*event.pos) for hitbox in
-						                    (obj.point_hitboxes if type(obj) is g.CustomShape else [])]
-						if len([v for v in point_collisions if v]) > 0:
-							point_moving = True
-							obj.selected_points = point_collisions
-							point_editing_shape = obj
-							for o in selectable_objects():
-								o.highlighted = False
-							edit_object_window.close()
-							break
-						# Selecting and dragging
-						if obj.collidepoint(event.pos, camera):
+						if obj.click_hitbox.collidepoint(event.pos):  # dragging and multiselect
+							if type(obj) is g.CustomShape:
+								clicked_point = [p for p in obj.point_hitboxes if p.collidepoint(event.pos)]
+								if clicked_point:
+									point_moving = True
+									obj.selected_points = [p.collidepoint(event.pos) for p in obj.point_hitboxes]
+									point_editing_shape = obj
+									for o in selectable_objects():
+										o.highlighted = False
+									edit_object_window.close()
+									break
+								elif holding_shift() and obj.add_point_hitbox:
+									if obj.add_point_hitbox.collidepoint(event.pos):
+										obj.append_point(obj.add_point[2], obj.add_point[0])
+										break
+							if not obj.hitbox.collidepoint(event.pos):
+								break
 							if not holding_shift():
 								moving = True
 								dragndrop_pos = true_mouse_pos() if not obj.highlighted else None
@@ -569,7 +573,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			terrain.render(display, camera, zoom, fg_color)
 		for water in water_blocks:
 			water.render(display, camera, zoom, fg_color)
-		point_mode = g.PointMode(draw_points, delete_points, add_points, mouse_pos, true_mouse_change)
+		point_mode = g.PointMode(draw_points, delete_points, add_points, mouse_pos, true_mouse_change, holding_shift())
 		for shape in custom_shapes:
 			shape.render(display, camera, zoom, point_mode)
 		for pillar in pillars:
