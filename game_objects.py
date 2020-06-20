@@ -5,9 +5,11 @@ from copy import deepcopy
 from operator import add
 from editor import BASE_SIZE
 
+TRUE_HITBOX_MULT = 20
 HITBOX_SURFACE = pygame.Surface(BASE_SIZE, pygame.SRCALPHA, 32)
 
 WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
 HIGHLIGHT_COLOR = (255, 255, 0)
 SELECT_COLOR = (0, 255, 0)
 HITBOX_COLOR = (255, 0, 255)
@@ -126,36 +128,20 @@ class SelectableObject(LayoutObject):
 	def __init__(self, dictionary):
 		super().__init__(dictionary)
 		self.highlighted = False
-		self._latest_camera = [0, 0]
-		self._hitbox_zoom = 1
-		self._hitbox_changed = False
-		self._hitbox_camera = None
-		self._hitbox = None
-		self._hitbox_rect = None
+		self._true_hitbox = None
+		self._true_hitbox_rect = None
+		self._last_zoom = 1
+		self._last_camera = (0, 0)
 
-	def render(self, display, camera, zoom, hitbox_arg=None):
-		"""If the hitbox has changed, re-set it"""
-		self._latest_camera = camera.copy()
-		if self._hitbox is None or zoom != self._hitbox_zoom or self._hitbox_changed:
-			if type(self) is CustomShape:
-				HITBOX_SURFACE.fill(0)
-				self._hitbox_rect = pygame.draw.polygon(HITBOX_SURFACE, (0, 0, 0), hitbox_arg)
-			self._hitbox = pygame.mask.from_surface(HITBOX_SURFACE, 254)
-			self._hitbox_camera = camera.copy()
-			self._hitbox_zoom = zoom
-			self._hitbox_changed = False
-			print("Rehitbox")
+	def render(self, display, camera, zoom, args=None):
+		super().render(display, camera, zoom)
 
-	def collidepoint(self, point):
-		point = (round(point[0] - self._hitbox_zoom * (self._latest_camera[0] - self._hitbox_camera[0])),
-		         round(point[1] + self._hitbox_zoom * (self._latest_camera[1] - self._hitbox_camera[1])))
-		size = self._hitbox.get_size()
-		return bool(self._hitbox.get_at(point)) if 0 <= point[0] <= size[0] and 0 <= point[1] <= size[1] else False
+	def collidepoint(self, true_point):
+		point = ()
+		return False
 
-	def collide(self, mask):
-		offset = (round(-self._hitbox_zoom * (self._latest_camera[0] - self._hitbox_camera[0])),
-		          round(self._hitbox_zoom * (self._latest_camera[1] - self._hitbox_camera[1])))
-		return bool(self._hitbox.overlap(mask, offset))
+	def collide(self, true_mask):
+		return False
 
 	@LayoutObject.pos.setter
 	def pos(self, value):
@@ -293,13 +279,8 @@ class Pillar(SelectableObject):
 		        round(zoom * PILLAR_WIDTH),
 		        round(zoom * self.height))
 		HITBOX_SURFACE.fill(0)
-		self._hitbox_camera = camera
-		self._hitbox_zoom = zoom
-		self._hitbox_rect = pygame.draw.rect(HITBOX_SURFACE, PILLAR_COLOR, rect)
-		self._hitbox = pygame.mask.from_surface(HITBOX_SURFACE, PILLAR_COLOR[3] - 1)
 		if not self.highlighted:
 			pygame.draw.rect(HITBOX_SURFACE, PILLAR_BORDER, rect, scale(PILLAR_BORDER_WIDTH, zoom))
-		super().render(display, camera, zoom)
 		display.blit(HITBOX_SURFACE, (0, 0))
 		if self.highlighted:
 			pygame.draw.rect(display, HIGHLIGHT_COLOR, rect, scale(SHAPE_HIGHLIGHTED_WIDTH, zoom, 60))
@@ -325,24 +306,58 @@ class CustomShape(SelectableObject):
 				for anchor in anchorsList:
 					if anchor.id == dyn_anc_id:
 						self.anchors.append(anchor)
+		self.calculate_hitbox()
+
+	def calculate_hitbox(self, display=None):
+		points_base = self.points
+		# Bounding rect
+		leftmost, rightmost, topmost, bottommost = 1000, -1000, 1000, -1000
+		for point in points_base:
+			leftmost = min(leftmost, point[0])
+			rightmost = max(rightmost, point[0])
+			topmost = min(topmost, point[1])
+			bottommost = max(bottommost, point[1])
+		width, height = rightmost - leftmost, bottommost - topmost
+		basepos = self.pos
+		center = (leftmost - width / 2 + basepos[0], topmost + height / 2 + basepos[1])
+		# Align with center
+		self._dict["m_Pos"]["x"] = center[0]
+		self._dict["m_Pos"]["y"] = center[1]
+		points_base = [(point[0] + basepos[0] - center[0], point[1] + basepos[1] - center[1])
+		               for point in points_base]
+		self.points = points_base
+		# Hitbox
+		points_hitbox = [(round(TRUE_HITBOX_MULT * (point[0] - leftmost)),
+		                  round(-TRUE_HITBOX_MULT * (point[1] + topmost)))
+		                 for point in points_base]
+		surface = pygame.Surface((TRUE_HITBOX_MULT * width + 1, TRUE_HITBOX_MULT * height + 1), pygame.SRCALPHA, 32)
+		rect = pygame.draw.polygon(surface, BLACK, points_hitbox)
+		if display:
+			print(surface.get_size(), rect.size)
+			display.blit(surface, (100, 100))
+		self._true_hitbox = pygame.mask.from_surface(surface)
 
 	def render(self, display, camera, zoom, point_mode=None):
 		# TODO: Move point editing logic to its own function
+		self._last_zoom = zoom
+		self._last_camera = camera
+		points_base = self.points
 		# Move point if a point is selected
-		if self.selected_points:
-			for i, point in enumerate(self.points):
+		if True in self.selected_points:
+			for i, point in enumerate(points_base):
 				if self.selected_points[i]:
-					newpoints = list(self.points)
+					newpoints = list(points_base)
 					newpoints[i] = tuple(map(add, point, point_mode.mouse_change))
+					points_base = newpoints
 					self.points = tuple(newpoints)
+					self.calculate_hitbox()
 					break
-		points_pixels = [[round(zoom * (self.pos[0] + point[0] + camera[0])),
-		                  round(zoom * -(self.pos[1] + point[1] + camera[1]))]
-		                 for point in self.points]
-		super().render(display, camera, zoom, points_pixels)
+		points_pixels = [(round(zoom * (self.pos[0] + point[0] + camera[0])),
+		                  round(zoom * -(self.pos[1] + point[1] + camera[1])))
+		                 for point in points_base]
 		pygame.gfxdraw.aapolygon(display, points_pixels, self.color)
 		pygame.gfxdraw.filled_polygon(display, points_pixels, self.color)
-
+		self.calculate_hitbox(display)
 		for pin in self.static_pins:
 			rect = [round(zoom * (pin["x"] + camera[0])), round(zoom * -(pin["y"] + camera[1]))]
 			pygame.gfxdraw.aacircle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
@@ -362,7 +377,7 @@ class CustomShape(SelectableObject):
 				self._dict["m_Pos"]["x"] = newpos[0]
 				self._dict["m_Pos"]["y"] = newpos[1]
 				self.points = tuple([(point[0] + basepos[0] - newpos[0], point[1] + basepos[1] - newpos[1])
-				                     for point in self.points])
+				                     for point in points_base])
 			# Render points
 			for i, point in enumerate(points_pixels):
 				rect = pygame.Rect(round(point[0] - zoom * POINT_RADIUS),
@@ -407,7 +422,6 @@ class CustomShape(SelectableObject):
 		self._dict["m_RotationDegrees"] = values[2]
 		change = self.rotation - oldrotz
 		if abs(change) > 0.000001:
-			self._hitbox_changed = True
 			basepos = self.pos
 			for pin in self.static_pins:
 				newpin = rotate((pin["x"], pin["y"]), change, basepos)
@@ -433,7 +447,6 @@ class CustomShape(SelectableObject):
 		old_flipped = self._dict["m_Flipped"]
 		self._dict["m_Flipped"] = value
 		if old_flipped != value:
-			self._hitbox_changed = True
 			basepos = self.pos
 			for pin in self.static_pins:
 				newpin = rotate((pin["x"], pin["y"]), -self.rotation, basepos)
@@ -456,7 +469,6 @@ class CustomShape(SelectableObject):
 			self._dict["m_Scale"] = {"x": value[0], "y": value[1], "z": self._dict["m_Scale"]["z"]}
 		else:
 			self._dict["m_Scale"] = {"x": value[0], "y": value[1], "z": value[2]}
-		self._hitbox_changed = True
 
 	@property
 	def color(self):
@@ -479,7 +491,6 @@ class CustomShape(SelectableObject):
 	@points.setter
 	def points(self, values):
 		values = [rotate(p, -self.rotation) for p in values]
-		self._hitbox_changed = True
 		pts_scale = self.scale
 		if self.flipped:
 			values = [(-p[0], p[1]) for p in values]
