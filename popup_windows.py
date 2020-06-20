@@ -43,7 +43,7 @@ def ok_cancel(*msg):
 
 def selection(title, msg, items):
 	listbox = sg.Listbox(values=items, size=(60, 10), pad=(0, 5), bind_return_key=True, default_values=[items[0]])
-	layout = [[sg.Text(msg)], [listbox], [sg.Ok(size=(4, 1))]]
+	layout = [[sg.Text(msg)], [listbox], [sg.Ok(size=(5, 1))]]
 	window = sg.Window(title, layout, element_justification='left', return_keyboard_events=True)
 	while True:
 		event, content = window.read()
