@@ -1,5 +1,5 @@
 import PySimpleGUI as sg
-from time import sleep
+
 
 PAD = (5, 5)
 FRAME_OPTIONS = {
@@ -12,30 +12,31 @@ NOTIF_OPTIONS = {
 	"no_titlebar": True,
 	"keep_on_top": True,
 	"grab_anywhere": True,
-	"margins": (0, 0)
+	"margins": (0, 0),
+	"element_justification": "center"
 }
 
 
 def info(title, *msg):
-	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(4, 1), pad=PAD)]]
+	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(5, 1), pad=PAD)]]
 	window = sg.Window(title, layout, element_justification='center')
 	return window.read(close=True)[0]
 
 
 def notif(*msg):
-	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(4, 1), pad=PAD)]]
+	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(5, 1), pad=PAD)]]
 	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS)
 	return window.read(close=True)[0]
 
 
 def yes_no(*msg):
-	layout = [[sg.Text(m)] for m in msg] + [[sg.Yes(size=(5, 1), pad=PAD), sg.No(size=(4, 1), pad=PAD)]]
+	layout = [[sg.Text(m)] for m in msg] + [[sg.Yes(size=(5, 1), pad=PAD), sg.No(size=(5, 1), pad=PAD)]]
 	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS)
 	return window.read(close=True)[0]
 
 
 def ok_cancel(*msg):
-	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(4, 1), pad=PAD), sg.Cancel(size=(8, 1), pad=PAD)]]
+	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(5, 1), pad=PAD), sg.Cancel(size=(8, 1), pad=PAD)]]
 	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS)
 	return window.read(close=True)[0]
 
@@ -70,8 +71,8 @@ def open_menu():
 		 [sg.Button("Save", size=(28, 1), pad=(5, 5))],
 		 [sg.Button("Toggle hitboxes", size=(13, 1), pad=(5, 5)),
 		  sg.Button("Color scheme", size=(13, 1), pad=(5, 5))],
-		 [sg.Button("Change level", size=(13, 1), pad=(5, 20)),
-		  sg.Button("Quit", size=(13, 1), pad=(5, 20))],
+		 [sg.Button("Change level", size=(13, 1), pad=(5, 15)),
+		  sg.Button("Quit", size=(13, 1), pad=(5, 15))],
 		 [sg.Text("Controls", size=(21, 1), justification="center", relief=sg.RELIEF_RIDGE, border_width=4)],
 		 [sg.Text(controls, justification='left', pad=((0, 0), (5, 15)))]],
 		**FRAME_OPTIONS
