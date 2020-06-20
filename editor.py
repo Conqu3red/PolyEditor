@@ -258,6 +258,10 @@ def main(layout, layoutfile, jsonfile, backupfile):
 								if holding_shift() and obj.add_point_hitbox:
 									if obj.add_point_hitbox.collidepoint(event.pos):
 										obj.append_point(obj.add_point[2], obj.add_point[0])
+										point_moving = True
+										selected_shape = obj
+										obj.selected_points.insert(obj.add_point[2], 1)
+										print(obj.selected_points)
 										break
 								elif clicked_point:
 									point_moving = True
