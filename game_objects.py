@@ -420,8 +420,8 @@ class CustomShape(LayoutObject):
 
 	def append_point(self, index, point):
 		_points = list(self.points)
-		_points.insert(index, (round(point[0] / self.zoom - self.camera[0] - self.pos["x"]),
-						round(-(point[1] / self.zoom) - self.camera[1] - self.pos["y"])))
+		_points.insert(index, (point[0] / self.zoom - self.camera[0] - self.pos["x"],
+						-(point[1] / self.zoom) - self.camera[1] - self.pos["y"]))
 		self.points = tuple(_points)
 		self.selected_points = [0 for _ in self.points]
 
