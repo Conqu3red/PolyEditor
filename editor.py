@@ -144,6 +144,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 	holding_shift = lambda: pygame.key.get_mods() & pygame.KMOD_SHIFT
 	true_mouse_pos = lambda: (mouse_pos[0] / zoom - camera[0], -mouse_pos[1] / zoom - camera[1])
 
+	print(f"Number of Custom Shapes: {len(custom_shapes)}")
 	display = pygame.display.set_mode(size, pygame.RESIZABLE)
 	pygame.display.set_caption("PolyEditor")
 	if ICON is not None:
