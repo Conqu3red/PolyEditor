@@ -35,7 +35,7 @@ WATER_EDGE_WIDTH = 1
 
 PILLAR_WIDTH = 1.0
 PILLAR_COLOR = (195, 171, 149, 150)
-PILLAR_BORDER = (105, 98, 91)
+PILLAR_BORDER = (105, 98, 91, 150)
 PILLAR_BORDER_WIDTH = 1
 
 
@@ -290,12 +290,12 @@ class Pillar(SelectableObject):
 		                        round(zoom * -(self.pos[1] + self.height + camera[1])),
 		                        round(zoom * PILLAR_WIDTH),
 		                        round(zoom * self.height))
-		DUMMY_SURFACE.fill(0)
-		if not self.highlighted:
-			pygame.draw.rect(DUMMY_SURFACE, PILLAR_BORDER, self.rect, scale(PILLAR_BORDER_WIDTH, zoom))
-		display.blit(DUMMY_SURFACE, (0, 0))
+		pygame.gfxdraw.box(display, self.rect, PILLAR_COLOR)
 		if self.highlighted:
+			# TODO: Find an anti-aliasing solution
 			pygame.draw.rect(display, HIGHLIGHT_COLOR, self.rect, scale(SHAPE_HIGHLIGHTED_WIDTH, zoom, 60))
+		else:
+			pygame.gfxdraw.rectangle(display, self.rect, PILLAR_BORDER)
 
 	def collidepoint(self, point):
 		return self.rect.collidepoint(*point)
