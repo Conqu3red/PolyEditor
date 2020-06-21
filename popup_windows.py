@@ -134,7 +134,6 @@ class EditObjectWindow:
 			return event, self.data
 
 		# Validate and set data when key is pressed
-		print(event)
 		for i, key in enumerate(self.data.keys()):
 			invalid = False
 

@@ -126,7 +126,7 @@ def closest_point(l1, l2, p):
 
 
 def rect_hitbox_mask(rect, zoom):
-	w, h = round(rect[2] / zoom * HITBOX_RESOLUTION), round(rect[3] / zoom * HITBOX_RESOLUTION)
+	w, h = max(1, round(rect[2] / zoom * HITBOX_RESOLUTION)), max(1, round(rect[3] / zoom * HITBOX_RESOLUTION))
 	return pygame.mask.Mask((w, h), True)
 
 

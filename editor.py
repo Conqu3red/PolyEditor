@@ -148,7 +148,6 @@ def main(layout, layoutfile, jsonfile, backupfile):
 	holding_shift = lambda: pygame.key.get_mods() & pygame.KMOD_SHIFT
 	true_mouse_pos = lambda: (mouse_pos[0] / zoom - camera[0], -mouse_pos[1] / zoom - camera[1])
 
-	print(f"Number of Custom Shapes: {len(custom_shapes)}")
 	display = pygame.display.set_mode(size, pygame.RESIZABLE)
 	pygame.display.set_caption("PolyEditor")
 	if ICON is not None:
@@ -264,7 +263,6 @@ def main(layout, layoutfile, jsonfile, backupfile):
 									point_moving = True
 									selected_shape = obj
 									obj.selected_points.insert(obj.add_point[2], 1)
-									print(obj.selected_points)
 									break
 							elif clicked_point:
 								point_moving = True
@@ -512,15 +510,16 @@ def main(layout, layoutfile, jsonfile, backupfile):
 				pass
 			else:
 				x, y, z = values[popup.POS_X], values[popup.POS_Y], values[popup.POS_Z]
-				x_change, y_change, z_change = x - obj.pos[0], y - obj.pos[1], z - obj.pos[2]
-				if abs(x_change) > 0.000001 or abs(y_change) > 0.000001 or abs(z_change) > 0.000001:
-					obj.pos = (x, y, z)
-
 				if type(obj) is g.CustomShape:
 					obj.scale = (values[popup.SCALE_X], values[popup.SCALE_Y], values[popup.SCALE_Z])
 					obj.rotations = (values[popup.ROT_X], values[popup.ROT_Y], values[popup.ROT_Z])
 					obj.flipped = values[popup.FLIP]
 					obj.color = (values[popup.RGB_R], values[popup.RGB_G], values[popup.RGB_B], obj.color[3])
+					# Apply transformations then reset position
+					obj.calculate_hitbox()
+					obj.pos = (x, y, z)
+				else:
+					obj.pos = (x, y, z)
 		elif edit_object_window and len(hl_objs) > 1:
 			timeout = 10 if moused_over else None
 			event, values = edit_object_window.read(timeout)
@@ -555,7 +554,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 		# Selecting shapes
 		if selecting:
 			rect = (min(selecting_pos[0], mouse_pos[0]), min(selecting_pos[1], mouse_pos[1]),
-			        max(1, abs(mouse_pos[0] - selecting_pos[0])), max(1, abs(mouse_pos[1] - selecting_pos[1])))
+			        abs(mouse_pos[0] - selecting_pos[0]), abs(mouse_pos[1] - selecting_pos[1]))
 			pygame.draw.rect(display, g.SELECT_COLOR, rect, 1)
 			mask = g.rect_hitbox_mask(rect, zoom)
 			for obj in selectable_objects():
