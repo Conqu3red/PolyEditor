@@ -405,6 +405,7 @@ class CustomShape(SelectableObject):
 		                  round(zoom * -(self.pos[1] + point[1] + camera[1])))
 		                 for point in points_base]
 		border_color = tuple(max(0, self.color[i] - 20) for i in range(3))
+
 		if ANTIALIASING:
 			pygame.gfxdraw.filled_polygon(display, points_pixels, self.color)
 			pygame.gfxdraw.aapolygon(display, points_pixels, border_color)
@@ -566,7 +567,7 @@ class CustomShape(SelectableObject):
 
 	@property
 	def color(self):
-		return tuple(v*255 for v in self._dict["m_Color"].values())
+		return tuple(round(v*255) for v in self._dict["m_Color"].values())
 	@color.setter
 	def color(self, value):
 		self._dict["m_Color"] = {"r": value[0]/255, "g": value[1]/255, "b": value[2]/255, "a": value[3]/255}
