@@ -170,13 +170,13 @@ class SelectableObject(LayoutObject):
 
 	def collidepoint(self, point):
 		size, center = self._hitbox.get_size(), self.pos
-		x = round((point[0] / self._last_zoom - self._last_camera[0] - center[0]) * HITBOX_RESOLUTION - size[0] / 2)
+		x = round((point[0] / self._last_zoom - self._last_camera[0] - center[0]) * HITBOX_RESOLUTION + size[0] / 2)
 		y = round((point[1] / self._last_zoom + self._last_camera[1] + center[1]) * HITBOX_RESOLUTION + size[1] / 2)
 		return self._hitbox.get_at((x, y)) if 0 <= x < size[0] and 0 <= y < size[1] else False
 
 	def colliderect(self, rect, mask=None):
 		size, center = self._hitbox.get_size(), self.pos
-		x = round((rect[0] / self._last_zoom - self._last_camera[0] - center[0]) * HITBOX_RESOLUTION - size[0] / 2)
+		x = round((rect[0] / self._last_zoom - self._last_camera[0] - center[0]) * HITBOX_RESOLUTION + size[0] / 2)
 		y = round((rect[1] / self._last_zoom + self._last_camera[1] + center[1]) * HITBOX_RESOLUTION + size[1] / 2)
 		if mask is None:
 			mask = rect_hitbox_mask(rect, self._last_zoom)
@@ -369,7 +369,7 @@ class CustomShape(SelectableObject):
 			bottommost = max(bottommost, point[1])
 		width, height = rightmost - leftmost, bottommost - topmost
 		basepos = self.pos
-		center = (leftmost - width / 2 + basepos[0], topmost + height / 2 + basepos[1])
+		center = (leftmost + width / 2 + basepos[0], topmost + height / 2 + basepos[1])
 		# Align with center
 		self._dict["m_Pos"]["x"] = center[0]
 		self._dict["m_Pos"]["y"] = center[1]
