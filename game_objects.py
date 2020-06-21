@@ -375,13 +375,13 @@ class CustomShape(SelectableObject):
 		points_pixels = [(round(zoom * (self.pos[0] + point[0] + camera[0])),
 		                  round(zoom * -(self.pos[1] + point[1] + camera[1])))
 		                 for point in points_base]
-		border_color = (min(255, self.color[0] + 10), min(255, self.color[1] + 10), min(255, self.color[2] + 10))
+		border_color = (min(255, self.color[0] - 20), min(255, self.color[1] - 20), min(255, self.color[2] - 20))
 		if ANTIALIASING:
 			pygame.gfxdraw.filled_polygon(display, points_pixels, self.color)
 			pygame.gfxdraw.aapolygon(display, points_pixels, border_color)
 		else:
 			pygame.draw.polygon(display, self.color, points_pixels)
-			pygame.draw.polygon(display, border_color, points_pixels, scale(1, zoom))
+			pygame.draw.polygon(display, border_color, points_pixels, 1)
 
 		for pin in self.static_pins:
 			rect = [round(zoom * (pin["x"] + camera[0])), round(zoom * -(pin["y"] + camera[1]))]
