@@ -6,19 +6,5 @@
 
 1. Download `PolyEditor.exe` in the Releases tab.
 2. Place it in the same folder as the levels you want to edit. The game stores Sandbox levels in `Documents/Dry Cactus/Poly Bridge 2/Sandbox`.
-3. Run it and wait for it to load.
-
-### Controls
-- Scroll wheel - Zoom
-- Left click and drag - Move objects or pan camera
-- Right click and drag - Make selection
-- Shift + Click: Multi-select
-- Arrow keys - Move selected
-- P - Point editing mode
-- E - Edit object properties
-- C - Copy selected
-- D - Delete selected
-- S - Save
-- 0 - Choose a different level
-- H - Toggle hitboxes display
-- B - Toggle color scheme
+3. Run the program and wait paitently for it to load.
+4. Select a level to edit. Once in the editor, you can view the controls in the menu by pressing Esc or clicking the Menu button in the bottom left.

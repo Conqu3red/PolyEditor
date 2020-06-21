@@ -171,13 +171,13 @@ class SelectableObject(LayoutObject):
 
 	def collidepoint(self, point):
 		size, center = self._hitbox.get_size(), self.pos
-		x = round((point[0] / self._last_zoom - self._last_camera[0] - center[0]) * HITBOX_RESOLUTION - size[0] / 2)
+		x = round((point[0] / self._last_zoom - self._last_camera[0] - center[0]) * HITBOX_RESOLUTION + size[0] / 2)
 		y = round((point[1] / self._last_zoom + self._last_camera[1] + center[1]) * HITBOX_RESOLUTION + size[1] / 2)
 		return self._hitbox.get_at((x, y)) if 0 <= x < size[0] and 0 <= y < size[1] else False
 
 	def colliderect(self, rect, mask=None):
 		size, center = self._hitbox.get_size(), self.pos
-		x = round((rect[0] / self._last_zoom - self._last_camera[0] - center[0]) * HITBOX_RESOLUTION - size[0] / 2)
+		x = round((rect[0] / self._last_zoom - self._last_camera[0] - center[0]) * HITBOX_RESOLUTION + size[0] / 2)
 		y = round((rect[1] / self._last_zoom + self._last_camera[1] + center[1]) * HITBOX_RESOLUTION + size[1] / 2)
 		if mask is None:
 			mask = rect_hitbox_mask(rect, self._last_zoom)
@@ -545,7 +545,7 @@ class CustomShape(SelectableObject):
 
 	@property
 	def color(self):
-		return tuple(v*255 for v in self._dict["m_Color"].values())
+		return tuple(round(v*255) for v in self._dict["m_Color"].values())
 	@color.setter
 	def color(self, value):
 		self._dict["m_Color"] = {"r": value[0]/255, "g": value[1]/255, "b": value[2]/255, "a": value[3]/255}

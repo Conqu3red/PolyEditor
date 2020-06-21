@@ -74,7 +74,8 @@ def selection(title, msg, items):
 
 def open_menu():
 	controls = "Escape: Menu\nMouse Wheel: Zoom\nLeft Click: Move or pan\nRight Click: Make selection\n" \
-	           "Shift+Click: Multi-select\nE: Edit shape properties\nP: Edit shape points\n" \
+	           "Shift+Click: Multi-select\nE: Edit shape properties\nP: Point editing mode" \
+	           "\n └ Shift+Click: Add, RightClick: Delete\n" \
 	           "C: Copy selected\nD: Delete selected\nS: Save changes"
 	frame = sg.Frame(
 		"",

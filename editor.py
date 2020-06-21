@@ -65,7 +65,11 @@ def load_level():
 	levellist = list(dict.fromkeys(levellist))  # remove duplicates
 
 	if len(levellist) == 0:
-		popup.info("PolyEditor", "There are no levels to edit in this folder")
+		popup.info(
+			"PolyEditor",
+			"There are no levels to edit in this folder.",
+			"Tip: The game stores Sandbox levels in /Documents/Dry Cactus/Poly Bridge 2/Sandbox"
+		)
 		sys.exit()
 
 	leveltoedit = popup.selection("PolyEditor", "Choose a level to edit:", levellist)
