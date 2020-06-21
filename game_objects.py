@@ -5,7 +5,7 @@ from operator import add
 from editor import BASE_SIZE
 
 HITBOX_RESOLUTION = 40
-HITBOX_SURFACE = pygame.Surface(BASE_SIZE, pygame.SRCALPHA, 32)
+DUMMY_SURFACE = pygame.Surface(BASE_SIZE, pygame.SRCALPHA, 32)
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -290,10 +290,10 @@ class Pillar(SelectableObject):
 		                        round(zoom * -(self.pos[1] + self.height + camera[1])),
 		                        round(zoom * PILLAR_WIDTH),
 		                        round(zoom * self.height))
-		HITBOX_SURFACE.fill(0)
+		DUMMY_SURFACE.fill(0)
 		if not self.highlighted:
-			pygame.draw.rect(HITBOX_SURFACE, PILLAR_BORDER, self.rect, scale(PILLAR_BORDER_WIDTH, zoom))
-		display.blit(HITBOX_SURFACE, (0, 0))
+			pygame.draw.rect(DUMMY_SURFACE, PILLAR_BORDER, self.rect, scale(PILLAR_BORDER_WIDTH, zoom))
+		display.blit(DUMMY_SURFACE, (0, 0))
 		if self.highlighted:
 			pygame.draw.rect(display, HIGHLIGHT_COLOR, self.rect, scale(SHAPE_HIGHLIGHTED_WIDTH, zoom, 60))
 
@@ -388,7 +388,7 @@ class CustomShape(SelectableObject):
 		self.point_hitboxes = []
 		if point_mode.draw_points:
 			# TODO: Increase bounding box
-			self.points_bounding_box = pygame.draw.polygon(HITBOX_SURFACE, WHITE, points_pixels)
+			self.points_bounding_box = pygame.draw.polygon(DUMMY_SURFACE, WHITE, points_pixels)
 			# Render points
 			for i, point in enumerate(points_pixels):
 				rect = pygame.Rect(round(point[0] - zoom * POINT_RADIUS),
