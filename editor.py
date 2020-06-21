@@ -178,7 +178,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			elif event.type == pygame.VIDEORESIZE:
 				size = event.size
 				display = pygame.display.set_mode(size, pygame.RESIZABLE)
-				g.HITBOX_SURFACE = pygame.Surface(size, pygame.SRCALPHA, 32)
+				g.DUMMY_SURFACE = pygame.Surface(size, pygame.SRCALPHA, 32)
 
 			elif event.type == MENU_EVENT:
 				edit_object_window.close()

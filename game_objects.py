@@ -4,8 +4,10 @@ import math
 from operator import add
 from editor import BASE_SIZE
 
+ANTIALIASING = True
+
 HITBOX_RESOLUTION = 40
-HITBOX_SURFACE = pygame.Surface(BASE_SIZE, pygame.SRCALPHA, 32)
+DUMMY_SURFACE = pygame.Surface(BASE_SIZE, pygame.SRCALPHA, 32)
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -35,7 +37,7 @@ WATER_EDGE_WIDTH = 1
 
 PILLAR_WIDTH = 1.0
 PILLAR_COLOR = (195, 171, 149, 150)
-PILLAR_BORDER = (105, 98, 91)
+PILLAR_BORDER = (105, 98, 91, 150)
 PILLAR_BORDER_WIDTH = 1
 
 
@@ -290,12 +292,12 @@ class Pillar(SelectableObject):
 		                        round(zoom * -(self.pos[1] + self.height + camera[1])),
 		                        round(zoom * PILLAR_WIDTH),
 		                        round(zoom * self.height))
-		HITBOX_SURFACE.fill(0)
-		if not self.highlighted:
-			pygame.draw.rect(HITBOX_SURFACE, PILLAR_BORDER, self.rect, scale(PILLAR_BORDER_WIDTH, zoom))
-		display.blit(HITBOX_SURFACE, (0, 0))
+		pygame.gfxdraw.box(display, self.rect, PILLAR_COLOR)
 		if self.highlighted:
+			# TODO: Find an anti-aliasing solution
 			pygame.draw.rect(display, HIGHLIGHT_COLOR, self.rect, scale(SHAPE_HIGHLIGHTED_WIDTH, zoom, 60))
+		else:
+			pygame.gfxdraw.rectangle(display, self.rect, PILLAR_BORDER)
 
 	def collidepoint(self, point):
 		return self.rect.collidepoint(*point)
@@ -317,7 +319,7 @@ class CustomShape(SelectableObject):
 	def __init__(self, dictionary, anchorsList=None):
 		super().__init__(dictionary)
 		self.selected_points = []
-		self.points_bounding_box = (0, 0, 0, 0)
+		self.points_bounding_box = pygame.Rect(0, 0, 0, 0)
 		self.point_hitboxes = []
 		self.anchors = []
 		if anchorsList:
@@ -345,6 +347,8 @@ class CustomShape(SelectableObject):
 		points_base = [(point[0] + basepos[0] - center[0], point[1] + basepos[1] - center[1])
 		               for point in points_base]
 		self.points = points_base
+		leftmost, rightmost = [x + basepos[0] - center[0] for x in (leftmost, rightmost)]
+		topmost, bottommost = [y + basepos[1] - center[1] for y in (topmost, bottommost)]
 		# Hitbox
 		points_hitbox = [(round(HITBOX_RESOLUTION * (point[0] - leftmost)),
 		                  round(-HITBOX_RESOLUTION * (point[1] + topmost)))
@@ -367,12 +371,17 @@ class CustomShape(SelectableObject):
 					self.points = tuple(newpoints)
 					self.calculate_hitbox()
 					break
-		self.calculate_hitbox()
+
 		points_pixels = [(round(zoom * (self.pos[0] + point[0] + camera[0])),
 		                  round(zoom * -(self.pos[1] + point[1] + camera[1])))
 		                 for point in points_base]
-		pygame.gfxdraw.aapolygon(display, points_pixels, self.color)
-		pygame.gfxdraw.filled_polygon(display, points_pixels, self.color)
+		border_color = (min(255, self.color[0] - 20), min(255, self.color[1] - 20), min(255, self.color[2] - 20))
+		if ANTIALIASING:
+			pygame.gfxdraw.filled_polygon(display, points_pixels, self.color)
+			pygame.gfxdraw.aapolygon(display, points_pixels, border_color)
+		else:
+			pygame.draw.polygon(display, self.color, points_pixels)
+			pygame.draw.polygon(display, border_color, points_pixels, 1)
 
 		for pin in self.static_pins:
 			rect = [round(zoom * (pin["x"] + camera[0])), round(zoom * -(pin["y"] + camera[1]))]
@@ -386,7 +395,7 @@ class CustomShape(SelectableObject):
 		self.point_hitboxes = []
 		if point_mode.draw_points:
 			# TODO: Increase bounding box
-			self.points_bounding_box = pygame.draw.polygon(HITBOX_SURFACE, WHITE, points_pixels)
+			self.points_bounding_box = pygame.draw.polygon(DUMMY_SURFACE, WHITE, points_pixels)
 			# Render points
 			for i, point in enumerate(points_pixels):
 				self.point_hitboxes.append(Point(display, point, round(zoom * PIN_RADIUS / 1.8)))
