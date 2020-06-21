@@ -414,11 +414,8 @@ class CustomShape(SelectableObject):
 
 		for pin in self.static_pins:
 			rect = [round(zoom * (pin["x"] + camera[0])), round(zoom * -(pin["y"] + camera[1]))]
-			if ANTIALIASING:
-				pygame.gfxdraw.aacircle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
-				pygame.gfxdraw.filled_circle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
-			else:
-				pygame.draw.circle(display, STATIC_PIN_COLOR, (rect[0], rect[1]), round(zoom * PIN_RADIUS))
+			pygame.gfxdraw.aacircle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
+			pygame.gfxdraw.filled_circle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
 
 		if self.highlighted:
 			# TODO: Find an antialias solution
@@ -485,7 +482,7 @@ class CustomShape(SelectableObject):
 	def append_point(self, index, point):
 		points = list(self.points)
 		points.insert(index, (point[0] / self._last_zoom - self._last_camera[0] - self.pos[0],
-		                       -(point[1] / self._last_zoom) - self._last_camera[1] - self.pos[1]))
+		                      -(point[1] / self._last_zoom) - self._last_camera[1] - self.pos[1]))
 		self.points = points
 		self.selected_points = [False for _ in points]
 		self.calculate_hitbox()
@@ -606,6 +603,25 @@ class CustomShape(SelectableObject):
 	@dynamic_anchor_ids.setter
 	def dynamic_anchor_ids(self, values):
 		self._dict["m_DynamicAnchorGuids"] = values
+
+
+class CustomShapePoint:
+	def __init__(self, display, point, radius, color=False):
+		self.pos = point
+		self.radius = radius
+		if color:
+			self.render(display, color)
+
+	def render(self, display, color, radius=False):
+		if not radius: radius = self.radius
+		pygame.gfxdraw.aacircle(display, self.pos[0], self.pos[1], radius, color)
+		pygame.gfxdraw.filled_circle(display, self.pos[0], self.pos[1], radius, color)
+
+	def collidepoint(self, point):
+		if math.sqrt((point[0] - self.pos[0]) ** 2 + (point[1] - self.pos[1]) ** 2) <= self.radius:
+			return True
+		else:
+			return False
 
 
 class PointMode:
