@@ -360,13 +360,30 @@ class CustomShape(SelectableObject):
 		self.calculate_hitbox()
 
 	def calculate_hitbox(self):
-		hitbox = pygame.draw.polygon(DUMMY_SURFACE, BLACK, self.points)
+		points_base = self.points
+		# Bounding rect
+		leftmost, rightmost, topmost, bottommost = 1000, -1000, 1000, -1000
+		for point in points_base:
+			leftmost = min(leftmost, point[0])
+			rightmost = max(rightmost, point[0])
+			topmost = min(topmost, point[1])
+			bottommost = max(bottommost, point[1])
+		width, height = rightmost - leftmost, bottommost - topmost
+		basepos = self.pos
+		center = (leftmost + width / 2 + basepos[0], topmost + height / 2 + basepos[1])
+		# Align with center
+		self._dict["m_Pos"]["x"] = center[0]
+		self._dict["m_Pos"]["y"] = center[1]
+		points_base = [(point[0] + basepos[0] - center[0], point[1] + basepos[1] - center[1])
+		               for point in points_base]
+		self.points = points_base
+		leftmost, rightmost = [x + basepos[0] - center[0] for x in (leftmost, rightmost)]
+		topmost, bottommost = [y + basepos[1] - center[1] for y in (topmost, bottommost)]
 		# Hitbox
-		print(hitbox.left)
-		points_hitbox = [(round(HITBOX_RESOLUTION * point[0]),
-		                  round(-1 * HITBOX_RESOLUTION * point[1]))
-		                 for point in self.points]
-		surface = pygame.Surface((HITBOX_RESOLUTION * hitbox.width + 1, HITBOX_RESOLUTION * hitbox.height + 1), pygame.SRCALPHA, 32)
+		points_hitbox = [(round(HITBOX_RESOLUTION * (point[0] - leftmost)),
+		                  round(-HITBOX_RESOLUTION * (point[1] + topmost)))
+		                 for point in points_base]
+		surface = pygame.Surface((HITBOX_RESOLUTION * width + 1, HITBOX_RESOLUTION * height + 1), pygame.SRCALPHA, 32)
 		pygame.draw.polygon(surface, BLACK, points_hitbox)
 		self._hitbox = pygame.mask.from_surface(surface)
 
@@ -489,11 +506,11 @@ class CustomShape(SelectableObject):
 		return euler_angles(rot["x"], rot["y"], rot["z"], rot["w"])
 	@rotations.setter
 	def rotations(self, values):
-		oldrotz = self.rotation
+		old_rotz = self.rotation
 		q = quaternion(*values)
 		self._dict["m_Rot"] = {"x": q[0], "y": q[1], "z": q[2], "w": q[3]}
 		self._dict["m_RotationDegrees"] = values[2]
-		change = self.rotation - oldrotz
+		change = self.rotation - old_rotz
 		if abs(change) > 0.000001:
 			basepos = self.pos
 			for pin in self.static_pins:
@@ -538,10 +555,20 @@ class CustomShape(SelectableObject):
 		return self._dict["m_Scale"]["x"], self._dict["m_Scale"]["y"], self._dict["m_Scale"]["z"]
 	@scale.setter
 	def scale(self, value):
+		old_scale = self.scale
 		if len(value) == 2:
 			self._dict["m_Scale"] = {"x": value[0], "y": value[1], "z": self._dict["m_Scale"]["z"]}
 		else:
 			self._dict["m_Scale"] = {"x": value[0], "y": value[1], "z": value[2]}
+		change = (value[0] / old_scale[0], value[1] / old_scale[1])
+		if abs(change[0] - 1) > 0.000001 or abs(change[1] - 1) > 0.000001:
+			basepos = self.pos
+			for pin in self.static_pins:
+				pin["x"] = ((pin["x"] - basepos[0]) * change[0] + basepos[0])
+				pin["y"] = ((pin["y"] - basepos[1]) * change[1] + basepos[1])
+			for anchor in self.anchors:
+				anchor.pos = (((anchor.pos[0] - basepos[0]) * change[0] + basepos[0]),
+				              ((anchor.pos[1] - basepos[1]) * change[1] + basepos[1]))
 
 	@property
 	def color(self):
