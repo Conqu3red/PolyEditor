@@ -4,6 +4,8 @@ import math
 from operator import add
 from editor import BASE_SIZE
 
+ANTIALIASING = True
+
 HITBOX_RESOLUTION = 40
 DUMMY_SURFACE = pygame.Surface(BASE_SIZE, pygame.SRCALPHA, 32)
 
@@ -373,13 +375,21 @@ class CustomShape(SelectableObject):
 		points_pixels = [(round(zoom * (self.pos[0] + point[0] + camera[0])),
 		                  round(zoom * -(self.pos[1] + point[1] + camera[1])))
 		                 for point in points_base]
-		pygame.gfxdraw.aapolygon(display, points_pixels, self.color)
-		pygame.gfxdraw.filled_polygon(display, points_pixels, self.color)
+		border_color = (min(255, self.color[0] + 10), min(255, self.color[1] + 10), min(255, self.color[2] + 10))
+		if ANTIALIASING:
+			pygame.gfxdraw.filled_polygon(display, points_pixels, self.color)
+			pygame.gfxdraw.aapolygon(display, points_pixels, border_color)
+		else:
+			pygame.draw.polygon(display, self.color, points_pixels)
+			pygame.draw.polygon(display, border_color, points_pixels, scale(1, zoom))
 
 		for pin in self.static_pins:
 			rect = [round(zoom * (pin["x"] + camera[0])), round(zoom * -(pin["y"] + camera[1]))]
-			pygame.gfxdraw.aacircle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
-			pygame.gfxdraw.filled_circle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
+			if ANTIALIASING:
+				pygame.gfxdraw.aacircle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
+				pygame.gfxdraw.filled_circle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
+			else:
+				pygame.draw.circle(display, STATIC_PIN_COLOR, (rect[0], rect[1]), round(zoom * PIN_RADIUS))
 
 		if self.highlighted:
 			# TODO: Find an antialias solution
@@ -400,15 +410,23 @@ class CustomShape(SelectableObject):
 					self.selected_points = [0 for _ in self.point_hitboxes]
 				divisor = 1.7 if self.point_hitboxes[i].collidepoint(*point_mode.mouse_pos) else 2
 				if self.selected_points[i]:
-					pygame.gfxdraw.aacircle(
-						display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), HIGHLIGHT_COLOR)
-					pygame.gfxdraw.filled_circle(
-						display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), HIGHLIGHT_COLOR)
+					if ANTIALIASING:
+						pygame.gfxdraw.aacircle(
+							display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), HIGHLIGHT_COLOR)
+						pygame.gfxdraw.filled_circle(
+							display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), HIGHLIGHT_COLOR)
+					else:
+						pygame.draw.circle(
+							display, HIGHLIGHT_COLOR, (point[0], point[1]), round(zoom * PIN_RADIUS / divisor))
 				else:
-					pygame.gfxdraw.aacircle(
-						display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), POINT_COLOR)
-					pygame.gfxdraw.filled_circle(
-						display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), POINT_COLOR)
+					if ANTIALIASING:
+						pygame.gfxdraw.aacircle(
+							display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), POINT_COLOR)
+						pygame.gfxdraw.filled_circle(
+							display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), POINT_COLOR)
+					else:
+						pygame.draw.circle(
+							display, POINT_COLOR, (point[0], point[1]), round(zoom * PIN_RADIUS / divisor))
 		else:
 			self.points_bounding_box = pygame.Rect(0, 0, 0, 0)
 
