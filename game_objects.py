@@ -317,7 +317,7 @@ class CustomShape(SelectableObject):
 	def __init__(self, dictionary, anchorsList=None):
 		super().__init__(dictionary)
 		self.selected_points = []
-		self.points_bounding_box = (0, 0, 0, 0)
+		self.points_bounding_box = pygame.Rect(0, 0, 0, 0)
 		self.point_hitboxes = []
 		self.anchors = []
 		if anchorsList:
@@ -345,6 +345,8 @@ class CustomShape(SelectableObject):
 		points_base = [(point[0] + basepos[0] - center[0], point[1] + basepos[1] - center[1])
 		               for point in points_base]
 		self.points = points_base
+		leftmost, rightmost = [x + basepos[0] - center[0] for x in (leftmost, rightmost)]
+		topmost, bottommost = [y + basepos[1] - center[1] for y in (topmost, bottommost)]
 		# Hitbox
 		points_hitbox = [(round(HITBOX_RESOLUTION * (point[0] - leftmost)),
 		                  round(-HITBOX_RESOLUTION * (point[1] + topmost)))
@@ -367,7 +369,7 @@ class CustomShape(SelectableObject):
 					self.points = tuple(newpoints)
 					self.calculate_hitbox()
 					break
-		self.calculate_hitbox()
+
 		points_pixels = [(round(zoom * (self.pos[0] + point[0] + camera[0])),
 		                  round(zoom * -(self.pos[1] + point[1] + camera[1])))
 		                 for point in points_base]
