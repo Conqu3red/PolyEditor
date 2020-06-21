@@ -253,9 +253,9 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					for obj in reversed(selectable_objects()):
 						if (  # Point editing
 								draw_points and type(obj) is g.CustomShape
-								and obj.points_bounding_box.collidepoint(*event.pos)
+								and obj.points_bounding_box.collidepoint(event.pos)
 						):
-							point_collisions = [hitbox.collidepoint(*event.pos) for hitbox in obj.point_hitboxes]
+							point_collisions = [hitbox.collidepoint(event.pos) for hitbox in obj.point_hitboxes]
 							if point_collisions.count(True) > 0:
 								point_moving = True
 								obj.selected_points = point_collisions

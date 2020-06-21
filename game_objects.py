@@ -376,7 +376,7 @@ class CustomShape(SelectableObject):
 
 		for pin in self.static_pins:
 			rect = [round(zoom * (pin["x"] + camera[0])), round(zoom * -(pin["y"] + camera[1]))]
-			pygame.gfxdraw.aacircle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
+			pygame.gfxdraw.aacircle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR) # Point class is not needed here since collisions are not checked
 			pygame.gfxdraw.filled_circle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
 
 		if self.highlighted:
@@ -389,24 +389,14 @@ class CustomShape(SelectableObject):
 			self.points_bounding_box = pygame.draw.polygon(HITBOX_SURFACE, WHITE, points_pixels)
 			# Render points
 			for i, point in enumerate(points_pixels):
-				rect = pygame.Rect(round(point[0] - zoom * POINT_RADIUS),
-				                   round(point[1] - zoom * POINT_RADIUS),
-				                   round(zoom * POINT_RADIUS * 2),
-				                   round(zoom * POINT_RADIUS * 2))
-				self.point_hitboxes.append(rect)
+				self.point_hitboxes.append(Point(display, point, round(zoom * PIN_RADIUS / 1.8)))
 				if len(self.selected_points) < len(self.point_hitboxes):
 					self.selected_points = [0 for _ in self.point_hitboxes]
-				divisor = 1.7 if self.point_hitboxes[i].collidepoint(*point_mode.mouse_pos) else 2
+				divisor = 1.7 if self.point_hitboxes[i].collidepoint(point_mode.mouse_pos) else 2
 				if self.selected_points[i]:
-					pygame.gfxdraw.aacircle(
-						display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), HIGHLIGHT_COLOR)
-					pygame.gfxdraw.filled_circle(
-						display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), HIGHLIGHT_COLOR)
+					self.point_hitboxes[i].render(display, HIGHLIGHT_COLOR, round(zoom * PIN_RADIUS / divisor))
 				else:
-					pygame.gfxdraw.aacircle(
-						display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), POINT_COLOR)
-					pygame.gfxdraw.filled_circle(
-						display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), POINT_COLOR)
+					self.point_hitboxes[i].render(display, POINT_COLOR, round(zoom * PIN_RADIUS / divisor))
 		else:
 			self.points_bounding_box = pygame.Rect(0, 0, 0, 0)
 
@@ -530,3 +520,21 @@ class PointMode:
 		self.add_points = add_points
 		self.mouse_pos = mouse_pos
 		self.mouse_change = mouse_change
+
+class Point:
+	def __init__(self, display, point, radius, color = False):
+		self.pos = point
+		self.radius = radius
+		if color:
+			render(display, color)
+
+	def render(self, display, color, radius = False):
+		if not radius: radius = self.radius
+		pygame.gfxdraw.aacircle(display, self.pos[0], self.pos[1], radius, color)
+		pygame.gfxdraw.filled_circle(display, self.pos[0], self.pos[1], radius, color)
+	
+	def collidepoint(self, point):
+		if math.sqrt((point[0] - self.pos[0]) ** 2 + (point[1] - self.pos[1]) ** 2) <= self.radius:
+			return True
+		else:
+			return False
