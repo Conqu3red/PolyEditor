@@ -387,7 +387,7 @@ class CustomShape(SelectableObject):
 		pygame.draw.polygon(surface, BLACK, points_hitbox)
 		self._hitbox = pygame.mask.from_surface(surface)
 
-	def render(self, display, camera, zoom, draw_hitbox, point_mode=None):
+	def render(self, display, camera, zoom, point_mode=None):
 		super().render(display, camera, zoom)
 		# TODO: Move point editing logic to its own function
 		points_base = self.points
@@ -442,7 +442,7 @@ class CustomShape(SelectableObject):
 					self.pos = (self.points_bounding_box.center[0] / zoom - camera[0], -(self.points_bounding_box.center[1] / zoom) - camera[1])
 					self.points = tuple([(point[0] + _pos[0] - self.pos[0], point[1] + _pos[1] - self.pos[1])
 											for point in self.points])
-					self.calculate_hitbox(display)
+					self.calculate_hitbox()
 					self.point_hitboxes[i].render(display, HIGHLIGHT_COLOR, round(zoom * PIN_RADIUS / divisor))
 				else:
 					self.point_hitboxes[i].render(display, POINT_COLOR, round(zoom * PIN_RADIUS / divisor))
@@ -467,7 +467,7 @@ class CustomShape(SelectableObject):
 						display, round(closest[0][0]), round(closest[0][1]), round(zoom * PIN_RADIUS / 2), ADD_POINT_COLOR)
 					pygame.gfxdraw.filled_circle(
 						display, round(closest[0][0]), round(closest[0][1]), round(zoom * PIN_RADIUS / 2), ADD_POINT_COLOR)
-		if draw_hitbox:
+		if point_mode.draw_hitboxes:
 			pygame.draw.rect(display, HITBOX_COLOR, self.points_bounding_box, 1)
 			center_width = scale(HITBOX_CENTER_WIDTH, zoom)
 			center_start = (round(zoom * (self.pos[0] + camera[0]) - center_width / 2),
@@ -632,10 +632,11 @@ class CustomShapePoint:
 
 class PointMode:
 	"""Contains the relevant states while the editor is in custom shaoe point editing mode"""
-	def __init__(self, draw_points, delete_points, add_points, mouse_pos, mouse_change, holding_shift):
+	def __init__(self, draw_points, delete_points, add_points, mouse_pos, mouse_change, holding_shift, draw_hitboxes):
 		self.draw_points = draw_points
 		self.delete_points = delete_points
 		self.add_points = add_points
 		self.mouse_pos = mouse_pos
 		self.mouse_change = mouse_change
 		self.holding_shift = holding_shift
+		self.draw_hitboxes = draw_hitboxes

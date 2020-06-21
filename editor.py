@@ -116,7 +116,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 	clock = pygame.time.Clock()
 	edit_object_window = popup.EditObjectWindow(None, None)
 	draw_points = False
-	hitboxes = False
+	draw_hitboxes = False
 	panning = False
 	selecting = False
 	moving = False
@@ -201,7 +201,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						pygame.event.post(pygame.event.Event(SAVE_EVENT, {}))
 						break
 					elif action == "Toggle hitboxes":
-						hitboxes = not hitboxes
+						draw_hitboxes = not draw_hitboxes
 						break
 					elif action == "Color scheme":
 						if bg_color == BACKGROUND_GRAY:
@@ -390,7 +390,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					draw_points = not draw_points
 
 				elif event.key == pygame.K_h:
-					hitboxes = not hitboxes
+					draw_hitboxes = not draw_hitboxes
 
 				elif event.key == pygame.K_d:
 					# Delete selected
@@ -542,9 +542,10 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			terrain.render(display, camera, zoom, fg_color)
 		for water in water_blocks:
 			water.render(display, camera, zoom, fg_color)
-		point_mode = g.PointMode(draw_points, delete_points, add_points, mouse_pos, true_mouse_change, holding_shift())
+		point_mode = g.PointMode(draw_points, delete_points, add_points, mouse_pos,
+		                         true_mouse_change, holding_shift(), draw_hitboxes)
 		for shape in custom_shapes:
-			shape.render(display, camera, zoom, hitboxes, point_mode)
+			shape.render(display, camera, zoom, point_mode)
 		for pillar in pillars:
 			pillar.render(display, camera, zoom)
 		dyn_anc_ids = list(chain(*[shape.dynamic_anchor_ids for shape in custom_shapes]))
