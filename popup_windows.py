@@ -5,6 +5,7 @@ SCALE, ROT = "Scale", "Rot"
 SCALE_X, SCALE_Y, SCALE_Z = SCALE+" X", SCALE+" Y", SCALE+" Z"
 ROT_X, ROT_Y, ROT_Z = ROT+". X", ROT+". Y", ROT+"ation"
 FLIP = "Flip"
+RGB_R, RGB_G, RGB_B = "Red" , "Green", "Blue"
 
 BACKGROUND_COLOR = "#2A4567"
 ERROR_BACKGROUND_COLOR = "#9F2A2A"
@@ -91,31 +92,26 @@ def open_menu():
 
 
 class EditObjectWindow:
-	def __init__(self, data, obj):
+	def __init__(self, data):
 		if data is None:
 			self._window = None
-			self.data = None
-			self.obj = None
 			return
 		self.data = data.copy()
-		self.obj = obj
-		self.inputs = {}
-		layout = []
+		self._inputs = {}
+		self._layout = []
 		for name, value in self.data.items():
 			if name == FLIP:
 				row = [sg.Button(name, size=(8, 1))]
-				layout.append(row)
+				self._layout.append(row)
 			else:
 				row = [sg.Text(name, justification="center", size=(6, 1)),
 				       sg.Input(value, justification="left", size=(10, 1))]
-				layout.append(row)
-				self.inputs[name] = row[1]
-
-		self._window = sg.Window(
-			"Object properties", layout, return_keyboard_events=True, keep_on_top=True, disable_minimize=True,
-			alpha_channel=0.7, element_justification="center", use_default_focus=False
-		)
+				self._inputs[name] = row[1]
+				self._layout.append(row)
+		self._window = sg.Window("Object properties", self._layout, keep_on_top=True, element_justification="center",
+		                         alpha_channel=0.7, disable_minimize=True, return_keyboard_events=True)
 		self._window.read(timeout=0)  # initialize
+		# TODO: Move this to a Frame so that it only activates once
 		self._window.bind("<Leave>", "Leave")  # mouse leaves an element
 
 	def __bool__(self):
@@ -134,6 +130,7 @@ class EditObjectWindow:
 			return event, self.data
 
 		# Validate and set data when key is pressed
+		print(event)
 		for i, key in enumerate(self.data.keys()):
 			invalid = False
 
@@ -157,13 +154,17 @@ class EditObjectWindow:
 				elif ROT in key:
 					invalid = not -180.0 <= self.data[key] <= 180.0
 					self.data[key] = max(min(self.data[key], 180.0), -180.0)
+				elif key in [RGB_R, RGB_G, RGB_B]:
+					invalid = not (self.data[key]<=255 and self.data[key]>=0)
+					self.data[key] = max(min(self.data[key],255),0)
 				else:
 					print(f"Warning: Didn't validate {key} input as its name couldn't be recognized")
-
+				
+					
 			if invalid:
-				self.inputs[key].update(background_color=ERROR_BACKGROUND_COLOR)
+				self._inputs[key].update(background_color=ERROR_BACKGROUND_COLOR)
 			else:
-				self.inputs[key].update(background_color=BACKGROUND_COLOR)
+				self._inputs[key].update(background_color=BACKGROUND_COLOR)
 
 		return event, self.data
 

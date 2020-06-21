@@ -14,6 +14,8 @@ BLACK = (0, 0, 0)
 HIGHLIGHT_COLOR = (255, 255, 0)
 SELECT_COLOR = (0, 255, 0)
 HITBOX_COLOR = (255, 0, 255)
+POINT_COLOR = (255, 255, 255)
+ADD_POINT_COLOR = (80, 80, 255)
 HITBOX_CENTER_WIDTH = 3
 SHAPE_HIGHLIGHTED_WIDTH = 2
 
@@ -25,9 +27,6 @@ DYNAMIC_ANCHOR_COLOR = (222, 168, 62)
 PIN_RADIUS = 0.125
 STATIC_PIN_COLOR = (0, 0, 0)
 STATIC_PIN_BORDER = (50, 50, 50)
-
-POINT_RADIUS = PIN_RADIUS / 2
-POINT_COLOR = (255, 255, 255)
 
 TERRAIN_MAIN_WIDTH = 25.25
 TERRAIN_SMALL_WIDTH = 4.0
@@ -97,6 +96,33 @@ def euler_angles(qx, qy, qz, qw, deg=True):
 		y = math.degrees(y)
 		z = math.degrees(z)
 	return x, y, z
+
+
+def closest_point(l1, l2, p):
+	"""Finds the closest point on a line given a start and end point, and a point to check from."""
+	try:
+		s1 = (l2[1] - l1[1]) / (l2[0] - l1[0])
+		s2 = -1 / s1
+		a1 = (l1[1] - l1[0] * s1)
+		a2 = (p[1] - p[0] * s2)
+		x = -(a2 - a1) / (s2 - s1)
+		if l1[0] <= x <= l2[0] or l2[0] <= x <= l1[0]:
+			return x, s1 * x + a1
+		else:
+			return None
+	except ZeroDivisionError:
+		if l2[0] - l1[0] == 0: 
+			# Vertical line
+			if l1[1] <= p[1] <= l2[1] or l2[1] <= p[1] <= l1[1]:
+				return l1[0], p[1]
+			else:
+				return None
+		else:
+			# Horizontal Line
+			if l1[0] <= p[0] <= l2[0] or l2[0] <= p[0] <= l1[0]:
+				return p[0], l1[1]
+			else:
+				return None
 
 
 def rect_hitbox_mask(rect, zoom):
@@ -172,7 +198,6 @@ class LayoutList:
 		else:
 			self._objlist = [cls(o) for o in self._dictlist]
 		self.list_name = cls.list_name
-		self.cls = cls
 
 	def append(self, elem):
 		self._dictlist.append(elem.dictionary)
@@ -318,10 +343,14 @@ class CustomShape(SelectableObject):
 
 	def __init__(self, dictionary, anchorsList=None):
 		super().__init__(dictionary)
+		self.highlighted = False
+		self.points_bounding_box = None
 		self.selected_points = []
 		self.points_bounding_box = pygame.Rect(0, 0, 0, 0)
 		self.point_hitboxes = []
 		self.anchors = []
+		self.add_point = None
+		self.add_point_hitbox = None
 		if anchorsList:
 			for dyn_anc_id in self.dynamic_anchor_ids:
 				for anchor in anchorsList:
@@ -375,7 +404,7 @@ class CustomShape(SelectableObject):
 		points_pixels = [(round(zoom * (self.pos[0] + point[0] + camera[0])),
 		                  round(zoom * -(self.pos[1] + point[1] + camera[1])))
 		                 for point in points_base]
-		border_color = (min(255, self.color[0] - 20), min(255, self.color[1] - 20), min(255, self.color[2] - 20))
+		border_color = tuple(max(0, self.color[i] - 20) for i in range(3))
 		if ANTIALIASING:
 			pygame.gfxdraw.filled_polygon(display, points_pixels, self.color)
 			pygame.gfxdraw.aapolygon(display, points_pixels, border_color)
@@ -396,39 +425,76 @@ class CustomShape(SelectableObject):
 			pygame.draw.polygon(display, HIGHLIGHT_COLOR, points_pixels, scale(SHAPE_HIGHLIGHTED_WIDTH, zoom, 60))
 
 		self.point_hitboxes = []
+		self.add_point_hitbox = None
 		if point_mode.draw_points:
 			# TODO: Increase bounding box
 			self.points_bounding_box = pygame.draw.polygon(DUMMY_SURFACE, WHITE, points_pixels)
 			# Render points
 			for i, point in enumerate(points_pixels):
-				rect = pygame.Rect(round(point[0] - zoom * POINT_RADIUS),
-				                   round(point[1] - zoom * POINT_RADIUS),
-				                   round(zoom * POINT_RADIUS * 2),
-				                   round(zoom * POINT_RADIUS * 2))
+				rect = pygame.Rect(round(point[0] - zoom * PIN_RADIUS / 2),
+				                   round(point[1] - zoom * PIN_RADIUS / 2),
+				                   round(zoom * PIN_RADIUS),
+				                   round(zoom * PIN_RADIUS))
 				self.point_hitboxes.append(rect)
-				if len(self.selected_points) < len(self.point_hitboxes):
-					self.selected_points = [0 for _ in self.point_hitboxes]
-				divisor = 1.7 if self.point_hitboxes[i].collidepoint(*point_mode.mouse_pos) else 2
-				if self.selected_points[i]:
-					if ANTIALIASING:
-						pygame.gfxdraw.aacircle(
-							display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), HIGHLIGHT_COLOR)
-						pygame.gfxdraw.filled_circle(
-							display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), HIGHLIGHT_COLOR)
-					else:
-						pygame.draw.circle(
-							display, HIGHLIGHT_COLOR, (point[0], point[1]), round(zoom * PIN_RADIUS / divisor))
-				else:
-					if ANTIALIASING:
-						pygame.gfxdraw.aacircle(
-							display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), POINT_COLOR)
-						pygame.gfxdraw.filled_circle(
-							display, point[0], point[1], round(zoom * PIN_RADIUS / divisor), POINT_COLOR)
-					else:
-						pygame.draw.circle(
-							display, POINT_COLOR, (point[0], point[1]), round(zoom * PIN_RADIUS / divisor))
-		else:
-			self.points_bounding_box = pygame.Rect(0, 0, 0, 0)
+			expand_size = zoom / 7 * 2 if point_mode.holding_shift else zoom * PIN_RADIUS
+			self.points_bounding_box = pygame.draw.polygon(DUMMY_SURFACE, WHITE, points_pixels)
+			self.points_bounding_box.size = (self.points_bounding_box.width + round(expand_size),
+			                                 self.points_bounding_box.height + round(expand_size))
+			self.points_bounding_box.x -= round(expand_size / 2)
+			self.points_bounding_box.y -= round(expand_size / 2)
+
+			# Render points
+			for i, point in enumerate(points_pixels):
+				self.point_hitboxes.append(
+					pygame.draw.circle(DUMMY_SURFACE, 0, point, round(zoom * PIN_RADIUS / 2), 0))
+				_point_color = POINT_COLOR if not point_mode.holding_shift else (*POINT_COLOR, 100)
+				pygame.gfxdraw.aacircle(
+					display, point[0], point[1], round(zoom * PIN_RADIUS / expand_size), _point_color)
+				pygame.gfxdraw.filled_circle(
+					display, point[0], point[1], round(zoom * PIN_RADIUS / expand_size), _point_color)
+			
+			# Show overlay of where a point will be added
+			if point_mode.holding_shift and self.points_bounding_box.collidepoint(point_mode.mouse_pos):
+				closest = [None, zoom / 7, -1]
+				for i in range(len(points_base)):
+					ni = 0 if i + 1 == len(points_base) else i + 1
+					_point = closest_point(points_pixels[i], points_pixels[ni], point_mode.mouse_pos)
+					if not _point: continue
+					distance = ((_point[0] - point_mode.mouse_pos[0]) ** 2 + (_point[1] - point_mode.mouse_pos[1]) ** 2) ** 0.5
+					if distance < closest[1]:
+						closest = [_point, distance, ni]
+				if closest[0]:
+					self.add_point = closest
+					self.add_point_hitbox = pygame.draw.circle(
+						DUMMY_SURFACE, 0,
+						(round(closest[0][0]), round(closest[0][1])), round(zoom * PIN_RADIUS / 2), 0
+					)
+					pygame.gfxdraw.aacircle(
+						display, round(closest[0][0]), round(closest[0][1]), round(zoom * PIN_RADIUS / 2), ADD_POINT_COLOR)
+					pygame.gfxdraw.filled_circle(
+						display, round(closest[0][0]), round(closest[0][1]), round(zoom * PIN_RADIUS / 2), ADD_POINT_COLOR)
+		# if draw_hitbox:
+		# 	pygame.draw.rect(display, HITBOX_COLOR, self.hitbox, 1)
+		# 	if self.points_bounding_box != self.hitbox: pygame.draw.rect(display, (255, 255, 255), self.points_bounding_box, 1)
+		# 	center_width = scale(HITBOX_CENTER_WIDTH, zoom)
+		# 	center_start = (round(zoom * (self.pos["x"] + camera[0]) - center_width / 2),
+		# 					round(zoom * -(self.pos["y"] + camera[1])))
+		# 	center_end = (center_start[0] + center_width, center_start[1])
+		# 	pygame.draw.line(display, HITBOX_COLOR, center_start, center_end, center_width)
+
+	def append_point(self, index, point):
+		points = list(self.points)
+		points.insert(index, (point[0] / self._last_zoom - self._last_camera[0] - self.pos[0],
+		                       -(point[1] / self._last_zoom) - self._last_camera[1] - self.pos[1]))
+		self.points = points
+		self.selected_points = [False for _ in points]
+		self.calculate_hitbox()
+
+	def del_point(self, index):
+		points = list(self.points)
+		points.pop(index)
+		self.points = points
+		self.calculate_hitbox()
 
 	@SelectableObject.pos.setter
 	def pos(self, value):
@@ -544,9 +610,10 @@ class CustomShape(SelectableObject):
 
 class PointMode:
 	"""Contains the relevant states while the editor is in custom shaoe point editing mode"""
-	def __init__(self, draw_points, delete_points, add_points, mouse_pos, mouse_change):
+	def __init__(self, draw_points, delete_points, add_points, mouse_pos, mouse_change, holding_shift):
 		self.draw_points = draw_points
 		self.delete_points = delete_points
 		self.add_points = add_points
 		self.mouse_pos = mouse_pos
 		self.mouse_change = mouse_change
+		self.holding_shift = holding_shift

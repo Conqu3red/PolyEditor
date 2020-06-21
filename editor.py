@@ -112,15 +112,16 @@ def main(layout, layoutfile, jsonfile, backupfile):
 	clock = pygame.time.Clock()
 	edit_object_window = popup.EditObjectWindow(None, None)
 	draw_points = False
-	draw_hitboxes = False
+	hitboxes = False
 	panning = False
 	selecting = False
 	moving = False
-
 	point_moving = False
+	last_zoom = 0
+
 	add_points = False
 	delete_points = False
-	point_editing_shape = None
+	selected_shape = None
 
 	mouse_pos = (0, 0)
 	old_mouse_pos = (0, 0)
@@ -143,6 +144,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 	holding_shift = lambda: pygame.key.get_mods() & pygame.KMOD_SHIFT
 	true_mouse_pos = lambda: (mouse_pos[0] / zoom - camera[0], -mouse_pos[1] / zoom - camera[1])
 
+	print(f"Number of Custom Shapes: {len(custom_shapes)}")
 	display = pygame.display.set_mode(size, pygame.RESIZABLE)
 	pygame.display.set_caption("PolyEditor")
 	if ICON is not None:
@@ -196,7 +198,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						pygame.event.post(pygame.event.Event(SAVE_EVENT, {}))
 						break
 					elif action == "Toggle hitboxes":
-						draw_hitboxes = not draw_hitboxes
+						hitboxes = not hitboxes
 						break
 					elif action == "Color scheme":
 						if bg_color == BACKGROUND_GRAY:
@@ -244,28 +246,31 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					            "\n".join([o for o in outputs if len(o) > 0]))
 
 			elif event.type == pygame.MOUSEBUTTONDOWN:
-
 				if event.button == 1:  # left click
 					if menu_button_rect.collidepoint(event.pos):
 						pygame.event.post(pygame.event.Event(MENU_EVENT, {"clicked": True}))
 						continue
 
 					for obj in reversed(selectable_objects()):
-						if (  # Point editing
-								draw_points and type(obj) is g.CustomShape
-								and obj.points_bounding_box.collidepoint(*event.pos)
-						):
-							point_collisions = [hitbox.collidepoint(*event.pos) for hitbox in obj.point_hitboxes]
-							if point_collisions.count(True) > 0:
+						if type(obj) is g.CustomShape and obj.points_bounding_box.collidepoint(event.pos):
+							clicked_point = [p for p in obj.point_hitboxes if p.collidepoint(event.pos)]
+							if holding_shift() and obj.add_point_hitbox:
+								if obj.add_point_hitbox.collidepoint(event.pos):
+									obj.append_point(obj.add_point[2], obj.add_point[0])
+									point_moving = True
+									selected_shape = obj
+									obj.selected_points.insert(obj.add_point[2], 1)
+									print(obj.selected_points)
+									break
+							elif clicked_point:
 								point_moving = True
-								obj.selected_points = point_collisions
-								point_editing_shape = obj
+								obj.selected_points = [p.collidepoint(event.pos) for p in obj.point_hitboxes]
+								selected_shape = obj
 								for o in selectable_objects():
 									o.highlighted = False
 								edit_object_window.close()
 								break
-						# Selecting and dragging
-						if obj.collidepoint(event.pos):
+						if obj.collidepoint(event.pos):  # Dragging and multiselect
 							if not holding_shift():
 								moving = True
 								dragndrop_pos = true_mouse_pos() if not obj.highlighted else None
@@ -274,9 +279,10 @@ def main(layout, layoutfile, jsonfile, backupfile):
 									for o in selectable_objects():
 										o.highlighted = False
 								obj.highlighted = True
+								edit_object_window.close()
 							elif holding_shift():
 								obj.highlighted = False
-							break
+								edit_object_window.close()
 					if not (moving or point_moving):
 						panning = True
 						dragndrop_pos = true_mouse_pos()
@@ -284,9 +290,17 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 				if event.button == 3:  # right click
 					edit_object_window.close()
+					for obj in reversed(selectable_objects()):
+						if obj.points_bounding_box.collidepoint(event.pos):
+							if type(obj) is g.CustomShape:
+								if len(obj.points) <= 3: continue
+								for i, point in enumerate(obj.point_hitboxes):
+									if point.collidepoint(event.pos):
+										obj.del_point(i)
+										break
 					mouse_pos = event.pos
 					selecting_pos = event.pos
-					if not point_moving or moving:
+					if not point_moving or moving or holding_shift():
 						selecting = True
 
 				if event.button == 4:  # mousewheel up
@@ -299,6 +313,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						zoom = ZOOM_MAX
 					new_pos = true_mouse_pos()
 					camera = [camera[i] + new_pos[i] - old_pos[i] for i in range(2)]
+					last_zoom = 30
 
 				if event.button == 5:  # mousewheel down
 					old_pos = true_mouse_pos()
@@ -310,13 +325,14 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						zoom = ZOOM_MIN
 					new_pos = true_mouse_pos()
 					camera = [camera[i] + new_pos[i] - old_pos[i] for i in range(2)]
+					last_zoom = 30
 
 			elif event.type == pygame.MOUSEBUTTONUP:
 
 				if event.button == 1:  # left click
 					if point_moving:
-						point_editing_shape.selected_points = []
-						point_editing_shape = None
+						selected_shape.selected_points = []
+						selected_shape = None
 						point_moving = False
 					if (
 							not holding_shift() and dragndrop_pos is not None
@@ -326,11 +342,14 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						hl_objs = [o for o in selectable_objects() if o.highlighted]
 						if len(hl_objs) == 1:
 							hl_objs[0].highlighted = False
+					if not panning:
+						edit_object_window.close()
 					panning = False
 					moving = False
 
 				if event.button == 3:  # right click
 					selecting = False
+					edit_object_window.close()
 
 			elif event.type == pygame.MOUSEMOTION:
 				mouse_pos = event.pos
@@ -369,7 +388,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					draw_points = not draw_points
 
 				elif event.key == pygame.K_h:
-					draw_hitboxes = not draw_hitboxes
+					hitboxes = not hitboxes
 
 				elif event.key == pygame.K_d:
 					# Delete selected
@@ -427,9 +446,20 @@ def main(layout, layoutfile, jsonfile, backupfile):
 							values[popup.ROT_Z] = rot[2]  # Z first
 							values[popup.ROT_X] = rot[0]
 							values[popup.ROT_Y] = rot[1]
+							values[popup.RGB_R] = obj.color[0]
+							values[popup.RGB_G] = obj.color[1]
+							values[popup.RGB_B] = obj.color[2]
 							values[popup.FLIP] = obj.flipped
-						edit_object_window = popup.EditObjectWindow(values, obj)
 
+						edit_object_window = popup.EditObjectWindow(values, obj)
+					if len(hl_objs) > 1:
+						obj = hl_objs[0]
+						values = {}
+						if type(obj) is g.CustomShape:
+							values[popup.RGB_R] = obj.color[0]
+							values[popup.RGB_G] = obj.color[1]
+							values[popup.RGB_B] = obj.color[2]
+						edit_object_window = popup.EditObjectWindow(values, obj)
 				# Move selection with keys
 				if move:
 					hl_objs = [o for o in selectable_objects() if o.highlighted]
@@ -462,8 +492,8 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 		# Edit object window
 		hl_objs = [o for o in selectable_objects() if o.highlighted]
-		if edit_object_window and len(hl_objs) == 1 and edit_object_window.obj == hl_objs[0]:
-			obj = edit_object_window.obj
+		if edit_object_window and len(hl_objs) == 1:
+			obj = hl_objs[0]
 			# The current solution to running both the edit window GUI and the pygame GUI is to make the
 			#  popup window blocking, but run a single frame of the main window whenever an event is read
 			#  (such as pressing a key or moving the mouse).
@@ -474,9 +504,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			event, values = edit_object_window.read(timeout)
 			if event == sg.WIN_CLOSED or event == "Exit":
 				edit_object_window.close()
-			elif event == "Leave":
-				pass
-			elif event == sg.TIMEOUT_KEY:
+			elif event == "Leave" or event == sg.TIMEOUT_KEY:
 				pass
 			else:
 				x, y, z = values[popup.POS_X], values[popup.POS_Y], values[popup.POS_Z]
@@ -488,6 +516,18 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					obj.scale = (values[popup.SCALE_X], values[popup.SCALE_Y], values[popup.SCALE_Z])
 					obj.rotations = (values[popup.ROT_X], values[popup.ROT_Y], values[popup.ROT_Z])
 					obj.flipped = values[popup.FLIP]
+					obj.color = (values[popup.RGB_R], values[popup.RGB_G], values[popup.RGB_B], obj.color[3])
+		elif edit_object_window and len(hl_objs) > 1:
+			timeout = 10 if moused_over else None
+			event, values = edit_object_window.read(timeout)
+			if event == sg.WIN_CLOSED or event == "Exit":
+				edit_object_window.close()
+			elif event == "Leave" or event == sg.TIMEOUT_KEY:
+				pass
+			else:
+				for obj in hl_objs:
+					if type(obj) is g.CustomShape:
+						obj.color = (values[popup.RGB_R], values[popup.RGB_G], values[popup.RGB_B], obj.color[3])
 		else:
 			edit_object_window.close()
 		
@@ -499,7 +539,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			terrain.render(display, camera, zoom, fg_color)
 		for water in water_blocks:
 			water.render(display, camera, zoom, fg_color)
-		point_mode = g.PointMode(draw_points, delete_points, add_points, mouse_pos, true_mouse_change)
+		point_mode = g.PointMode(draw_points, delete_points, add_points, mouse_pos, true_mouse_change, holding_shift())
 		for shape in custom_shapes:
 			shape.render(display, camera, zoom, point_mode)
 		for pillar in pillars:
@@ -511,7 +551,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 		# Selecting shapes
 		if selecting:
 			rect = (min(selecting_pos[0], mouse_pos[0]), min(selecting_pos[1], mouse_pos[1]),
-			        abs(mouse_pos[0] - selecting_pos[0]), abs(mouse_pos[1] - selecting_pos[1]))
+			        max(1, abs(mouse_pos[0] - selecting_pos[0])), max(1, abs(mouse_pos[1] - selecting_pos[1])))
 			pygame.draw.rect(display, g.SELECT_COLOR, rect, 1)
 			mask = g.rect_hitbox_mask(rect, zoom)
 			for obj in selectable_objects():
@@ -538,7 +578,8 @@ def main(layout, layoutfile, jsonfile, backupfile):
 		# Display buttons
 		menu_button_rect = display.blit(menu_button, (10, size[1] - menu_button.get_size()[1] - 10))
 
-		pygame.display.flip()  # Game has flipped y coordinate
+		last_zoom = max(0, last_zoom - 1)
+		pygame.display.flip()
 		if not edit_object_window or moused_over:  # Don't run the clock while other window is focused
 			clock.tick(FPS)
 
