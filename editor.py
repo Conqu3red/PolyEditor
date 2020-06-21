@@ -541,7 +541,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			water.render(display, camera, zoom, fg_color)
 		point_mode = g.PointMode(draw_points, delete_points, add_points, mouse_pos, true_mouse_change, holding_shift())
 		for shape in custom_shapes:
-			shape.render(display, camera, zoom, point_mode)
+			shape.render(display, camera, zoom, hitboxes, point_mode)
 		for pillar in pillars:
 			pillar.render(display, camera, zoom)
 		dyn_anc_ids = list(chain(*[shape.dynamic_anchor_ids for shape in custom_shapes]))

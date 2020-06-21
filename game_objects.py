@@ -3,6 +3,7 @@ import pygame.gfxdraw
 import math
 from operator import add
 from editor import BASE_SIZE
+from copy import deepcopy
 
 ANTIALIASING = True
 
@@ -359,34 +360,17 @@ class CustomShape(SelectableObject):
 		self.calculate_hitbox()
 
 	def calculate_hitbox(self):
-		points_base = self.points
-		# Bounding rect
-		leftmost, rightmost, topmost, bottommost = 1000, -1000, 1000, -1000
-		for point in points_base:
-			leftmost = min(leftmost, point[0])
-			rightmost = max(rightmost, point[0])
-			topmost = min(topmost, point[1])
-			bottommost = max(bottommost, point[1])
-		width, height = rightmost - leftmost, bottommost - topmost
-		basepos = self.pos
-		center = (leftmost - width / 2 + basepos[0], topmost + height / 2 + basepos[1])
-		# Align with center
-		self._dict["m_Pos"]["x"] = center[0]
-		self._dict["m_Pos"]["y"] = center[1]
-		points_base = [(point[0] + basepos[0] - center[0], point[1] + basepos[1] - center[1])
-		               for point in points_base]
-		self.points = points_base
-		leftmost, rightmost = [x + basepos[0] - center[0] for x in (leftmost, rightmost)]
-		topmost, bottommost = [y + basepos[1] - center[1] for y in (topmost, bottommost)]
+		hitbox = pygame.draw.polygon(DUMMY_SURFACE, BLACK, self.points)
 		# Hitbox
-		points_hitbox = [(round(HITBOX_RESOLUTION * (point[0] - leftmost)),
-		                  round(-HITBOX_RESOLUTION * (point[1] + topmost)))
-		                 for point in points_base]
-		surface = pygame.Surface((HITBOX_RESOLUTION * width + 1, HITBOX_RESOLUTION * height + 1), pygame.SRCALPHA, 32)
+		print(hitbox.left)
+		points_hitbox = [(round(HITBOX_RESOLUTION * point[0]),
+		                  round(-1 * HITBOX_RESOLUTION * point[1]))
+		                 for point in self.points]
+		surface = pygame.Surface((HITBOX_RESOLUTION * hitbox.width + 1, HITBOX_RESOLUTION * hitbox.height + 1), pygame.SRCALPHA, 32)
 		pygame.draw.polygon(surface, BLACK, points_hitbox)
 		self._hitbox = pygame.mask.from_surface(surface)
 
-	def render(self, display, camera, zoom, point_mode=None):
+	def render(self, display, camera, zoom, draw_hitbox, point_mode=None):
 		super().render(display, camera, zoom)
 		# TODO: Move point editing logic to its own function
 		points_base = self.points
@@ -398,19 +382,14 @@ class CustomShape(SelectableObject):
 					newpoints[i] = tuple(map(add, point, point_mode.mouse_change))
 					points_base = newpoints
 					self.points = tuple(newpoints)
-					self.calculate_hitbox()
 					break
 
 		points_pixels = [(round(zoom * (self.pos[0] + point[0] + camera[0])),
 		                  round(zoom * -(self.pos[1] + point[1] + camera[1])))
 		                 for point in points_base]
 		border_color = tuple(max(0, self.color[i] - 20) for i in range(3))
-		if ANTIALIASING:
-			pygame.gfxdraw.filled_polygon(display, points_pixels, self.color)
-			pygame.gfxdraw.aapolygon(display, points_pixels, border_color)
-		else:
-			pygame.draw.polygon(display, self.color, points_pixels)
-			pygame.draw.polygon(display, border_color, points_pixels, 1)
+		pygame.gfxdraw.filled_polygon(display, points_pixels, self.color)
+		pygame.gfxdraw.aapolygon(display, points_pixels, border_color)
 
 		for pin in self.static_pins:
 			rect = [round(zoom * (pin["x"] + camera[0])), round(zoom * -(pin["y"] + camera[1]))]
@@ -426,29 +405,30 @@ class CustomShape(SelectableObject):
 		if point_mode.draw_points:
 			# TODO: Increase bounding box
 			self.points_bounding_box = pygame.draw.polygon(DUMMY_SURFACE, WHITE, points_pixels)
-			# Render points
-			for i, point in enumerate(points_pixels):
-				rect = pygame.Rect(round(point[0] - zoom * PIN_RADIUS / 2),
-				                   round(point[1] - zoom * PIN_RADIUS / 2),
-				                   round(zoom * PIN_RADIUS),
-				                   round(zoom * PIN_RADIUS))
-				self.point_hitboxes.append(rect)
-			expand_size = zoom / 7 * 2 if point_mode.holding_shift else zoom * PIN_RADIUS
+			# Update bounding box
+			expand_size = zoom * PIN_RADIUS / 1.8 * 2 if point_mode.holding_shift else zoom / 7
 			self.points_bounding_box = pygame.draw.polygon(DUMMY_SURFACE, WHITE, points_pixels)
 			self.points_bounding_box.size = (self.points_bounding_box.width + round(expand_size),
 			                                 self.points_bounding_box.height + round(expand_size))
 			self.points_bounding_box.x -= round(expand_size / 2)
 			self.points_bounding_box.y -= round(expand_size / 2)
-
+			self.points_bounding_box = pygame.draw.polygon(DUMMY_SURFACE, WHITE, points_pixels)
 			# Render points
 			for i, point in enumerate(points_pixels):
-				self.point_hitboxes.append(
-					pygame.draw.circle(DUMMY_SURFACE, 0, point, round(zoom * PIN_RADIUS / 2), 0))
-				_point_color = POINT_COLOR if not point_mode.holding_shift else (*POINT_COLOR, 100)
-				pygame.gfxdraw.aacircle(
-					display, point[0], point[1], round(zoom * PIN_RADIUS / expand_size), _point_color)
-				pygame.gfxdraw.filled_circle(
-					display, point[0], point[1], round(zoom * PIN_RADIUS / expand_size), _point_color)
+				self.point_hitboxes.append(CustomShapePoint(display, point, round(zoom * PIN_RADIUS / 1.8)))
+				if len(self.selected_points) < len(self.point_hitboxes):
+					self.selected_points = [0 for _ in self.point_hitboxes]
+				divisor = 1.7 if self.point_hitboxes[i].collidepoint(point_mode.mouse_pos) else 2
+				if self.selected_points[i]:
+					# Update center to actual center
+					_pos = list(deepcopy(self.pos))
+					self.pos = (self.points_bounding_box.center[0] / zoom - camera[0], -(self.points_bounding_box.center[1] / zoom) - camera[1])
+					self.points = tuple([(point[0] + _pos[0] - self.pos[0], point[1] + _pos[1] - self.pos[1])
+											for point in self.points])
+					self.calculate_hitbox(display)
+					self.point_hitboxes[i].render(display, HIGHLIGHT_COLOR, round(zoom * PIN_RADIUS / divisor))
+				else:
+					self.point_hitboxes[i].render(display, POINT_COLOR, round(zoom * PIN_RADIUS / divisor))
 			
 			# Show overlay of where a point will be added
 			if point_mode.holding_shift and self.points_bounding_box.collidepoint(point_mode.mouse_pos):
@@ -457,7 +437,7 @@ class CustomShape(SelectableObject):
 					ni = 0 if i + 1 == len(points_base) else i + 1
 					_point = closest_point(points_pixels[i], points_pixels[ni], point_mode.mouse_pos)
 					if not _point: continue
-					distance = ((_point[0] - point_mode.mouse_pos[0]) ** 2 + (_point[1] - point_mode.mouse_pos[1]) ** 2) ** 0.5
+					distance = math.sqrt((_point[0] - point_mode.mouse_pos[0]) ** 2 + (_point[1] - point_mode.mouse_pos[1]) ** 2)
 					if distance < closest[1]:
 						closest = [_point, distance, ni]
 				if closest[0]:
@@ -470,14 +450,13 @@ class CustomShape(SelectableObject):
 						display, round(closest[0][0]), round(closest[0][1]), round(zoom * PIN_RADIUS / 2), ADD_POINT_COLOR)
 					pygame.gfxdraw.filled_circle(
 						display, round(closest[0][0]), round(closest[0][1]), round(zoom * PIN_RADIUS / 2), ADD_POINT_COLOR)
-		# if draw_hitbox:
-		# 	pygame.draw.rect(display, HITBOX_COLOR, self.hitbox, 1)
-		# 	if self.points_bounding_box != self.hitbox: pygame.draw.rect(display, (255, 255, 255), self.points_bounding_box, 1)
-		# 	center_width = scale(HITBOX_CENTER_WIDTH, zoom)
-		# 	center_start = (round(zoom * (self.pos["x"] + camera[0]) - center_width / 2),
-		# 					round(zoom * -(self.pos["y"] + camera[1])))
-		# 	center_end = (center_start[0] + center_width, center_start[1])
-		# 	pygame.draw.line(display, HITBOX_COLOR, center_start, center_end, center_width)
+		if draw_hitbox:
+			pygame.draw.rect(display, HITBOX_COLOR, self.points_bounding_box, 1)
+			center_width = scale(HITBOX_CENTER_WIDTH, zoom)
+			center_start = (round(zoom * (self.pos[0] + camera[0]) - center_width / 2),
+							round(zoom * -(self.pos[1] + camera[1])))
+			center_end = (center_start[0] + center_width, center_start[1])
+			pygame.draw.line(display, HITBOX_COLOR, center_start, center_end, center_width)
 
 	def append_point(self, index, point):
 		points = list(self.points)
