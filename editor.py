@@ -257,9 +257,9 @@ def main(layout, layoutfile, jsonfile, backupfile):
 							if holding_shift() and obj.add_point_hitbox:
 								if obj.add_point_hitbox.collidepoint(event.pos):
 									obj.append_point(obj.add_point[2], obj.add_point[0])
+									obj.selected_points.insert(obj.add_point[2], True)
 									point_moving = True
 									selected_shape = obj
-									obj.selected_points.insert(obj.add_point[2], 1)
 									break
 							elif clicked_point:
 								point_moving = True
@@ -291,6 +291,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 				if event.button == 3:  # right click
 					edit_object_window.close()
 					# Delete point
+					deleted_point = False
 					if draw_points:
 						for obj in reversed(selectable_objects()):
 							if type(obj) is g.CustomShape and obj.bounding_box.collidepoint(event.pos):
@@ -299,11 +300,14 @@ def main(layout, layoutfile, jsonfile, backupfile):
 								for i, point in enumerate(obj.point_hitboxes):
 									if point.collidepoint(event.pos):
 										obj.del_point(i)
+										deleted_point = True
 										break
-					mouse_pos = event.pos
-					selecting_pos = event.pos
-					if not point_moving or moving or holding_shift():
-						selecting = True
+								if deleted_point:
+									break
+					if not deleted_point:
+						if not point_moving or moving or holding_shift():
+							selecting_pos = event.pos
+							selecting = True
 
 				if event.button == 4:  # mousewheel up
 					old_pos = true_mouse_pos()
@@ -508,16 +512,13 @@ def main(layout, layoutfile, jsonfile, backupfile):
 				pass
 			else:
 				x, y, z = values[popup.POS_X], values[popup.POS_Y], values[popup.POS_Z]
+				obj.pos = (x, y, z)
 				if type(obj) is g.CustomShape:
 					obj.scale = (values[popup.SCALE_X], values[popup.SCALE_Y], values[popup.SCALE_Z])
 					obj.rotations = (values[popup.ROT_X], values[popup.ROT_Y], values[popup.ROT_Z])
 					obj.flipped = values[popup.FLIP]
 					obj.color = (values[popup.RGB_R], values[popup.RGB_G], values[popup.RGB_B], obj.color[3])
-					# Apply transformations then reset position
 					obj.calculate_hitbox()
-					obj.pos = (x, y, z)
-				else:
-					obj.pos = (x, y, z)
 		elif edit_object_window and len(hl_objs) > 1:
 			timeout = 10 if moused_over else None
 			event, values = edit_object_window.read(timeout)

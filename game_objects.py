@@ -165,6 +165,7 @@ class SelectableObject(LayoutObject):
 		super().__init__(dictionary)
 		self.selected = False
 		self._hitbox = None
+		self._center_offset = (0, 0)
 		self._last_zoom = 1
 		self._last_camera = (0, 0)
 
@@ -174,14 +175,18 @@ class SelectableObject(LayoutObject):
 
 	def collidepoint(self, point):
 		size, center = self._hitbox.get_size(), self.pos
-		x = round((point[0] / self._last_zoom - self._last_camera[0] - center[0]) * HITBOX_RESOLUTION + size[0] / 2)
-		y = round((point[1] / self._last_zoom + self._last_camera[1] + center[1]) * HITBOX_RESOLUTION + size[1] / 2)
+		x = round((point[0] / self._last_zoom - self._last_camera[0] - center[0] + self._center_offset[0])
+		          * HITBOX_RESOLUTION + size[0] / 2)
+		y = round((point[1] / self._last_zoom + self._last_camera[1] + center[1] + self._center_offset[1])
+		          * HITBOX_RESOLUTION + size[1] / 2)
 		return self._hitbox.get_at((x, y)) if 0 <= x < size[0] and 0 <= y < size[1] else False
 
 	def colliderect(self, rect, mask=None):
 		size, center = self._hitbox.get_size(), self.pos
-		x = round((rect[0] / self._last_zoom - self._last_camera[0] - center[0]) * HITBOX_RESOLUTION + size[0] / 2)
-		y = round((rect[1] / self._last_zoom + self._last_camera[1] + center[1]) * HITBOX_RESOLUTION + size[1] / 2)
+		x = round((rect[0] / self._last_zoom - self._last_camera[0] - center[0] + self._center_offset[0])
+		          * HITBOX_RESOLUTION + size[0] / 2)
+		y = round((rect[1] / self._last_zoom + self._last_camera[1] + center[1] + self._center_offset[1])
+		          * HITBOX_RESOLUTION + size[1] / 2)
 		if mask is None:
 			mask = rect_hitbox_mask(rect, self._last_zoom)
 		return bool(self._hitbox.overlap(mask, (x, y)))
@@ -347,7 +352,6 @@ class CustomShape(SelectableObject):
 
 	def __init__(self, dictionary, anchorsList=None):
 		super().__init__(dictionary)
-		self.highlighted = False
 		self.bounding_box = None
 		self.selected_points = [False for _ in self._dict["m_PointsLocalSpace"]]
 		self.bounding_box = pygame.Rect(0, 0, 0, 0)
@@ -362,9 +366,9 @@ class CustomShape(SelectableObject):
 						self.anchors.append(anchor)
 		self.calculate_hitbox()
 
-	def calculate_hitbox(self):
+	def calculate_hitbox(self, align_center=False):
 		points_base = self.points
-		# Bounding rect
+		# Calculate bounding rect
 		leftmost, rightmost, topmost, bottommost = 1000, -1000, 1000, -1000
 		for point in points_base:
 			leftmost = min(leftmost, point[0])
@@ -372,17 +376,23 @@ class CustomShape(SelectableObject):
 			topmost = min(topmost, point[1])
 			bottommost = max(bottommost, point[1])
 		width, height = rightmost - leftmost, bottommost - topmost
+
+		# Adjust center
 		basepos = self.pos
 		center = (leftmost + width / 2 + basepos[0], topmost + height / 2 + basepos[1])
-		# Align with center
-		self._dict["m_Pos"]["x"] = center[0]
-		self._dict["m_Pos"]["y"] = center[1]
-		points_base = [(point[0] + basepos[0] - center[0], point[1] + basepos[1] - center[1])
-		               for point in points_base]
-		self.points = points_base
-		leftmost, rightmost = [x + basepos[0] - center[0] for x in (leftmost, rightmost)]
-		topmost, bottommost = [y + basepos[1] - center[1] for y in (topmost, bottommost)]
-		# Hitbox
+		if align_center:
+			self._dict["m_Pos"]["x"] = center[0]
+			self._dict["m_Pos"]["y"] = center[1]
+			points_base = [(point[0] + basepos[0] - center[0], point[1] + basepos[1] - center[1])
+			               for point in points_base]
+			self.points = points_base
+			leftmost, rightmost = [x + basepos[0] - center[0] for x in (leftmost, rightmost)]
+			topmost, bottommost = [y + basepos[1] - center[1] for y in (topmost, bottommost)]
+			self._center_offset = (0, 0)
+		else:
+			self._center_offset = (basepos[0] - center[0], basepos[1] - center[1])
+
+		# Create hitbox bitmap
 		points_hitbox = [(round(HITBOX_RESOLUTION * (point[0] - leftmost)),
 		                  round(-HITBOX_RESOLUTION * (point[1] + topmost)))
 		                 for point in points_base]
@@ -416,8 +426,8 @@ class CustomShape(SelectableObject):
 			pygame.gfxdraw.aacircle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
 			pygame.gfxdraw.filled_circle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
 
-		if self.highlighted:
-			# TODO: Find an antialias solution
+		if self.selected:
+			# TODO: Find an antialiased solution
 			pygame.draw.polygon(display, HIGHLIGHT_COLOR, points_pixels, scale(SHAPE_HIGHLIGHTED_WIDTH, zoom, 60))
 
 		self.point_hitboxes = []
@@ -464,7 +474,7 @@ class CustomShape(SelectableObject):
 
 			# Update hitbox and move center to actual center
 			if True in self.selected_points:
-				self.calculate_hitbox()
+				self.calculate_hitbox(True)
 
 		if args.draw_hitboxes:
 			pygame.draw.rect(display, HITBOX_COLOR, self.bounding_box, 1)
@@ -480,13 +490,13 @@ class CustomShape(SelectableObject):
 		                      -(point[1] / self._last_zoom) - self._last_camera[1] - self.pos[1]))
 		self.points = points
 		self.selected_points = [False for _ in points]
-		self.calculate_hitbox()
+		self.calculate_hitbox(True)
 
 	def del_point(self, index):
 		points = list(self.points)
 		points.pop(index)
 		self.points = points
-		self.calculate_hitbox()
+		self.calculate_hitbox(True)
 
 	@SelectableObject.pos.setter
 	def pos(self, value):
@@ -624,10 +634,7 @@ class CustomShapePoint:
 		pygame.gfxdraw.filled_circle(display, self.pos[0], self.pos[1], radius, color)
 
 	def collidepoint(self, point):
-		if math.sqrt((point[0] - self.pos[0]) ** 2 + (point[1] - self.pos[1]) ** 2) <= self.radius:
-			return True
-		else:
-			return False
+		return math.sqrt((point[0] - self.pos[0]) ** 2 + (point[1] - self.pos[1]) ** 2) <= self.radius
 
 
 class ShapeRenderArgs:
