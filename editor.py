@@ -290,10 +290,12 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 				if event.button == 3:  # right click
 					edit_object_window.close()
-					for obj in reversed(selectable_objects()):
-						if obj.bounding_box.collidepoint(event.pos):
-							if type(obj) is g.CustomShape:
-								if len(obj.points) <= 3: continue
+					# Delete point
+					if draw_points:
+						for obj in reversed(selectable_objects()):
+							if type(obj) is g.CustomShape and obj.bounding_box.collidepoint(event.pos):
+								if len(obj.points) <= 3:
+									continue
 								for i, point in enumerate(obj.point_hitboxes):
 									if point.collidepoint(event.pos):
 										obj.del_point(i)
