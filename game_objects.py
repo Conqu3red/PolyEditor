@@ -424,7 +424,7 @@ class CustomShape(SelectableObject):
 		points_pixels = [(round(zoom * (self.pos[0] + point[0] + camera[0])),
 		                  round(zoom * -(self.pos[1] + point[1] + camera[1])))
 		                 for point in self.points]
-		border_color = tuple(max(0, self.color[i] - 20) for i in range(3))
+		border_color = tuple(self.color[i] * 0.75 for i in range(3))
 		pygame.gfxdraw.filled_polygon(display, points_pixels, self.color)
 		pygame.gfxdraw.aapolygon(display, points_pixels, border_color)
 
@@ -659,7 +659,7 @@ class CustomShapePoint:
 	def render(self, display, color, radius=None):
 		if radius is None:
 			radius = self.radius
-		border_color = tuple(max(0, color[i] - 50) for i in range(3))
+		border_color = tuple(color[i] * 0.75 for i in range(3))
 		pygame.gfxdraw.filled_circle(display, self.pos[0], self.pos[1], radius, color)
 		pygame.gfxdraw.aacircle(display, self.pos[0], self.pos[1], radius, border_color)
 
