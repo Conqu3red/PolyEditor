@@ -74,9 +74,9 @@ def selection(title, msg, items):
 
 def open_menu():
 	controls = "Escape: Menu\nMouse Wheel: Zoom\nLeft Click: Move or pan\nRight Click: Make selection\n" \
-	           "Shift+Click: Multi-select\nE: Edit shape properties\nP: Point editing mode" \
+	           "Shift+Click: Multi-select\nE: Edit shape attributes\nP: Point editing mode" \
 	           "\n └> Shift+Click: Add, Right Click: Delete\n" \
-	           "C: Copy selected\nD: Delete selected\nS: Save changes"
+	           "C: Clone selected\nD: Delete selected\nS: Save changes"
 	frame = sg.Frame(
 		"",
 		[[sg.Button("Back to editor", size=(28, 1), pad=((15, 15), (15, 3)))],
