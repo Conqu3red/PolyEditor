@@ -83,10 +83,10 @@ def open_menu():
 		 [sg.Button("Save", size=(28, 1), pad=(5, 3))],
 		 [sg.Button("Toggle hitboxes", size=(13, 1), pad=(5, 3)),
 		  sg.Button("Color scheme", size=(13, 1), pad=(5, 3))],
-		 [sg.Button("Change level", size=(13, 1), pad=(5, 9)),
-		  sg.Button("Quit", size=(13, 1), pad=(5, 9))],
-		 [sg.Text("Controls", size=(21, 1), justification="center", relief=sg.RELIEF_RIDGE, border_width=4)],
-		 [sg.Text(controls, justification="left", pad=((0, 0), (5, 15)))]],
+		 [sg.Button("Change level", size=(13, 1), pad=(5, 12)),
+		  sg.Button("Quit", size=(13, 1), pad=(5, 12))],
+		 [sg.Text("Controls", size=(27, 1), justification="center", relief=sg.RELIEF_RIDGE, border_width=4)],
+		 [sg.Text(controls, justification="left", pad=((0, 0), (0, 15)))]],
 		**FRAME_OPTIONS
 	)
 	return sg.Window("", [[frame]], return_keyboard_events=True, no_titlebar=True, keep_on_top=True, margins=(0, 0))
