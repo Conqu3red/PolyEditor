@@ -484,7 +484,7 @@ class CustomShape(SelectableObject):
 			center_end = (center_start[0] + center_width, center_start[1])
 			pygame.draw.line(display, HITBOX_COLOR, center_start, center_end, center_width)
 
-	def append_point(self, index, point):
+	def add_point(self, index, point):
 		points = list(self.points)
 		points.insert(index, (point[0] / self._last_zoom - self._last_camera[0] - self.pos[0],
 		                      -(point[1] / self._last_zoom) - self._last_camera[1] - self.pos[1]))
