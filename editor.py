@@ -121,10 +121,6 @@ def main(layout, layoutfile, jsonfile, backupfile):
 	selecting = False
 	moving = False
 	point_moving = False
-	last_zoom = 0
-
-	add_points = False
-	delete_points = False
 	selected_shape = None
 
 	mouse_pos = (0, 0)
@@ -255,7 +251,8 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						continue
 
 					for obj in reversed(selectable_objects()):
-						if type(obj) is g.CustomShape and obj.points_bounding_box.collidepoint(event.pos):
+						# Point editing
+						if draw_points and type(obj) is g.CustomShape and obj.bounding_box.collidepoint(event.pos):
 							clicked_point = [p for p in obj.point_hitboxes if p.collidepoint(event.pos)]
 							if holding_shift() and obj.add_point_hitbox:
 								if obj.add_point_hitbox.collidepoint(event.pos):
@@ -272,7 +269,8 @@ def main(layout, layoutfile, jsonfile, backupfile):
 									o.highlighted = False
 								edit_object_window.close()
 								break
-						if obj.collidepoint(event.pos):  # Dragging and multiselect
+						# Dragging and multiselect
+						if obj.collidepoint(event.pos):
 							if not holding_shift():
 								moving = True
 								dragndrop_pos = true_mouse_pos() if not obj.highlighted else None
@@ -293,7 +291,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 				if event.button == 3:  # right click
 					edit_object_window.close()
 					for obj in reversed(selectable_objects()):
-						if obj.points_bounding_box.collidepoint(event.pos):
+						if obj.bounding_box.collidepoint(event.pos):
 							if type(obj) is g.CustomShape:
 								if len(obj.points) <= 3: continue
 								for i, point in enumerate(obj.point_hitboxes):
@@ -315,7 +313,6 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						zoom = ZOOM_MAX
 					new_pos = true_mouse_pos()
 					camera = [camera[i] + new_pos[i] - old_pos[i] for i in range(2)]
-					last_zoom = 30
 
 				if event.button == 5:  # mousewheel down
 					old_pos = true_mouse_pos()
@@ -327,13 +324,12 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						zoom = ZOOM_MIN
 					new_pos = true_mouse_pos()
 					camera = [camera[i] + new_pos[i] - old_pos[i] for i in range(2)]
-					last_zoom = 30
 
 			elif event.type == pygame.MOUSEBUTTONUP:
 
 				if event.button == 1:  # left click
 					if point_moving:
-						selected_shape.selected_points = []
+						selected_shape.selected_points = [False for _ in selected_shape.selected_points]
 						selected_shape = None
 						point_moving = False
 					if (
@@ -542,10 +538,10 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			terrain.render(display, camera, zoom, fg_color)
 		for water in water_blocks:
 			water.render(display, camera, zoom, fg_color)
-		point_mode = g.PointMode(draw_points, delete_points, add_points, mouse_pos,
-		                         true_mouse_change, holding_shift(), draw_hitboxes)
+		shape_args = g.ShapeRenderArgs(draw_points, mouse_pos,
+		                               true_mouse_change, holding_shift(), draw_hitboxes)
 		for shape in custom_shapes:
-			shape.render(display, camera, zoom, point_mode)
+			shape.render(display, camera, zoom, shape_args)
 		for pillar in pillars:
 			pillar.render(display, camera, zoom)
 		dyn_anc_ids = list(chain(*[shape.dynamic_anchor_ids for shape in custom_shapes]))
@@ -582,7 +578,6 @@ def main(layout, layoutfile, jsonfile, backupfile):
 		# Display buttons
 		menu_button_rect = display.blit(menu_button, (10, size[1] - menu_button.get_size()[1] - 10))
 
-		last_zoom = max(0, last_zoom - 1)
 		pygame.display.flip()
 		if not edit_object_window or moused_over:  # Don't run the clock while other window is focused
 			clock.tick(FPS)
