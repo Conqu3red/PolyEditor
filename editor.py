@@ -454,7 +454,8 @@ def main(layout, layoutfile, jsonfile, backupfile):
 							values[popup.RGB_G] = obj.color[1]
 							values[popup.RGB_B] = obj.color[2]
 							values[popup.FLIP] = obj.flipped
-
+						elif type(obj) is g.Pillar:
+							values[popup.HEIGHT] = obj.height
 						edit_object_window = popup.EditObjectWindow(values, obj)
 					if len(hl_objs) > 1:
 						obj = hl_objs[0]
@@ -494,7 +495,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 				edit_object_window.inputs[popup.POS_X].update(str(hl_objs[0].pos[0]))
 				edit_object_window.inputs[popup.POS_Y].update(str(hl_objs[0].pos[1]))
 
-		# Edit object window
+		# Edit-object window
 		hl_objs = [o for o in selectable_objects() if o.selected]
 		if edit_object_window and len(hl_objs) == 1:
 			obj = hl_objs[0]
@@ -519,6 +520,8 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					obj.flipped = values[popup.FLIP]
 					obj.color = (values[popup.RGB_R], values[popup.RGB_G], values[popup.RGB_B], obj.color[3])
 					obj.calculate_hitbox()
+				elif type(obj) is g.Pillar:
+					obj.height = values[popup.HEIGHT]
 		elif edit_object_window and len(hl_objs) > 1:
 			timeout = 10 if moused_over else None
 			event, values = edit_object_window.read(timeout)
@@ -546,7 +549,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 		for shape in custom_shapes:
 			shape.render(display, camera, zoom, shape_args)
 		for pillar in pillars:
-			pillar.render(display, camera, zoom)
+			pillar.render(display, camera, zoom, draw_hitboxes)
 		dyn_anc_ids = list(chain(*[shape.dynamic_anchor_ids for shape in custom_shapes]))
 		for anchor in anchors:
 			anchor.render(display, camera, zoom, dyn_anc_ids)

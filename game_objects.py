@@ -320,7 +320,7 @@ class Pillar(SelectableObject):
 		super().__init__(dictionary)
 		self.rect = pygame.Rect(0, 0, 0, 0)
 
-	def render(self, display, camera, zoom, none=None):
+	def render(self, display, camera, zoom, draw_hitboxes=False):
 		super().render(display, camera, zoom)
 		self.rect = pygame.Rect(round(zoom * (self.pos[0] - PILLAR_WIDTH / 2 + camera[0])),
 		                        round(zoom * -(self.pos[1] + self.height + camera[1])),
@@ -328,10 +328,17 @@ class Pillar(SelectableObject):
 		                        round(zoom * self.height))
 		pygame.gfxdraw.box(display, self.rect, PILLAR_COLOR)
 		if self.selected:
-			# TODO: Find an anti-aliasing solution
+			# TODO: Find an antialiased solution
 			pygame.draw.rect(display, HIGHLIGHT_COLOR, self.rect, scale(SHAPE_HIGHLIGHTED_WIDTH, zoom, 60))
 		else:
 			pygame.gfxdraw.rectangle(display, self.rect, PILLAR_BORDER)
+		if draw_hitboxes:
+			pygame.draw.rect(display, HITBOX_COLOR, self.rect, 1)
+			center_width = scale(HITBOX_CENTER_WIDTH, zoom)
+			center_start = (round(zoom * (self.pos[0] + camera[0]) - center_width / 2),
+			                round(zoom * -(self.pos[1] + camera[1])))
+			center_end = (center_start[0] + center_width, center_start[1])
+			pygame.draw.line(display, HITBOX_COLOR, center_start, center_end, center_width)
 
 	def collidepoint(self, point):
 		return self.rect.collidepoint(*point)

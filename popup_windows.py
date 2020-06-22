@@ -1,9 +1,9 @@
 import PySimpleGUI as sg
 
 POS_X, POS_Y, POS_Z = "X", "Y", "Z"
-SCALE, ROT = "Scale", "Rot"
-SCALE_X, SCALE_Y, SCALE_Z = SCALE+" X", SCALE+" Y", SCALE+" Z"
-ROT_X, ROT_Y, ROT_Z = ROT+". X", ROT+". Y", ROT+"ation"
+WIDTH, HEIGHT = "Width", "Height"
+SCALE_X, SCALE_Y, SCALE_Z = "Scale X", "Scale Y", "Scale Z"
+ROT_X, ROT_Y, ROT_Z = "Rot. X", "Rot. Y", "Rotation"
 FLIP = "Flip"
 RGB_R, RGB_G, RGB_B = "Red", "Green", "Blue"
 
@@ -151,12 +151,15 @@ class EditObjectWindow:
 				elif key == POS_Z:
 					invalid = not -500.0 <= self.data[key] <= 500.0
 					self.data[key] = max(min(self.data[key], 500.0), -500.0)
-				elif SCALE in key:
+				elif key in (SCALE_X, SCALE_Y, SCALE_Z):
 					invalid = not 0.01 <= self.data[key] <= 10.0
 					self.data[key] = max(min(self.data[key], 10.0), 0.01)
-				elif ROT in key:
+				elif key in (ROT_X, ROT_Y, ROT_Z):
 					invalid = not -180.0 <= self.data[key] <= 180.0
 					self.data[key] = max(min(self.data[key], 180.0), -180.0)
+				elif key in (WIDTH, HEIGHT):
+					invalid = not 0.1 <= self.data[key] <= 100.0
+					self.data[key] = max(min(self.data[key], 100.0), 0.1)
 				elif key in (RGB_R, RGB_G, RGB_B):
 					invalid = not 0 <= self.data[key] <= 255
 					self.data[key] = max(min(self.data[key], 255), 0)
