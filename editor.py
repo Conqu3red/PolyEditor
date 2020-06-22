@@ -234,7 +234,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						popup.notif("No new changes to apply.")
 					else:
 						if "backup" in program.stdout.decode():
-							popup.notif(f"Applied changes to {layoutfile}!", f"(Created backup {backupfile})")
+							popup.notif(f"Applied changes to {layoutfile}!", f"(Copied original to {backupfile})")
 						else:
 							popup.notif(f"Applied changes to {layoutfile}!")
 				elif program.returncode == FILE_ERROR_CODE:  # failed to write file?
@@ -266,22 +266,22 @@ def main(layout, layoutfile, jsonfile, backupfile):
 								obj.selected_points = [p.collidepoint(event.pos) for p in obj.point_hitboxes]
 								selected_shape = obj
 								for o in selectable_objects():
-									o.highlighted = False
+									o.selected = False
 								edit_object_window.close()
 								break
 						# Dragging and multiselect
 						if obj.collidepoint(event.pos):
 							if not holding_shift():
 								moving = True
-								dragndrop_pos = true_mouse_pos() if not obj.highlighted else None
-							if not obj.highlighted:
+								dragndrop_pos = true_mouse_pos() if not obj.selected else None
+							if not obj.selected:
 								if not holding_shift():  # clear other selections
 									for o in selectable_objects():
-										o.highlighted = False
-								obj.highlighted = True
+										o.selected = False
+								obj.selected = True
 								edit_object_window.close()
 							elif holding_shift():
-								obj.highlighted = False
+								obj.selected = False
 								edit_object_window.close()
 					if not (moving or point_moving):
 						panning = True
@@ -337,9 +337,9 @@ def main(layout, layoutfile, jsonfile, backupfile):
 							and ((not panning and dragndrop_pos != true_mouse_pos())
 							     or (panning and dragndrop_pos == true_mouse_pos()))
 					):
-						hl_objs = [o for o in selectable_objects() if o.highlighted]
+						hl_objs = [o for o in selectable_objects() if o.selected]
 						if len(hl_objs) == 1:
-							hl_objs[0].highlighted = False
+							hl_objs[0].selected = False
 					if not panning:
 						edit_object_window.close()
 					panning = False
@@ -390,7 +390,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 				elif event.key == pygame.K_d:
 					# Delete selected
-					for obj in [o for o in selectable_objects() if o.highlighted]:
+					for obj in [o for o in selectable_objects() if o.selected]:
 						if type(obj) is g.CustomShape:
 							for dyn_anc_id in obj.dynamic_anchor_ids:
 								for anchor in [a for a in anchors]:
@@ -400,10 +400,10 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 				elif event.key == pygame.K_c:
 					# Copy Selected
-					for old_obj in [o for o in selectable_objects() if o.highlighted]:
+					for old_obj in [o for o in selectable_objects() if o.selected]:
 						new_obj = type(old_obj)(deepcopy(old_obj.dictionary))
-						old_obj.highlighted = False
-						new_obj.highlighted = True
+						old_obj.selected = False
+						new_obj.selected = True
 						if type(old_obj) is g.CustomShape:
 							new_anchors = []
 							for i in range(len(old_obj.dynamic_anchor_ids)):
@@ -419,16 +419,16 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 				elif event.key == pygame.K_e:
 					# Popup window to edit properties
-					hl_objs = [o for o in selectable_objects() if o.highlighted]
+					hl_objs = [o for o in selectable_objects() if o.selected]
 					if edit_object_window:  # remove previous
 						edit_object_window.close()
 						for obj in hl_objs:
-							obj.highlighted = False
+							obj.selected = False
 						hl_objs.clear()
 					if len(hl_objs) == 0:  # under cursor
 						for obj in reversed(selectable_objects()):
 							if obj.collidepoint(mouse_pos):
-								obj.highlighted = True
+								obj.selected = True
 								hl_objs.append(obj)
 								break
 					if len(hl_objs) == 1:
@@ -460,7 +460,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						edit_object_window = popup.EditObjectWindow(values, obj)
 				# Move selection with keys
 				if move:
-					hl_objs = [o for o in selectable_objects() if o.highlighted]
+					hl_objs = [o for o in selectable_objects() if o.selected]
 					for obj in hl_objs:
 						obj.pos = (obj.pos[0] + move_x, obj.pos[1] + move_y)
 					if len(hl_objs) == 0:
@@ -481,7 +481,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 		# Move selection with mouse
 		if moving:
-			hl_objs = [o for o in selectable_objects() if o.highlighted]
+			hl_objs = [o for o in selectable_objects() if o.selected]
 			for obj in hl_objs:
 				obj.pos = tuple(obj.pos[i] + true_mouse_pos()[i] - old_true_mouse_pos[i] for i in range(2))
 			if edit_object_window and len(hl_objs) == 1 and edit_object_window.obj == hl_objs[0]:
@@ -489,7 +489,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 				edit_object_window.inputs[popup.POS_Y].update(str(hl_objs[0].pos[1]))
 
 		# Edit object window
-		hl_objs = [o for o in selectable_objects() if o.highlighted]
+		hl_objs = [o for o in selectable_objects() if o.selected]
 		if edit_object_window and len(hl_objs) == 1:
 			obj = hl_objs[0]
 			# The current solution to running both the edit window GUI and the pygame GUI is to make the
@@ -556,9 +556,9 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			mask = g.rect_hitbox_mask(rect, zoom)
 			for obj in selectable_objects():
 				if not holding_shift():
-					obj.highlighted = obj.colliderect(rect, mask)
+					obj.selected = obj.colliderect(rect, mask)
 				elif obj.colliderect(rect, mask):  # multiselect
-					obj.highlighted = True
+					obj.selected = True
 
 		# Display mouse position, zoom and fps
 		font = pygame.font.SysFont("Courier", 20)

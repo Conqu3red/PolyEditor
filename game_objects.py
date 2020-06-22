@@ -163,7 +163,7 @@ class SelectableObject(LayoutObject):
 	"""A LayoutObject that can be selected and moved around"""
 	def __init__(self, dictionary):
 		super().__init__(dictionary)
-		self.highlighted = False
+		self.selected = False
 		self._hitbox = None
 		self._last_zoom = 1
 		self._last_camera = (0, 0)
@@ -322,7 +322,7 @@ class Pillar(SelectableObject):
 		                        round(zoom * PILLAR_WIDTH),
 		                        round(zoom * self.height))
 		pygame.gfxdraw.box(display, self.rect, PILLAR_COLOR)
-		if self.highlighted:
+		if self.selected:
 			# TODO: Find an anti-aliasing solution
 			pygame.draw.rect(display, HIGHLIGHT_COLOR, self.rect, scale(SHAPE_HIGHLIGHTED_WIDTH, zoom, 60))
 		else:
