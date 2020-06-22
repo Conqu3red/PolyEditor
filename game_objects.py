@@ -364,7 +364,7 @@ class CustomShape(SelectableObject):
 		self.bounding_box = pygame.Rect(0, 0, 0, 0)
 		self.point_hitboxes = []
 		self.anchors = []
-		self.add_point = None
+		self.add_point_closest = None
 		self.add_point_hitbox = None
 		if anchorsList:
 			for dyn_anc_id in self.dynamic_anchor_ids:
@@ -469,7 +469,7 @@ class CustomShape(SelectableObject):
 					if distance < closest[1]:
 						closest = [_point, distance, ni]
 				if closest[0]:
-					self.add_point = closest
+					self.add_point_closest = closest
 					self.add_point_hitbox = pygame.draw.circle(
 						DUMMY_SURFACE, 0,
 						(round(closest[0][0]), round(closest[0][1])), round(zoom * PIN_RADIUS / 1.7), 0

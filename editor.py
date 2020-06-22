@@ -256,8 +256,8 @@ def main(layout, layoutfile, jsonfile, backupfile):
 							clicked_point = [p for p in obj.point_hitboxes if p.collidepoint(event.pos)]
 							if holding_shift() and obj.add_point_hitbox:
 								if obj.add_point_hitbox.collidepoint(event.pos):
-									obj.add_point(obj.add_point[2], obj.add_point[0])
-									obj.selected_points.insert(obj.add_point[2], True)
+									obj.add_point(obj.add_point_closest[2], obj.add_point_closest[0])
+									obj.selected_points.insert(obj.add_point_closest[2], True)
 									point_moving = True
 									selected_shape = obj
 									break
