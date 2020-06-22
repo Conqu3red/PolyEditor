@@ -252,18 +252,18 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 					for obj in reversed(selectable_objects()):
 						# Point editing
-						if draw_points and type(obj) is g.CustomShape and obj.bounding_box.collidepoint(event.pos):
-							clicked_point = [p for p in obj.point_hitboxes if p.collidepoint(event.pos)]
+						if draw_points and type(obj) is g.CustomShape and obj.bounding_box.collidepoint(*event.pos):
+							clicked_point = [p.collidepoint(event.pos) for p in obj.point_hitboxes]
 							if holding_shift() and obj.add_point_hitbox:
 								if obj.add_point_hitbox.collidepoint(event.pos):
 									obj.add_point(obj.add_point_closest[2], obj.add_point_closest[0])
-									obj.selected_points.insert(obj.add_point_closest[2], True)
+									obj.selected_point_index = obj.add_point_closest[2]
 									point_moving = True
 									selected_shape = obj
 									break
-							elif clicked_point:
+							elif True in clicked_point:
 								point_moving = True
-								obj.selected_points = [p.collidepoint(event.pos) for p in obj.point_hitboxes]
+								obj.selected_point_index = clicked_point.index(True)
 								selected_shape = obj
 								for o in selectable_objects():
 									o.selected = False
@@ -294,7 +294,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					deleted_point = False
 					if draw_points:
 						for obj in reversed(selectable_objects()):
-							if type(obj) is g.CustomShape and obj.bounding_box.collidepoint(event.pos):
+							if type(obj) is g.CustomShape and obj.bounding_box.collidepoint(*event.pos):
 								if len(obj.points) <= 3:
 									continue
 								for i, point in enumerate(obj.point_hitboxes):
@@ -335,7 +335,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 				if event.button == 1:  # left click
 					if point_moving:
-						selected_shape.selected_points = [False for _ in selected_shape.selected_points]
+						selected_shape.selected_point_index = None
 						selected_shape = None
 						point_moving = False
 					if (
@@ -548,6 +548,13 @@ def main(layout, layoutfile, jsonfile, backupfile):
 		                               true_mouse_change, holding_shift(), draw_hitboxes)
 		for shape in custom_shapes:
 			shape.render(display, camera, zoom, shape_args)
+			# Also finds the topmost point so we can render it highlighted in the next loop
+		for shape in custom_shapes:
+			shape.render_points(display, camera, zoom, shape_args)
+		if shape_args.top_point is not None:
+			color = g.HIGHLIGHT_COLOR if shape_args.selected_point is not None else g.POINT_COLOR
+			shape_args.top_point.render(display, color, round(zoom * g.POINT_SELECTED_RADIUS))
+
 		for pillar in pillars:
 			pillar.render(display, camera, zoom, draw_hitboxes)
 		dyn_anc_ids = list(chain(*[shape.dynamic_anchor_ids for shape in custom_shapes]))
