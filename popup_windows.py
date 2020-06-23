@@ -1,4 +1,6 @@
 import PySimpleGUI as sg
+import game_objects as g
+from typing import *
 
 POS_X, POS_Y, POS_Z = "X", "Y", "Z"
 WIDTH, HEIGHT = "Width", "Height"
@@ -28,31 +30,36 @@ NOTIF_OPTIONS = {
 }
 
 
-def info(title, *msg):
+def info(title: str, *msg) -> Optional[str]:
+	"""Opens a window and returns when the user closes it or presses Ok"""
 	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(5, 1), pad=PAD)]]
 	window = sg.Window(title, layout, element_justification='center')
 	return window.read(close=True)[0]
 
 
-def notif(*msg):
+def notif(*msg: Any) -> str:
+	"""Opens a borderless window and returns when the user presses Ok"""
 	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(5, 1), pad=PAD)]]
 	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS)
 	return window.read(close=True)[0]
 
 
-def yes_no(*msg):
+def yes_no(*msg: Any) -> str:
+	"""Opens a borderless window and returns whether the user pressed Yes or No"""
 	layout = [[sg.Text(m)] for m in msg] + [[sg.Yes(size=(5, 1), pad=PAD), sg.No(size=(5, 1), pad=PAD)]]
 	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS)
 	return window.read(close=True)[0]
 
 
-def ok_cancel(*msg):
+def ok_cancel(*msg: Any) -> str:
+	"""Opens a borderless window and returns whether the user pressed Ok or Cancel"""
 	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(5, 1), pad=PAD), sg.Cancel(size=(8, 1), pad=PAD)]]
 	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS)
 	return window.read(close=True)[0]
 
 
-def selection(title, msg, items):
+def selection(title: str, msg: Any, items: List[str]) -> Optional[str]:
+	"""Opens a window where the user can select an item from a list, then closes and returns the selection"""
 	listbox = sg.Listbox(values=items, size=(60, 10), pad=(0, 5), bind_return_key=True, default_values=[items[0]])
 	layout = [[sg.Text(msg)], [listbox], [sg.Ok(size=(5, 1))]]
 	window = sg.Window(title, layout, element_justification='left', return_keyboard_events=True)
@@ -72,7 +79,8 @@ def selection(title, msg, items):
 			listbox.set_value([items[index % len(items)]])
 
 
-def open_menu():
+def open_menu() -> sg.Window:
+	"""Returns a new opened window with the layout of the game's menu"""
 	controls = "Escape: Menu\nMouse Wheel: Zoom\nLeft Click: Move or pan\nRight Click: Make selection\n" \
 	           "Shift+Click: Multi-select\nE: Edit shape attributes\nP: Point editing mode" \
 	           "\n └> Shift+Click: Add, Right Click: Delete\n" \
@@ -93,7 +101,8 @@ def open_menu():
 
 
 class EditObjectWindow:
-	def __init__(self, data, obj):
+	"""A dedicated window where the user can alter various attributes of a selectable object"""
+	def __init__(self, data: Optional[Dict[str, Any]], obj: Optional[g.SelectableObject]):
 		if data is None:
 			self._window = None
 			self.data = None
@@ -121,7 +130,8 @@ class EditObjectWindow:
 	def __bool__(self):
 		return self._window is not None and not self._window.TKrootDestroyed
 
-	def read(self, timeout=None):
+	def read(self, timeout: Optional[int] = None) -> Tuple[str, Dict[str, Any]]:
+		"""Returns the event name and a validated list of values when an event occurs"""
 		if not self.__bool__(): raise ValueError("The window was destroyed")
 
 		event, raw_values = self._window.read(timeout)

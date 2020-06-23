@@ -9,10 +9,10 @@ import json
 import traceback
 import ctypes
 import PySimpleGUI as sg
+from operator import add, sub
 from uuid import uuid4
 from copy import deepcopy
 from itertools import chain
-from operator import add, sub
 from os import getcwd, listdir
 from os.path import isfile, join as pathjoin, getmtime as lastmodified
 from subprocess import run
@@ -88,7 +88,7 @@ def load_level():
 		if program.returncode != SUCCESS_CODE:
 			outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
 			popup.info("Error", f"There was a problem converting {layoutfile} to json:",
-			           "\n".join([o for o in outputs if len(o) > 0]),)
+			           "\n".join([o for o in outputs if len(o) > 0]))
 			return
 
 	with open(jsonfile) as openfile:
@@ -108,7 +108,6 @@ def load_level():
 
 
 def main(layout, layoutfile, jsonfile, backupfile):
-
 	moused_over = True
 	size = BASE_SIZE
 	zoom = 20
@@ -137,14 +136,14 @@ def main(layout, layoutfile, jsonfile, backupfile):
 	custom_shapes = g.LayoutList(g.CustomShape, layout)
 	pillars = g.LayoutList(g.Pillar, layout)
 	anchors = g.LayoutList(g.Anchor, layout)
-	object_lists = {objs.list_name: objs for objs in
-	                [terrain_stretches, water_blocks, custom_shapes, pillars, anchors]}
+	objects = {li.cls: li for li in (terrain_stretches, water_blocks, custom_shapes, pillars, anchors)}
 
 	selectable_objects = lambda: tuple(chain(custom_shapes, pillars))
 	holding_shift = lambda: pygame.key.get_mods() & pygame.KMOD_SHIFT
 	true_mouse_pos = lambda: (mouse_pos[0] / zoom - camera[0], -mouse_pos[1] / zoom - camera[1])
 
 	display = pygame.display.set_mode(size, pygame.RESIZABLE)
+	g.DUMMY_SURFACE = pygame.Surface(size, pygame.SRCALPHA, 32)
 	pygame.display.set_caption("PolyEditor")
 	if ICON is not None:
 		pygame.display.set_icon(pygame.image.load(ICON))
@@ -299,11 +298,10 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					if draw_points:
 						for obj in reversed(selectable_objects()):
 							if type(obj) is g.CustomShape and obj.bounding_box.collidepoint(*event.pos):
-								if len(obj.points) <= 3:
-									continue
 								for i, point in enumerate(obj.point_hitboxes):
 									if point.collidepoint(event.pos):
-										obj.del_point(i)
+										if len(obj.points) > 3:
+											obj.del_point(i)
 										deleted_point = True
 										break
 								if deleted_point:
@@ -350,8 +348,6 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						hl_objs = [o for o in selectable_objects() if o.selected]
 						if len(hl_objs) == 1:
 							hl_objs[0].selected = False
-					if not panning:
-						edit_object_window.close()
 					panning = False
 					moving = False
 
@@ -406,7 +402,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 								for anchor in [a for a in anchors]:
 									if anchor.id == dyn_anc_id:
 										anchors.remove(anchor)
-						object_lists[obj.list_name].remove(obj)
+						objects[type(obj)].remove(obj)
 
 				elif event.key == pygame.K_c:
 					# Copy Selected
@@ -425,7 +421,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 							new_obj.dynamic_anchor_ids = [a.id for a in new_anchors]
 							new_obj.anchors = new_anchors
 						new_obj.pos = (new_obj.pos[0] + 1, new_obj.pos[1] - 1)
-						object_lists[new_obj.list_name].append(new_obj)
+						objects[type(new_obj)].append(new_obj)
 
 				elif event.key == pygame.K_e:
 					# Popup window to edit properties
@@ -509,7 +505,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			# The popup window will also be non-blocking when your mouse is not over the popup window,
 			#  but that currently carries the old tkinter problem where most key inputs are missed/ignored
 			#  as long as the window remains non-blocking.
-			timeout = 10 if moused_over else None
+			timeout = 10 if moused_over else 10000
 			event, values = edit_object_window.read(timeout)
 			if event == sg.WIN_CLOSED or event == "Exit":
 				edit_object_window.close()
@@ -522,7 +518,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					obj.scale = (values[popup.SCALE_X], values[popup.SCALE_Y], values[popup.SCALE_Z])
 					obj.rotations = (values[popup.ROT_X], values[popup.ROT_Y], values[popup.ROT_Z])
 					obj.flipped = values[popup.FLIP]
-					obj.color = (values[popup.RGB_R], values[popup.RGB_G], values[popup.RGB_B], obj.color[3])
+					obj.color = (values[popup.RGB_R], values[popup.RGB_G], values[popup.RGB_B])
 					obj.calculate_hitbox()
 				elif type(obj) is g.Pillar:
 					obj.height = values[popup.HEIGHT]
@@ -536,23 +532,21 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			else:
 				for obj in hl_objs:
 					if type(obj) is g.CustomShape:
-						obj.color = (values[popup.RGB_R], values[popup.RGB_G], values[popup.RGB_B], obj.color[3])
+						obj.color = (values[popup.RGB_R], values[popup.RGB_G], values[popup.RGB_B])
 		else:
 			edit_object_window.close()
-		
+
 		true_mouse_change = tuple(map(sub, true_mouse_pos(), old_true_mouse_pos))
 		old_true_mouse_pos = true_mouse_pos()
-		
+
 		# Render Objects
 		for terrain in terrain_stretches:
 			terrain.render(display, camera, zoom, fg_color)
 		for water in water_blocks:
 			water.render(display, camera, zoom, fg_color)
-		shape_args = g.ShapeRenderArgs(draw_points, mouse_pos,
-		                               true_mouse_change, holding_shift(), draw_hitboxes)
+		shape_args = g.ShapeRenderArgs(draw_points, mouse_pos, true_mouse_change, holding_shift(), draw_hitboxes)
 		for shape in custom_shapes:
 			shape.render(display, camera, zoom, shape_args)
-			# Also finds the topmost point so we can render it highlighted in the next loop
 		for shape in custom_shapes:
 			shape.render_points(display, camera, zoom, shape_args)
 		if shape_args.top_point is not None:
@@ -655,7 +649,8 @@ if __name__ == "__main__":
 						           "Then run PolyEditor again.")
 						sys.exit()
 				else:
-					popup.info("Error", "Unexpected converter error:", "\n".join([o for o in test_outputs if len(o) > 0]))
+					popup.info("Error", "Unexpected converter error:",
+					           "\n".join([o for o in test_outputs if len(o) > 0]))
 					sys.exit()
 
 		# Meta loop
