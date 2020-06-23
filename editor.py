@@ -552,7 +552,6 @@ def main(layout, layoutfile, jsonfile, backupfile):
 		if shape_args.top_point is not None:
 			color = g.HIGHLIGHT_COLOR if shape_args.selected_point is not None else g.POINT_COLOR
 			shape_args.top_point.render(display, color, round(zoom * g.POINT_SELECTED_RADIUS))
-
 		for pillar in pillars:
 			pillar.render(display, camera, zoom, draw_hitboxes)
 		dyn_anc_ids = list(chain(*[shape.dynamic_anchor_ids for shape in custom_shapes]))
