@@ -61,7 +61,7 @@ GAMEPATH_ERROR_CODE = 4
 def load_level():
 	currentdir = getcwd()
 	filelist = [f for f in listdir(currentdir) if isfile(pathjoin(currentdir, f))]
-	levellist = [match.group(1) for match in [FILE_REGEX.match(f) for f in filelist] if match]
+	levellist = [match.group(1) for f in filelist if (match := FILE_REGEX.match(f))]
 	levellist = list(dict.fromkeys(levellist))  # remove duplicates
 
 	if len(levellist) == 0:
@@ -131,12 +131,13 @@ def main(layout, layoutfile, jsonfile, backupfile):
 	bg_color_2 = BACKGROUND_BLUE_GRID
 	fg_color = WHITE
 
-	terrain_stretches = g.LayoutList(g.TerrainStretch, layout)
-	water_blocks = g.LayoutList(g.WaterBlock, layout)
-	custom_shapes = g.LayoutList(g.CustomShape, layout)
-	pillars = g.LayoutList(g.Pillar, layout)
-	anchors = g.LayoutList(g.Anchor, layout)
-	objects = {li.cls: li for li in (terrain_stretches, water_blocks, custom_shapes, pillars, anchors)}
+	objects = {li.cls: li for li in [
+		terrain_stretches := g.LayoutList(g.TerrainStretch, layout),
+		water_blocks := g.LayoutList(g.WaterBlock, layout),
+		custom_shapes := g.LayoutList(g.CustomShape, layout),
+		pillars := g.LayoutList(g.Pillar, layout),
+		anchors := g.LayoutList(g.Anchor, layout)
+	]}
 
 	selectable_objects = lambda: tuple(chain(custom_shapes, pillars))
 	holding_shift = lambda: pygame.key.get_mods() & pygame.KMOD_SHIFT
@@ -512,8 +513,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			elif event == "Leave" or event == sg.TIMEOUT_KEY:
 				pass
 			else:
-				x, y, z = values[popup.POS_X], values[popup.POS_Y], values[popup.POS_Z]
-				obj.pos = (x, y, z)
+				obj.pos = (values[popup.POS_X], values[popup.POS_Y], values[popup.POS_Z])
 				if type(obj) is g.CustomShape:
 					obj.scale = (values[popup.SCALE_X], values[popup.SCALE_Y], values[popup.SCALE_Z])
 					obj.rotations = (values[popup.ROT_X], values[popup.ROT_Y], values[popup.ROT_Z])
