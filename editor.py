@@ -250,43 +250,47 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						pygame.event.post(pygame.event.Event(MENU_EVENT, {"clicked": True}))
 						continue
 
-					for obj in reversed(selectable_objects()):
+					if draw_points:
 						# Point editing
-						if draw_points and type(obj) is g.CustomShape and obj.bounding_box.collidepoint(*event.pos):
-							clicked_point = [p.collidepoint(event.pos) for p in obj.point_hitboxes]
-							if holding_shift() and obj.add_point_hitbox:
-								if obj.add_point_hitbox.collidepoint(event.pos):
-									obj.add_point(obj.add_point_closest[2], obj.add_point_closest[0])
-									obj.selected_point_index = obj.add_point_closest[2]
+						for obj in reversed(selectable_objects()):
+							if draw_points and type(obj) is g.CustomShape and obj.bounding_box.collidepoint(*event.pos):
+								clicked_point = [p.collidepoint(event.pos) for p in obj.point_hitboxes]
+								if holding_shift() and obj.add_point_hitbox:
+									if obj.add_point_hitbox.collidepoint(event.pos):
+										obj.add_point(obj.add_point_closest[2], obj.add_point_closest[0])
+										obj.selected_point_index = obj.add_point_closest[2]
+										point_moving = True
+										selected_shape = obj
+										break
+								elif True in clicked_point:
 									point_moving = True
+									obj.selected_point_index = clicked_point.index(True)
 									selected_shape = obj
-									break
-							elif True in clicked_point:
-								point_moving = True
-								obj.selected_point_index = clicked_point.index(True)
-								selected_shape = obj
-								for o in selectable_objects():
-									o.selected = False
-								edit_object_window.close()
-								break
-						# Dragging and multiselect
-						if obj.collidepoint(event.pos):
-							if not holding_shift():
-								moving = True
-								dragndrop_pos = true_mouse_pos() if not obj.selected else None
-							if not obj.selected:
-								if not holding_shift():  # clear other selections
 									for o in selectable_objects():
 										o.selected = False
-								obj.selected = True
-								edit_object_window.close()
-							elif holding_shift():
-								obj.selected = False
-								edit_object_window.close()
-					if not (moving or point_moving):
-						panning = True
-						dragndrop_pos = true_mouse_pos()
-					old_mouse_pos = event.pos
+									edit_object_window.close()
+									break
+					if not point_moving:
+						# Dragging and multiselect
+						for obj in reversed(selectable_objects()):
+							if obj.collidepoint(event.pos):
+								if not holding_shift():
+									moving = True
+									dragndrop_pos = true_mouse_pos() if not obj.selected else None
+								if not obj.selected:
+									if not holding_shift():  # clear other selections
+										for o in selectable_objects():
+											o.selected = False
+									obj.selected = True
+									edit_object_window.close()
+								elif holding_shift():
+									obj.selected = False
+									edit_object_window.close()
+								break
+						if not (moving or point_moving):
+							panning = True
+							dragndrop_pos = true_mouse_pos()
+						old_mouse_pos = event.pos
 
 				if event.button == 3:  # right click
 					edit_object_window.close()
