@@ -643,16 +643,16 @@ if __name__ == "__main__":
 					test_filelist = [f for f in listdir(test_dir) if isfile(pathjoin(test_dir, f))]
 					test_found = False
 					for file in test_filelist:
-						if re.compile(r"^PolyConverter(.+)?\.exe$").match(file):
+						if re.compile(r"PolyConverter(.+)?\.exe$").match(file):
 							POLYCONVERTER = file
 							test_found = True
 							break
 					if not test_found:
 						popup.info("Problem",
 						           "It appears you don't have .NET installed.",
-						           "Please download 'PolyConverter including NET.exe' from "
+						           "Please download the optional converter executable (which includes .NET) from "
 						           "https://github.com/JbCoder/PolyEditor/releases and place it in this same folder. "
-						           "Then run this program again.")
+						           "Then run PolyEditor again.")
 						sys.exit()
 				else:
 					popup.info("Error", "Unexpected converter error:", "\n".join([o for o in test_outputs if len(o) > 0]))
