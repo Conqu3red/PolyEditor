@@ -196,17 +196,17 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 					if len(hl_objs) == 1:
 						obj = hl_objs[0]
 						obj.pos = Vector(values[popup.POS_X], values[popup.POS_Y], values[popup.POS_Z])
-						if type(obj) is g.CustomShape:
+						if isinstance(obj, g.CustomShape):
 							obj.scale = Vector(values[popup.SCALE_X], values[popup.SCALE_Y], values[popup.SCALE_Z])
 							obj.rotations = Vector(values[popup.ROT_X], values[popup.ROT_Y], values[popup.ROT_Z])
 							obj.color = Vector(values[popup.RGB_R], values[popup.RGB_G], values[popup.RGB_B])
 							obj.flipped = values[popup.FLIP]
 							obj.calculate_hitbox()
-						elif type(obj) is g.Pillar:
+						elif isinstance(obj, g.Pillar):
 							obj.height = values[popup.HEIGHT]
 					else:  # Multiple objects
 						for obj in hl_objs:
-							if type(obj) is g.CustomShape:
+							if isinstance(obj, g.CustomShape):
 								obj.color = (values[popup.RGB_R], values[popup.RGB_G], values[popup.RGB_B])
 
 			elif paused:
@@ -301,8 +301,8 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 
 					if draw_points:
 						# Point editing
-						for obj in reversed(selectable_objects()):
-							if draw_points and type(obj) is g.CustomShape and obj.bounding_box.collidepoint(*pyevent.pos):
+						for obj in reversed(custom_shapes):
+							if draw_points and obj.bounding_box.collidepoint(*pyevent.pos):
 								clicked_point = [p.collidepoint(pyevent.pos) for p in obj.point_hitboxes]
 								if holding_shift() and obj.add_point_hitbox:
 									if obj.add_point_hitbox.collidepoint(pyevent.pos):
@@ -346,8 +346,8 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 					# Delete point
 					deleted_point = False
 					if draw_points:
-						for obj in reversed(selectable_objects()):
-							if type(obj) is g.CustomShape and obj.bounding_box.collidepoint(*pyevent.pos):
+						for obj in reversed(custom_shapes):
+							if obj.bounding_box.collidepoint(*pyevent.pos):
 								for i, point in enumerate(obj.point_hitboxes):
 									if point.collidepoint(pyevent.pos):
 										if len(obj.points) > 3:
