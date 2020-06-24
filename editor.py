@@ -753,21 +753,21 @@ def main():
 				gc.collect()
 
 			# Popup Notification
-			elif event is popup.notif:
-				popup_window = popup.notif(*event_args, read=False)
-				close_popup = False
-				while not close_popup:
+			elif event in (popup.info, popup.notif, popup.yes_no, popup.ok_cancel):
+				popup_window = event(*event_args, read=False)
+				popup_result = None
+				while not popup_result:
 					try:
 						popup_event, popup_args = editor_events.get(False)
 						if popup_event == DONE:
-							close_popup = True
+							popup_result = True
 						elif popup_event == CLOSE_PROGRAM:
-							close_popup, close_editor, close_program = True, True, True
+							popup_result, close_editor, close_program = True, True, True
 					except Empty:
 						window_event, _ = popup_window.read(10)
-						if window_event in ("Ok", "Escape:27"):
-							close_popup = True
-				editor_events.put(DONE)
+						if window_event in ("Ok", "Cancel", "Yes", "No", "Escape:27"):
+							popup_result = window_event
+				editor_events.put(DONE, popup_result)
 				popup_window.close()
 				popup_window.layout = None
 				# noinspection PyUnusedLocal
