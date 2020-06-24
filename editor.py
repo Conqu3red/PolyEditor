@@ -9,6 +9,8 @@ import json
 import traceback
 import ctypes
 import PySimpleGUI as sg
+from threading import Thread
+from queue import Queue, Empty
 from uuid import uuid4
 from copy import deepcopy
 from itertools import chain
@@ -27,8 +29,14 @@ FPS = 60
 ZOOM_MULT = 1.1
 ZOOM_MIN = 4
 ZOOM_MAX = 400
-MENU_EVENT = pygame.USEREVENT + 1
+OPEN_MENU_EVENT = pygame.USEREVENT + 1
 SAVE_EVENT = pygame.USEREVENT + 2
+# Program events
+DONE = "done"
+CLOSE_PROGRAM = "close"
+CLOSE_EDITOR = "close"
+RESTART_PROGRAM = "restart"
+MAIN_MENU = "mainmenu"
 # Colors
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -107,12 +115,13 @@ def load_level():
 	return layout, layoutfile, jsonfile, backupfile
 
 
-def main(layout, layoutfile, jsonfile, backupfile):
+def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_put: Queue, main_get: Queue):
 	zoom = 20
 	size = Vector(BASE_SIZE)
 	camera = Vector(size.x / zoom / 2, -(size.y / zoom / 2 + 5))
 	clock = pygame.time.Clock()
 	edit_object_window = popup.EditObjectWindow(None, None)
+	input_locked = False
 	draw_points = False
 	draw_hitboxes = False
 	panning = False
@@ -120,6 +129,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 	moving = False
 	point_moving = False
 	moused_over = True
+	resized_window = False
 	selected_shape = None
 
 	mouse_pos = Vector(0, 0)
@@ -161,67 +171,69 @@ def main(layout, layoutfile, jsonfile, backupfile):
 	# Pygame loop
 	while True:
 
-		# Listen for actions
-		for event in pygame.event.get():
+		# Process events
+		try:
+			event = main_get.get(False)
+		except Empty:
+			event = None
 
-			if event.type == pygame.QUIT:
+		if event == CLOSE_EDITOR:
+			return
+		elif input_locked:
+			if event == DONE:
+				input_locked = False
+			if event == "Back to editor" or event == "Escape:27":
+				main_put.put(DONE)
+				input_locked = False
+			elif event == "Save":
+				pygame.event.post(pygame.event.Event(SAVE_EVENT, {}))
+				main_put.put(DONE)
+				input_locked = False
+			elif event == "Toggle hitboxes":
+				draw_hitboxes = not draw_hitboxes
+				main_put.put(DONE)
+				input_locked = False
+			elif event == "Color scheme":
+				if bg_color == BACKGROUND_GRAY:
+					bg_color = BACKGROUND_BLUE
+					bg_color_2 = BACKGROUND_BLUE_GRID
+					fg_color = WHITE
+				else:
+					bg_color = BACKGROUND_GRAY
+					bg_color_2 = BACKGROUND_GRAY_GRID
+					fg_color = BLACK
+				main_put.put(DONE)
+				input_locked = False
+			elif event == "Change level":
+				main_put.put(RESTART_PROGRAM)
+			elif event == "Quit":
+				main_put.put(CLOSE_PROGRAM)
+			sleep(0.01)
+
+		# Proccess pygame events
+		for pyevent in pygame.event.get():
+
+			if pyevent.type == pygame.QUIT:
 				edit_object_window.close()
-				if popup.yes_no("Quit and lose any unsaved changes?") == "Yes":
-					pygame.quit()
-					sys.exit()
+				main_put.put(CLOSE_PROGRAM)
 
-			elif event.type == pygame.ACTIVEEVENT:
-				if event.state == 1:
-					moused_over = event.gain == 1
-				if event.state == 6:  # minimized
-					if edit_object_window and not event.gain:
+			elif pyevent.type == pygame.ACTIVEEVENT:
+				if pyevent.state == 1:
+					moused_over = pyevent.gain == 1
+				if pyevent.state == 6:  # minimized
+					if edit_object_window and not pyevent.gain:
 						edit_object_window._window.minimize()
 
-			elif event.type == pygame.VIDEORESIZE:
-				size = Vector(event.size)
+			elif pyevent.type == pygame.VIDEORESIZE:
+				size = Vector(pyevent.size)
 				display = pygame.display.set_mode(size, pygame.RESIZABLE)
 				g.DUMMY_SURFACE = pygame.Surface(size, pygame.SRCALPHA, 32)
+				resized_window = True
 
-			elif event.type == MENU_EVENT:
-				edit_object_window.close()
+			if input_locked:
+				continue
 
-				menu_window = popup.open_menu()
-				if not event.clicked:
-					menu_window.read()  # Ignore escape key released event
-
-				while True:
-					action, _ = menu_window.read()
-					pygame.event.clear()
-					if action == "Back to editor" or action == "Escape:27":
-						break
-					if action == "Save":
-						pygame.event.post(pygame.event.Event(SAVE_EVENT, {}))
-						break
-					elif action == "Toggle hitboxes":
-						draw_hitboxes = not draw_hitboxes
-						break
-					elif action == "Color scheme":
-						if bg_color == BACKGROUND_GRAY:
-							bg_color = BACKGROUND_BLUE
-							bg_color_2 = BACKGROUND_BLUE_GRID
-							fg_color = WHITE
-						else:
-							bg_color = BACKGROUND_GRAY
-							bg_color_2 = BACKGROUND_GRAY_GRID
-							fg_color = BLACK
-						break
-					if action == "Change level":
-						if popup.ok_cancel("You will lose any unsaved changes.") == "Ok":
-							menu_window.close()
-							pygame.quit()
-							return
-					elif action == "Quit":
-						if popup.yes_no("Quit and lose any unsaved changes?") == "Yes":
-							pygame.quit()
-							sys.exit()
-				menu_window.close()
-
-			elif event.type == SAVE_EVENT:
+			elif pyevent.type == SAVE_EVENT:
 				edit_object_window.close()
 				jsonstr = json.dumps(layout, indent=2)
 				jsonstr = re.sub(r"(\r\n|\r|\n)( ){6,}", r" ", jsonstr)  # limit depth to 3 levels
@@ -245,19 +257,21 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					popup.notif(f"Unexpected error while trying to save:",
 					            "\n".join([o for o in outputs if len(o) > 0]))
 
-			elif event.type == pygame.MOUSEBUTTONDOWN:
-				if event.button == 1:  # left click
-					if menu_button_rect.collidepoint(event.pos):
-						pygame.event.post(pygame.event.Event(MENU_EVENT, {"clicked": True}))
+			elif pyevent.type == pygame.MOUSEBUTTONDOWN:
+				if pyevent.button == 1:  # left click
+					if menu_button_rect.collidepoint(pyevent.pos):
+						edit_object_window.close()
+						main_put.put(MAIN_MENU)
+						input_locked = True
 						continue
 
 					if draw_points:
 						# Point editing
 						for obj in reversed(selectable_objects()):
-							if draw_points and type(obj) is g.CustomShape and obj.bounding_box.collidepoint(*event.pos):
-								clicked_point = [p.collidepoint(event.pos) for p in obj.point_hitboxes]
+							if draw_points and type(obj) is g.CustomShape and obj.bounding_box.collidepoint(*pyevent.pos):
+								clicked_point = [p.collidepoint(pyevent.pos) for p in obj.point_hitboxes]
 								if holding_shift() and obj.add_point_hitbox:
-									if obj.add_point_hitbox.collidepoint(event.pos):
+									if obj.add_point_hitbox.collidepoint(pyevent.pos):
 										obj.add_point(obj.add_point_closest[2], obj.add_point_closest[0])
 										obj.selected_point_index = obj.add_point_closest[2]
 										point_moving = True
@@ -274,7 +288,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					if not point_moving:
 						# Dragging and multiselect
 						for obj in reversed(selectable_objects()):
-							if obj.collidepoint(event.pos):
+							if obj.collidepoint(pyevent.pos):
 								if not holding_shift():
 									moving = True
 									dragndrop_pos = true_mouse_pos() if not obj.selected else Vector()
@@ -291,17 +305,17 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						if not (moving or point_moving):
 							panning = True
 							dragndrop_pos = true_mouse_pos()
-						old_mouse_pos = Vector(event.pos)
+						old_mouse_pos = Vector(pyevent.pos)
 
-				if event.button == 3:  # right click
+				if pyevent.button == 3:  # right click
 					edit_object_window.close()
 					# Delete point
 					deleted_point = False
 					if draw_points:
 						for obj in reversed(selectable_objects()):
-							if type(obj) is g.CustomShape and obj.bounding_box.collidepoint(*event.pos):
+							if type(obj) is g.CustomShape and obj.bounding_box.collidepoint(*pyevent.pos):
 								for i, point in enumerate(obj.point_hitboxes):
-									if point.collidepoint(event.pos):
+									if point.collidepoint(pyevent.pos):
 										if len(obj.points) > 3:
 											obj.del_point(i)
 										deleted_point = True
@@ -310,10 +324,10 @@ def main(layout, layoutfile, jsonfile, backupfile):
 									break
 					if not deleted_point:
 						if not point_moving or moving or holding_shift():
-							selecting_pos = Vector(event.pos)
+							selecting_pos = Vector(pyevent.pos)
 							selecting = True
 
-				if event.button == 4:  # mousewheel up
+				if pyevent.button == 4:  # mousewheel up
 					zoom_old_pos = true_mouse_pos()
 					if not holding_shift() and round(zoom * (ZOOM_MULT - 1)) >= 1:
 						zoom = round(zoom * ZOOM_MULT)
@@ -323,7 +337,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					zoom_new_pos = true_mouse_pos()
 					camera += zoom_new_pos - zoom_old_pos
 
-				if event.button == 5:  # mousewheel down
+				if pyevent.button == 5:  # mousewheel down
 					zoom_old_pos = true_mouse_pos()
 					if not holding_shift() and round(zoom / (ZOOM_MULT - 1)) >= 1:
 						zoom = round(zoom / ZOOM_MULT)
@@ -333,9 +347,9 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					zoom_new_pos = true_mouse_pos()
 					camera += zoom_new_pos - zoom_old_pos
 
-			elif event.type == pygame.MOUSEBUTTONUP:
+			elif pyevent.type == pygame.MOUSEBUTTONUP:
 
-				if event.button == 1:  # left click
+				if pyevent.button == 1:  # left click
 					if point_moving:
 						selected_shape.selected_point_index = None
 						selected_shape = None
@@ -351,49 +365,52 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					panning = False
 					moving = False
 
-				if event.button == 3:  # right click
+				if pyevent.button == 3:  # right click
 					selecting = False
 					edit_object_window.close()
 
-			elif event.type == pygame.MOUSEMOTION:
-				mouse_pos = Vector(event.pos)
+			elif pyevent.type == pygame.MOUSEMOTION:
+				mouse_pos = Vector(pyevent.pos)
 				if panning:
 					camera += (mouse_pos - old_mouse_pos).flip_y() / zoom
 					old_mouse_pos = mouse_pos
 
-			elif event.type == pygame.KEYDOWN:
+			elif pyevent.type == pygame.KEYDOWN:
 				move_x, move_y = 0, 0
 				move = False
 
-				if event.key == pygame.K_ESCAPE:
-					pygame.event.post(pygame.event.Event(MENU_EVENT, {"clicked": False}))
+				if pyevent.key == pygame.K_ESCAPE:
+					edit_object_window.close()
+					main_put.put(MAIN_MENU)
+					input_locked = True
+					continue
 
-				elif event.key == pygame.K_LEFT:
+				elif pyevent.key == pygame.K_LEFT:
 					move_x = -1
 					move = True
 
-				elif event.key == pygame.K_RIGHT:
+				elif pyevent.key == pygame.K_RIGHT:
 					move_x = 1
 					move = True
 
-				elif event.key == pygame.K_UP:
+				elif pyevent.key == pygame.K_UP:
 					move_y = 1
 					move = True
 
-				elif event.key == pygame.K_DOWN:
+				elif pyevent.key == pygame.K_DOWN:
 					move_y = -1
 					move = True
 
-				elif event.key == pygame.K_s:
+				elif pyevent.key == pygame.K_s:
 					pygame.event.post(pygame.event.Event(SAVE_EVENT, {}))
 
-				elif event.key == pygame.K_p:
+				elif pyevent.key == pygame.K_p:
 					draw_points = not draw_points
 
-				elif event.key == pygame.K_h:
+				elif pyevent.key == pygame.K_h:
 					draw_hitboxes = not draw_hitboxes
 
-				elif event.key == pygame.K_d:
+				elif pyevent.key == pygame.K_d:
 					# Delete selected
 					for obj in [o for o in selectable_objects() if o.selected]:
 						if type(obj) is g.CustomShape:
@@ -403,7 +420,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 										anchors.remove(anchor)
 						objects[type(obj)].remove(obj)
 
-				elif event.key == pygame.K_c:
+				elif pyevent.key == pygame.K_c:
 					# Copy Selected
 					for old_obj in [o for o in selectable_objects() if o.selected]:
 						new_obj = type(old_obj)(deepcopy(old_obj.dictionary))
@@ -422,7 +439,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						new_obj.pos += (1, -1)
 						objects[type(new_obj)].append(new_obj)
 
-				elif event.key == pygame.K_e:
+				elif pyevent.key == pygame.K_e:
 					# Popup window to edit properties
 					hl_objs = [o for o in selectable_objects() if o.selected]
 					if edit_object_window:  # remove previous
@@ -476,6 +493,9 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						edit_object_window.inputs[popup.POS_X].update(str(hl_objs[0].pos.x))
 						edit_object_window.inputs[popup.POS_Y].update(str(hl_objs[0].pos.y))
 
+		if input_locked and not resized_window:
+			continue
+
 		# Render background
 		display.fill(bg_color)
 		block_size = zoom
@@ -506,10 +526,10 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			#  but that currently carries the old tkinter problem where most key inputs are missed/ignored
 			#  as long as the window remains non-blocking.
 			timeout = 10 if moused_over else 10000
-			event, values = edit_object_window.read(timeout)
-			if event == sg.WIN_CLOSED or event == "Exit":
+			pyevent, values = edit_object_window.read(timeout)
+			if pyevent == sg.WIN_CLOSED or pyevent == "Exit":
 				edit_object_window.close()
-			elif event == "Leave" or event == sg.TIMEOUT_KEY:
+			elif pyevent == "Leave" or pyevent == sg.TIMEOUT_KEY:
 				pass
 			else:
 				obj.pos = Vector(values[popup.POS_X], values[popup.POS_Y], values[popup.POS_Z])
@@ -523,10 +543,10 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					obj.height = values[popup.HEIGHT]
 		elif edit_object_window and len(hl_objs) > 1:
 			timeout = 10 if moused_over else None
-			event, values = edit_object_window.read(timeout)
-			if event == sg.WIN_CLOSED or event == "Exit":
+			pyevent, values = edit_object_window.read(timeout)
+			if pyevent == sg.WIN_CLOSED or pyevent == "Exit":
 				edit_object_window.close()
-			elif event == "Leave" or event == sg.TIMEOUT_KEY:
+			elif pyevent == "Leave" or pyevent == sg.TIMEOUT_KEY:
 				pass
 			else:
 				for obj in hl_objs:
@@ -589,75 +609,128 @@ def main(layout, layoutfile, jsonfile, backupfile):
 		# Display buttons
 		menu_button_rect = display.blit(menu_button, (10, size.y - menu_button.get_size()[1] - 10))
 
+		resized_window = False
 		pygame.display.flip()
 		if not edit_object_window or moused_over:  # Don't run the clock while other window is focused
 			clock.tick(FPS)
 
 
+def main():
+	global POLYCONVERTER
+	# PySimpleGUI
+	sg.LOOK_AND_FEEL_TABLE["PolyEditor"] = {
+		"BACKGROUND": "#1F2E3F",
+		"TEXT": "#FFFFFF",
+		"INPUT": "#2B4668",
+		"TEXT_INPUT": "#FFFFFF",
+		"SCROLL": "#2B4668",
+		"BUTTON": ("#FFFFFF", "#2B4668"),
+		"PROGRESS": ("#01826B", "#D0D0D0"),
+		"BORDER": 1,
+		"SLIDER_DEPTH": 0,
+		"PROGRESS_DEPTH": 0
+	}
+	sg.theme("PolyEditor")
+	sg.set_global_icon(ICON)
+
+	# Hide console at runtime. We enable it with PyInstaller so that the user knows it's doing something.
+	if TEMP_FILES:
+		print("Finished loading!")
+		sleep(0.5)
+		kernel32 = ctypes.WinDLL("kernel32")
+		user32 = ctypes.WinDLL("user32")
+		user32.ShowWindow(kernel32.GetConsoleWindow(), 0)
+
+	# Ensure the converter is working
+	lap = 0
+	while True:
+		lap += 1
+		test_program = run(f"{POLYCONVERTER} test", capture_output=True)
+		if test_program.returncode == GAMEPATH_ERROR_CODE:  # game install not found
+			popup.info("Problem", test_program.stdout.decode().strip())
+			sys.exit()
+		elif test_program.returncode == FILE_ERROR_CODE:  # as "test" is not a valid file
+			break  # All OK
+		else:
+			test_outputs = [test_program.stdout.decode().strip(), test_program.stderr.decode().strip()]
+			if lap == 1 and "dotnet" in test_outputs[1]:  # .NET not installed
+				test_dir = getcwd()
+				test_filelist = [f for f in listdir(test_dir) if isfile(pathjoin(test_dir, f))]
+				test_found = False
+				for file in test_filelist:
+					if re.compile(r"PolyConverter(.+)?\.exe$").match(file):
+						POLYCONVERTER = file
+						test_found = True
+						break
+				if not test_found:
+					popup.info("Problem",
+					           "It appears you don't have .NET installed.",
+					           "Please download the optional converter executable (which includes .NET) from "
+					           "https://github.com/JbCoder/PolyEditor/releases and place it in this same folder. "
+					           "Then run PolyEditor again.")
+					sys.exit()
+			else:
+				popup.info("Error", "Unexpected converter error:",
+				           "\n".join([o for o in test_outputs if len(o) > 0]))
+				sys.exit()
+
+	# Main loop
+	while True:
+
+		editor_args = load_level()
+		if not editor_args:
+			continue
+
+		editor_get, editor_put = Queue(), Queue()
+		pygame_thread = Thread(target=editor, args=editor_args + (editor_get, editor_put), daemon=True)
+		pygame_thread.start()
+		editor_closed = False
+		while not editor_closed:
+			event = editor_get.get(True)
+			if event == MAIN_MENU:
+				menu_window = popup.open_menu()
+				menu_window.read()
+				while True:
+					try:
+						event = editor_get.get(False)
+					except Empty:
+						window_event, _ = menu_window.read(10)
+						if window_event != sg.TIMEOUT_KEY:
+							editor_put.put(window_event)
+					else:
+						if event == RESTART_PROGRAM:
+							if popup.ok_cancel("You will lose any unsaved changes.") == "Ok":
+								editor_put.put(CLOSE_EDITOR)
+								menu_window.close()
+								editor_closed = True
+								break
+						elif event == CLOSE_PROGRAM:
+							if popup.yes_no("Quit and lose any unsaved changes?") == "Yes":
+								editor_put.put(CLOSE_EDITOR)
+								menu_window.close()
+								pygame.quit()
+								sys.exit()
+						elif event == DONE:
+							menu_window.close()
+							break
+			elif event == RESTART_PROGRAM:
+				if popup.ok_cancel("You will lose any unsaved changes.") == "Ok":
+					editor_put.put(CLOSE_EDITOR)
+					editor_closed = True
+			elif event == CLOSE_PROGRAM:
+				if popup.yes_no("Quit and lose any unsaved changes?") == "Yes":
+					editor_put.put(CLOSE_EDITOR)
+					pygame.quit()
+					sys.exit()
+			else:
+				func, *args = event
+				func(*args)
+				editor_put.put(DONE)
+
+
 if __name__ == "__main__":
 	try:
-		# PySimpleGUI
-		sg.LOOK_AND_FEEL_TABLE["PolyEditor"] = {
-			"BACKGROUND": "#1F2E3F",
-			"TEXT": "#FFFFFF",
-			"INPUT": "#2B4668",
-			"TEXT_INPUT": "#FFFFFF",
-			"SCROLL": "#2B4668",
-			"BUTTON": ("#FFFFFF", "#2B4668"),
-			"PROGRESS": ("#01826B", "#D0D0D0"),
-			"BORDER": 1,
-			"SLIDER_DEPTH": 0,
-			"PROGRESS_DEPTH": 0
-		}
-		sg.theme("PolyEditor")
-		sg.set_global_icon(ICON)
-
-		# Hide console at runtime. We enable it with PyInstaller so that the user knows it's doing something.
-		if TEMP_FILES:
-			print("Finished loading!")
-			sleep(0.5)
-			kernel32 = ctypes.WinDLL("kernel32")
-			user32 = ctypes.WinDLL("user32")
-			user32.ShowWindow(kernel32.GetConsoleWindow(), 0)
-
-		# Ensure the converter is working
-		lap = 0
-		while True:
-			lap += 1
-			test_program = run(f"{POLYCONVERTER} test", capture_output=True)
-			if test_program.returncode == GAMEPATH_ERROR_CODE:  # game install not found
-				popup.info("Problem", test_program.stdout.decode().strip())
-				sys.exit()
-			elif test_program.returncode == FILE_ERROR_CODE:  # as "test" is not a valid file
-				break  # All OK
-			else:
-				test_outputs = [test_program.stdout.decode().strip(), test_program.stderr.decode().strip()]
-				if lap == 1 and "dotnet" in test_outputs[1]:  # .NET not installed
-					test_dir = getcwd()
-					test_filelist = [f for f in listdir(test_dir) if isfile(pathjoin(test_dir, f))]
-					test_found = False
-					for file in test_filelist:
-						if re.compile(r"PolyConverter(.+)?\.exe$").match(file):
-							POLYCONVERTER = file
-							test_found = True
-							break
-					if not test_found:
-						popup.info("Problem",
-						           "It appears you don't have .NET installed.",
-						           "Please download the optional converter executable (which includes .NET) from "
-						           "https://github.com/JbCoder/PolyEditor/releases and place it in this same folder. "
-						           "Then run PolyEditor again.")
-						sys.exit()
-				else:
-					popup.info("Error", "Unexpected converter error:",
-					           "\n".join([o for o in test_outputs if len(o) > 0]))
-					sys.exit()
-
-		# Meta loop
-		while True:
-			if args := load_level():
-				main(*args)
-
+		main()
 	except Exception as e:
 		if TEMP_FILES:
 			popup.info("Error", "An unexpected error occurred while running PolyEditor:", traceback.format_exc())

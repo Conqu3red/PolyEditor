@@ -14,9 +14,10 @@ def is_dict(value):
 
 
 class Vector(Tuple[Number, ...]):
+	"""A tuple with useful element-wise operations as well as point operations"""
+
 	_keys = ("x", "y", "z", "w")
 
-	"""A tuple with useful element-wise operations and point operations"""
 	def __new__(cls, *values: Union[Number, Dict[Any, Number], Iterable[Number]]) -> 'Vector':
 		"""Create a new vector from a series of values or an iterable"""
 		if len(values) > 0 and is_iterable(values[0]):
