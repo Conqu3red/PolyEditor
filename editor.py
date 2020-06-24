@@ -190,7 +190,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					menu_window.read()  # Ignore escape key released event
 
 				while True:
-					action = menu_window.read()[0]
+					action, _ = menu_window.read()
 					pygame.event.clear()
 					if action == "Back to editor" or action == "Escape:27":
 						break
@@ -419,7 +419,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 							anchors.extend(new_anchors)
 							new_obj.dynamic_anchor_ids = [a.id for a in new_anchors]
 							new_obj.anchors = new_anchors
-						new_obj.pos = (new_obj.pos[0] + 1, new_obj.pos[1] - 1)
+						new_obj.pos += (1, -1)
 						objects[type(new_obj)].append(new_obj)
 
 				elif event.key == pygame.K_e:
@@ -438,17 +438,17 @@ def main(layout, layoutfile, jsonfile, backupfile):
 								break
 					if len(hl_objs) == 1:
 						obj = hl_objs[0]
-						values = {popup.POS_X: obj.pos[0],
-						          popup.POS_Y: obj.pos[1],
-						          popup.POS_Z: obj.pos[2]}
+						values = {popup.POS_X: obj.pos.x,
+						          popup.POS_Y: obj.pos.y,
+						          popup.POS_Z: obj.pos.z}
 						if type(obj) is g.CustomShape:
 							rot = obj.rotations
-							values[popup.SCALE_X] = obj.scale[0]
-							values[popup.SCALE_Y] = obj.scale[1]
-							values[popup.SCALE_Z] = obj.scale[2]
-							values[popup.ROT_Z] = rot[2]  # Z first
-							values[popup.ROT_X] = rot[0]
-							values[popup.ROT_Y] = rot[1]
+							values[popup.SCALE_X] = obj.scale.x
+							values[popup.SCALE_Y] = obj.scale.y
+							values[popup.SCALE_Z] = obj.scale.z
+							values[popup.ROT_Z] = rot.z  # Z first
+							values[popup.ROT_X] = rot.x
+							values[popup.ROT_Y] = rot.y
 							values[popup.RGB_R] = obj.color[0]
 							values[popup.RGB_G] = obj.color[1]
 							values[popup.RGB_B] = obj.color[2]
@@ -457,13 +457,14 @@ def main(layout, layoutfile, jsonfile, backupfile):
 							values[popup.HEIGHT] = obj.height
 						edit_object_window = popup.EditObjectWindow(values, obj)
 					if len(hl_objs) > 1:
-						obj = hl_objs[0]
 						values = {}
-						if type(obj) is g.CustomShape:
-							values[popup.RGB_R] = obj.color[0]
-							values[popup.RGB_G] = obj.color[1]
-							values[popup.RGB_B] = obj.color[2]
-						edit_object_window = popup.EditObjectWindow(values, obj)
+						for i in range(len(hl_objs)):
+							if type(hl_objs[i]) is g.CustomShape:
+								values[popup.RGB_R] = hl_objs[i].color[0]
+								values[popup.RGB_G] = hl_objs[i].color[1]
+								values[popup.RGB_B] = hl_objs[i].color[2]
+								edit_object_window = popup.EditObjectWindow(values, hl_objs[i])
+								break
 				# Move selection with keys
 				if move:
 					hl_objs = [o for o in selectable_objects() if o.selected]
@@ -472,8 +473,8 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					if len(hl_objs) == 0:
 						camera -= (move_x, move_y)
 					elif edit_object_window and len(hl_objs) == 1 and edit_object_window.obj == hl_objs[0]:
-						edit_object_window.inputs[popup.POS_X].update(str(hl_objs[0].pos[0]))
-						edit_object_window.inputs[popup.POS_Y].update(str(hl_objs[0].pos[1]))
+						edit_object_window.inputs[popup.POS_X].update(str(hl_objs[0].pos.x))
+						edit_object_window.inputs[popup.POS_Y].update(str(hl_objs[0].pos.y))
 
 		# Render background
 		display.fill(bg_color)
@@ -491,8 +492,8 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			for obj in hl_objs:
 				obj.pos += true_mouse_pos() - old_true_mouse_pos
 			if edit_object_window and len(hl_objs) == 1 and edit_object_window.obj == hl_objs[0]:
-				edit_object_window.inputs[popup.POS_X].update(str(hl_objs[0].pos[0]))
-				edit_object_window.inputs[popup.POS_Y].update(str(hl_objs[0].pos[1]))
+				edit_object_window.inputs[popup.POS_X].update(str(hl_objs[0].pos.x))
+				edit_object_window.inputs[popup.POS_Y].update(str(hl_objs[0].pos.y))
 
 		# Edit-object window
 		hl_objs = [o for o in selectable_objects() if o.selected]
@@ -558,10 +559,10 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 		# Selecting shapes
 		if selecting:
-			rect = (min(selecting_pos[0], mouse_pos[0]),
-			        min(selecting_pos[1], mouse_pos[1]),
-			        abs(mouse_pos[0] - selecting_pos[0]),
-			        abs(mouse_pos[1] - selecting_pos[1]))
+			rect = (min(selecting_pos.x, mouse_pos.x),
+			        min(selecting_pos.y, mouse_pos.y),
+			        abs(mouse_pos.x - selecting_pos.x),
+			        abs(mouse_pos.y - selecting_pos.y))
 			pygame.draw.rect(display, g.SELECT_COLOR, rect, 1)
 			mask = g.rect_hitbox_mask(rect, zoom)
 			for obj in selectable_objects():

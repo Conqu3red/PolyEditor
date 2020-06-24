@@ -158,8 +158,8 @@ class Anchor(LayoutObject):
 			if self.id == dyn_anc_id:
 				color = DYNAMIC_ANCHOR_COLOR
 				break
-		rect = (round(zoom * (self.pos[0] + camera[0] - ANCHOR_RADIUS)),
-		        round(zoom * -(self.pos[1] + camera[1] + ANCHOR_RADIUS)),
+		rect = (round(zoom * (self.pos.x + camera.x - ANCHOR_RADIUS)),
+		        round(zoom * -(self.pos.y + camera.y + ANCHOR_RADIUS)),
 		        round(zoom * ANCHOR_RADIUS * 2),
 		        round(zoom * ANCHOR_RADIUS * 2))
 		pygame.draw.rect(display, color, rect)
@@ -181,10 +181,10 @@ class TerrainStretch(LayoutObject):
 
 	def render(self, display: Surface, camera: Vector, zoom: int, color=WHITE):
 		if self.width == TERRAIN_MAIN_WIDTH:  # main terrain
-			x = zoom * (self.pos[0] - (0 if self.flipped else self.width) + camera[0])
+			x = zoom * (self.pos.x - (0 if self.flipped else self.width) + camera.x)
 		else:
-			x = zoom * (self.pos[0] - self.width / 2 * (-1 if self.flipped else 1) + camera[0])
-		rect = (round(x), round(zoom * -(self.height + camera[1])), round(zoom * self.width), round(zoom * self.height))
+			x = zoom * (self.pos.x - self.width / 2 * (-1 if self.flipped else 1) + camera.y)
+		rect = (round(x), round(zoom * -(self.height + camera.y)), round(zoom * self.width), round(zoom * self.height))
 		pygame.draw.rect(display, color, rect, scale(TERRAIN_BORDER_WIDTH, zoom))
 
 	@property
@@ -200,7 +200,7 @@ class TerrainStretch(LayoutObject):
 
 	@property
 	def height(self) -> float:
-		return TERRAIN_BASE_HEIGHT + self.pos[1]
+		return TERRAIN_BASE_HEIGHT + self.pos.y
 
 
 class WaterBlock(LayoutObject):
@@ -210,8 +210,8 @@ class WaterBlock(LayoutObject):
 		super().__init__(dictionary)
 
 	def render(self, display: Surface, camera: Vector, zoom: int, color=WHITE):
-		start = (zoom * (self.pos[0] - self.width/2 + camera[0]), zoom * -(self.height + camera[1]))
-		end = (zoom * (self.pos[0] + self.width/2 + camera[0]), zoom * -(self.height + camera[1]))
+		start = Vector(zoom * (self.pos.x - self.width / 2 + camera.x), zoom * -(self.height + camera.y))
+		end = start + (self.width, 0)
 		pygame.draw.line(display, color, start, end, scale(WATER_EDGE_WIDTH, zoom))
 
 	@property
@@ -238,8 +238,8 @@ class Pillar(SelectableObject):
 
 	def render(self, display: Surface, camera: Vector, zoom: int, draw_hitboxes=False):
 		super().render(display, camera, zoom)
-		self.rect = Rect(round(zoom * (self.pos[0] - PILLAR_WIDTH / 2 + camera[0])),
-		                 round(zoom * -(self.pos[1] + self.height + camera[1])),
+		self.rect = Rect(round(zoom * (self.pos.x - PILLAR_WIDTH / 2 + camera.x)),
+		                 round(zoom * -(self.pos.y + self.height + camera.y)),
 		                 round(zoom * PILLAR_WIDTH),
 		                 round(zoom * self.height))
 		pygame.gfxdraw.box(display, self.rect, PILLAR_COLOR)
@@ -251,9 +251,8 @@ class Pillar(SelectableObject):
 		if draw_hitboxes:
 			pygame.draw.rect(display, HITBOX_COLOR, self.rect, 1)
 			center_width = scale(HITBOX_CENTER_WIDTH, zoom)
-			center_start = (round(zoom * (self.pos[0] + camera[0]) - center_width / 2),
-			                round(zoom * -(self.pos[1] + camera[1])))
-			center_end = (center_start[0] + center_width, center_start[1])
+			center_start = (zoom * (self.pos + camera)).flip_y() - (center_width / 2, 0)
+			center_end = center_start + (center_width, 0)
 			pygame.draw.line(display, HITBOX_COLOR, center_start, center_end, center_width)
 
 	def collidepoint(self, point):
@@ -306,28 +305,27 @@ class CustomShape(SelectableObject):
 		# Calculate bounding rect
 		leftmost, rightmost, topmost, bottommost = 1000, -1000, 1000, -1000
 		for point in points_base:
-			leftmost = min(leftmost, point[0])
-			rightmost = max(rightmost, point[0])
-			topmost = min(topmost, point[1])
-			bottommost = max(bottommost, point[1])
+			leftmost = min(leftmost, point.x)
+			rightmost = max(rightmost, point.x)
+			topmost = min(topmost, point.y)
+			bottommost = max(bottommost, point.y)
 		width, height = rightmost - leftmost, bottommost - topmost
 
 		# Adjust center
-		basepos = self.pos
-		center = Vector(leftmost + width / 2 + basepos[0], topmost + height / 2 + basepos[1])
+		basepos = self.pos[:2]
+		center = Vector(leftmost + width / 2 + basepos.x, topmost + height / 2 + basepos.y)
 		if align_center:
 			center.to_dict(self._dict["m_Pos"])
 			self.points = (points_base := [point + basepos - center for point in points_base])
-			leftmost, rightmost = [x + basepos[0] - center[0] for x in (leftmost, rightmost)]
-			topmost, bottommost = [y + basepos[1] - center[1] for y in (topmost, bottommost)]
+			leftmost, rightmost = [x + basepos.x - center.x for x in (leftmost, rightmost)]
+			topmost, bottommost = [y + basepos.y - center.y for y in (topmost, bottommost)]
 			self._center_offset = (0, 0)
 		else:
-			self._center_offset = (basepos[0] - center[0], basepos[1] - center[1])
+			self._center_offset = basepos - center
 
 		# Create hitbox bitmap
-		points_hitbox = [(round(HITBOX_RESOLUTION * (point[0] - leftmost)),
-		                  round(-HITBOX_RESOLUTION * (point[1] + topmost)))
-		                 for point in points_base]
+		offset = (- leftmost, topmost)
+		points_hitbox = [(HITBOX_RESOLUTION * (point + offset).flip_y()).round() for point in points_base]
 		surface = Surface((HITBOX_RESOLUTION * width + 1, HITBOX_RESOLUTION * height + 1), pygame.SRCALPHA, 32)
 		pygame.draw.polygon(surface, BLACK, points_hitbox)
 		self._hitbox = mask_from_surface(surface)
@@ -343,9 +341,9 @@ class CustomShape(SelectableObject):
 		pygame.gfxdraw.aapolygon(display, points_pixels, border_color)
 
 		for pin in self.static_pins:
-			rect = [round(zoom * (pin["x"] + camera[0])), round(zoom * -(pin["y"] + camera[1]))]
-			pygame.gfxdraw.aacircle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
-			pygame.gfxdraw.filled_circle(display, rect[0], rect[1], round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
+			p = (zoom * (Vector(pin) + camera).flip_y()).round()
+			pygame.gfxdraw.aacircle(display, p.x, p.y, round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
+			pygame.gfxdraw.filled_circle(display, p.x, p.y, round(zoom * PIN_RADIUS), STATIC_PIN_COLOR)
 
 		if self.selected:
 			# We don't know how to make it antialiased
@@ -375,9 +373,8 @@ class CustomShape(SelectableObject):
 		if args.draw_hitboxes:
 			pygame.draw.rect(display, HITBOX_COLOR, self.bounding_box, 1)
 			center_width = scale(HITBOX_CENTER_WIDTH, zoom)
-			center_start = (round(zoom * (self.pos[0] + camera[0]) - center_width / 2),
-			                round(zoom * -(self.pos[1] + camera[1])))
-			center_end = (center_start[0] + center_width, center_start[1])
+			center_start = (zoom * (self.pos + camera)).flip_y() - (center_width / 2, 0)
+			center_end = center_start + (center_width, 0)
 			pygame.draw.line(display, HITBOX_COLOR, center_start, center_end, center_width)
 
 	def render_points(self, display: Surface, camera: Vector, zoom: int, args: ShapeRenderArgs):
@@ -407,20 +404,20 @@ class CustomShape(SelectableObject):
 			closest: ClosestPoint = (Vector(), zoom / 7, -1)
 			for i in range(len(points)):
 				ni = 0 if i + 1 == len(points) else i + 1
-				_point = args.mouse_pos.closest_point(points_pixels[i], points_pixels[ni])
-				if not _point:
+				point = args.mouse_pos.closest_point(points_pixels[i], points_pixels[ni])
+				if not point:
 					continue
-				distance = math.sqrt((_point[0] - args.mouse_pos[0]) ** 2 + (_point[1] - args.mouse_pos[1]) ** 2)
+				distance = math.sqrt((point.x - args.mouse_pos.x) ** 2 + (point.y - args.mouse_pos.y) ** 2)
 				if distance < closest[1]:
-					closest = (_point.round(), distance, ni)
+					closest = (point.round(), distance, ni)
 			if closest[0]:
 				self.add_point_closest = closest
 				self.add_point_hitbox = pygame.draw.circle(
 					DUMMY_SURFACE, 0, (closest[0].round()), round(zoom * PIN_RADIUS / 1.7), 0)
 				pygame.gfxdraw.aacircle(
-					display, closest[0][0], closest[0][1], round(zoom * PIN_RADIUS / 1.7), ADD_POINT_COLOR)
+					display, closest[0].x, closest[0].y, round(zoom * PIN_RADIUS / 1.7), ADD_POINT_COLOR)
 				pygame.gfxdraw.filled_circle(
-					display, closest[0][0], closest[0][1], round(zoom * PIN_RADIUS / 1.7), ADD_POINT_COLOR)
+					display, closest[0].x, closest[0].y, round(zoom * PIN_RADIUS / 1.7), ADD_POINT_COLOR)
 		# Update hitbox and move center to actual center
 		if self.selected_point_index is not None:
 			self.calculate_hitbox(True)
@@ -495,8 +492,8 @@ class CustomShape(SelectableObject):
 	def scale(self, value: Vector):
 		old_scale = self.scale
 		value.to_dict(self._dict["m_Scale"])
-		change = (value[0] / old_scale[0], value[1] / old_scale[1])
-		if abs(change[0] - 1) > 0.000001 or abs(change[1] - 1) > 0.000001:
+		change = (value / old_scale)[:2]
+		if abs(change.x - 1) > 0.000001 or abs(change.y - 1) > 0.000001:
 			basepos, rot = self.pos[:2], self.rotation
 			for pin in self.static_pins:
 				((Vector(pin).rotate(-rot, basepos) - basepos) * change + basepos).rotate(rot, basepos).to_dict(pin)
@@ -550,8 +547,9 @@ class CustomShapePoint:
 		if radius is None:
 			radius = self.radius
 		border_color = tuple(color[i] * 0.75 for i in range(3))
-		pygame.gfxdraw.filled_circle(display, self.pos[0], self.pos[1], radius, color)
-		pygame.gfxdraw.aacircle(display, self.pos[0], self.pos[1], radius, border_color)
+		pygame.gfxdraw.filled_circle(display, self.pos.x, self.pos.y, radius, color)
+		pygame.gfxdraw.aacircle(display, self.pos.x, self.pos.y, radius, border_color)
 
-	def collidepoint(self, point):
-		return math.sqrt((point[0] - self.pos[0]) ** 2 + (point[1] - self.pos[1]) ** 2) <= self.radius
+	def collidepoint(self, point: Sequence[Number]):
+		point = Vector(point)
+		return math.sqrt((point.x - self.pos.x) ** 2 + (point.y - self.pos.y) ** 2) <= self.radius
