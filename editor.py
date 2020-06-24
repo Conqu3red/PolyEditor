@@ -7,10 +7,10 @@ import pygame
 import re
 import json
 import traceback
-import ctypes
 import PySimpleGUI as sg
 from os import getcwd, listdir
 from os.path import isfile, join as pathjoin, getmtime as lastmodified
+from ctypes import WinDLL
 from uuid import uuid4
 from copy import deepcopy
 from time import sleep
@@ -66,6 +66,13 @@ JSON_ERROR_CODE = 1
 CONVERSION_ERROR_CODE = 2
 FILE_ERROR_CODE = 3
 GAMEPATH_ERROR_CODE = 4
+
+try:
+	kernel32 = WinDLL("kernel32")
+	user32 = WinDLL("user32")
+except Exception:
+	kernel32 = None
+	user32 = None
 
 
 def load_level():
@@ -162,6 +169,9 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 	if ICON is not None:
 		pygame.display.set_icon(pygame.image.load(ICON))
 	pygame.init()
+
+	if user32 is not None:  # Maximize
+		user32.ShowWindow(user32.GetForegroundWindow(), 3)
 
 	menu_button_font = pygame.font.SysFont("Courier", 20, True)
 	menu_button = pygame.Surface(Vector(menu_button_font.size("Menu")) + (10, 6))
@@ -640,9 +650,8 @@ def main():
 	if TEMP_FILES:
 		print("Finished loading!")
 		sleep(0.5)
-		kernel32 = ctypes.WinDLL("kernel32")
-		user32 = ctypes.WinDLL("user32")
-		user32.ShowWindow(kernel32.GetConsoleWindow(), 0)
+		if user32 is not None:
+			user32.ShowWindow(kernel32.GetConsoleWindow(), 0)
 
 	# Ensure the converter is working
 	lap = 0
