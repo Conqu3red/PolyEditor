@@ -122,8 +122,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 	size = Vector(BASE_SIZE)
 	camera = Vector(size.x / zoom / 2, -(size.y / zoom / 2 + 5))
 	clock = pygame.time.Clock()
-	object_editing_window = popup.EditObjectWindow(None, None)
-	editor_events.put(OPEN_OBJ_EDIT, window=object_editing_window)
+	object_being_edited = None
 	selected_shape = None
 	paused = False
 	resized_window = False
@@ -185,8 +184,9 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 				editor_events.put(DONE)
 				return
 
-			elif object_editing_window:
+			elif object_being_edited:
 				if event == "Exit":
+					object_being_edited = None
 					editor_events.put(CLOSE_OBJ_EDIT)
 				else:
 					values = event.values
@@ -245,6 +245,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 
 			elif pyevent.type == pygame.ACTIVEEVENT:
 				if pyevent.state == 6 and not pyevent.gain:  # Minimized
+					object_being_edited = None
 					editor_events.put(CLOSE_OBJ_EDIT)
 					editor_events.put(DONE)
 
@@ -315,6 +316,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 									selected_shape = obj
 									for o in selectable_objects():
 										o.selected = False
+									object_being_edited = None
 									editor_events.put(CLOSE_OBJ_EDIT)
 									break
 					if not point_moving:
@@ -329,9 +331,11 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 										for o in selectable_objects():
 											o.selected = False
 									obj.selected = True
+									object_being_edited = None
 									editor_events.put(CLOSE_OBJ_EDIT)
 								elif holding_shift():
 									obj.selected = False
+									object_being_edited = None
 									editor_events.put(CLOSE_OBJ_EDIT)
 								break
 						if not (moving or point_moving):
@@ -340,6 +344,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 						old_mouse_pos = Vector(pyevent.pos)
 
 				if pyevent.button == 3:  # right click
+					object_being_edited = None
 					editor_events.put(CLOSE_OBJ_EDIT)
 					# Delete point
 					deleted_point = False
@@ -394,6 +399,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 						hl_objs = [o for o in selectable_objects() if o.selected]
 						for obj in hl_objs:
 							obj.selected = False
+						object_being_edited = None
 						editor_events.put(CLOSE_OBJ_EDIT)
 
 					panning = False
@@ -480,10 +486,11 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 								obj.selected = True
 								hl_objs.append(obj)
 								break
-					if object_editing_window:  # clear previous
+					if object_being_edited:  # clear previous
 						for obj in hl_objs:
 							obj.selected = False
 						hl_objs.clear()
+						object_being_edited = None
 						editor_events.put(CLOSE_OBJ_EDIT)
 					elif len(hl_objs) == 1:
 						obj = hl_objs[0]
@@ -504,8 +511,8 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 							values[popup.FLIP] = obj.flipped
 						elif isinstance(obj, lay.Pillar):
 							values[popup.HEIGHT] = obj.height
-						object_editing_window = popup.EditObjectWindow(values, obj)
-						editor_events.put(OPEN_OBJ_EDIT, window=object_editing_window)
+						object_being_edited = obj
+						editor_events.put(OPEN_OBJ_EDIT, values=values)
 					elif len(hl_objs) > 1:
 						values = {}
 						for i in range(len(hl_objs)):
@@ -513,8 +520,8 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 								values[popup.RGB_R] = hl_objs[i].color[0]
 								values[popup.RGB_G] = hl_objs[i].color[1]
 								values[popup.RGB_B] = hl_objs[i].color[2]
-								object_editing_window = popup.EditObjectWindow(values, hl_objs[i])
-								editor_events.put(OPEN_OBJ_EDIT, window=object_editing_window)
+								object_being_edited = hl_objs[i]
+								editor_events.put(OPEN_OBJ_EDIT, values=values)
 								break
 				# Move selection with keys
 				if move:
@@ -523,7 +530,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 						obj.pos += (move_x, move_y)
 					if len(hl_objs) == 0:
 						camera -= (move_x, move_y)
-					elif object_editing_window and len(hl_objs) == 1 and object_editing_window.obj == hl_objs[0]:
+					elif object_being_edited and len(hl_objs) == 1 and object_being_edited == hl_objs[0]:
 						editor_events.put(UPDATE_OBJ_EDIT,
 						                  values={popup.POS_X: hl_objs[0].pos.x, popup.POS_Y: hl_objs[0].pos.y})
 
@@ -547,7 +554,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 			hl_objs = [o for o in selectable_objects() if o.selected]
 			for obj in hl_objs:
 				obj.pos += true_mouse_pos() - old_true_mouse_pos
-			if object_editing_window and len(hl_objs) == 1 and object_editing_window.obj == hl_objs[0]:
+			if object_being_edited and len(hl_objs) == 1 and object_being_edited == hl_objs[0]:
 				editor_events.put(UPDATE_OBJ_EDIT,
 				                  values={popup.POS_X: hl_objs[0].pos.x, popup.POS_Y: hl_objs[0].pos.y})
 
@@ -682,7 +689,7 @@ def main():
 		pygame_thread = Thread(target=editor, args=editor_args + (editor_events.inverse(),), daemon=True)
 		pygame_thread.start()
 
-		object_editing_window = popup.EditObjectWindow(None, None)
+		object_editing_window = popup.EditObjectWindow(None)
 		close_editor = False
 		while not close_editor:
 			try:
@@ -694,8 +701,6 @@ def main():
 				if event.key is popup.open_menu:
 					object_editing_window.close()
 					menu_window = popup.open_menu()
-					# if not event.clicked:  # Ignore Escape key release
-					# 	menu_window.read()
 
 					close_menu, cleared_popup = False, False
 					while not close_menu:
@@ -748,8 +753,7 @@ def main():
 
 				elif event == OPEN_OBJ_EDIT:
 					object_editing_window.close()
-					object_editing_window = event.window
-					object_editing_window.open()
+					object_editing_window = popup.EditObjectWindow(event.values)
 
 				elif event == UPDATE_OBJ_EDIT:
 					for key, val in event.values.items():

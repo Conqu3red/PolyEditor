@@ -153,15 +153,13 @@ def open_menu() -> sg.Window:
 
 class EditObjectWindow:
 	"""A dedicated window where the user can alter various attributes of a selectable object"""
-	def __init__(self, data: Optional[Dict[str, Any]], obj: Optional[g.SelectableObject]):
+	def __init__(self, data: Optional[Dict[str, Any]]):
 		self._window = None
 		if data is None:
 			self.data = None
-			self.obj = None
 			self.inputs = None
 			return
 		self.data = data.copy()
-		self.obj = obj
 		self.inputs = {}
 		self._layout = []
 		for name, value in self.data.items():
@@ -173,11 +171,6 @@ class EditObjectWindow:
 				       sg.Input(value, justification="left", size=(10, 1))]
 				self.inputs[name] = row[1]
 				self._layout.append(row)
-
-	def open(self):
-		"""Opens the window if it is not empty and not already open"""
-		if self.data is None or self._window is not None:
-			return
 		self._window = sg.Window("Object properties", self._layout, keep_on_top=True, element_justification="center",
 		                         alpha_channel=0.7, disable_minimize=True, return_keyboard_events=True)
 
