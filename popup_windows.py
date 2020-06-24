@@ -31,10 +31,12 @@ NOTIF_OPTIONS = {
 }
 
 
-def info(title: str, *msg) -> Optional[str]:
+def info(title: str, *msg, read=True) -> Union[str, sg.Window]:
 	"""Opens a window and returns when the user closes it or presses Ok"""
 	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(5, 1), pad=PAD)]]
-	window = sg.Window(title, layout, element_justification='center')
+	window = sg.Window(title, layout, element_justification='center', return_keyboard_events=not read)
+	if not read:
+		return window
 	result, _ = window.read(close=True)
 	window.layout = None
 	# noinspection PyUnusedLocal
@@ -43,10 +45,12 @@ def info(title: str, *msg) -> Optional[str]:
 	return result
 
 
-def notif(*msg: Any) -> str:
+def notif(*msg: Any, read=True) -> Union[str, sg.Window]:
 	"""Opens a borderless window and returns when the user presses Ok"""
 	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(5, 1), pad=PAD)]]
-	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS)
+	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS, return_keyboard_events=not read)
+	if not read:
+		return window
 	result, _ = window.read(close=True)
 	window.layout = None
 	# noinspection PyUnusedLocal
@@ -55,10 +59,12 @@ def notif(*msg: Any) -> str:
 	return result
 
 
-def yes_no(*msg: Any) -> str:
+def yes_no(*msg: Any, read=True) -> Union[str, sg.Window]:
 	"""Opens a borderless window and returns whether the user pressed Yes or No"""
 	layout = [[sg.Text(m)] for m in msg] + [[sg.Yes(size=(5, 1), pad=PAD), sg.No(size=(5, 1), pad=PAD)]]
-	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS)
+	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS, return_keyboard_events=not read)
+	if not read:
+		return window
 	result, _ = window.read(close=True)
 	window.layout = None
 	# noinspection PyUnusedLocal
@@ -67,10 +73,12 @@ def yes_no(*msg: Any) -> str:
 	return result
 
 
-def ok_cancel(*msg: Any) -> str:
+def ok_cancel(*msg: Any, read=True) -> Union[str, sg.Window]:
 	"""Opens a borderless window and returns whether the user pressed Ok or Cancel"""
 	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(5, 1), pad=PAD), sg.Cancel(size=(8, 1), pad=PAD)]]
-	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS)
+	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS, return_keyboard_events=not read)
+	if not read:
+		return window
 	result, _ = window.read(close=True)
 	window.layout = None
 	# noinspection PyUnusedLocal
@@ -132,8 +140,8 @@ def open_menu() -> sg.Window:
 class EditObjectWindow:
 	"""A dedicated window where the user can alter various attributes of a selectable object"""
 	def __init__(self, data: Optional[Dict[str, Any]], obj: Optional[g.SelectableObject]):
+		self._window = None
 		if data is None:
-			self._window = None
 			self.data = None
 			self.obj = None
 			self.inputs = None
@@ -141,23 +149,23 @@ class EditObjectWindow:
 		self.data = data.copy()
 		self.obj = obj
 		self.inputs = {}
-		layout = []
+		self._layout = []
 		for name, value in self.data.items():
 			if name == FLIP:
 				row = [sg.Button(name, size=(8, 1))]
-				layout.append(row)
+				self._layout.append(row)
 			else:
 				row = [sg.Text(name, justification="center", size=(6, 1)),
 				       sg.Input(value, justification="left", size=(10, 1))]
 				self.inputs[name] = row[1]
-				layout.append(row)
-		self._window = sg.Window("Object properties", layout, keep_on_top=True, element_justification="center",
-		                         alpha_channel=0.7, disable_minimize=True, return_keyboard_events=True)
-		self._window.read(timeout=0)  # initialize
-		self._window.bind("<Leave>", "Leave")  # mouse leaves an element
+				self._layout.append(row)
 
-	def __bool__(self):
-		return self._window is not None and not self._window.TKrootDestroyed
+	def open(self):
+		"""Initializes and opens the window"""
+		self._window = sg.Window("Object properties", self._layout, keep_on_top=True, element_justification="center",
+		                         alpha_channel=0.7, disable_minimize=True, return_keyboard_events=True)
+		self._window.read(timeout=0)
+		self._window.bind("<Leave>", "Leave")  # mouse leaves an element
 
 	def read(self, timeout: Optional[int] = None) -> Tuple[str, Dict[str, Any]]:
 		"""Returns the event name and a validated list of values when an event occurs"""
@@ -215,3 +223,11 @@ class EditObjectWindow:
 	def close(self):
 		if self._window is not None:
 			self._window.close()
+			self._window.layout = None
+			self._layout = None
+			self._window = None
+			self.inputs = None
+			gc.collect()
+
+	def __bool__(self):
+		return self._window is not None and not self._window.TKrootDestroyed

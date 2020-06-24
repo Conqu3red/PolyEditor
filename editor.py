@@ -33,10 +33,9 @@ ZOOM_MAX = 400
 SAVE_EVENT = pygame.USEREVENT + 1
 # Program events
 DONE = "done"
-CLOSE_PROGRAM = "quit"
+CLOSE_PROGRAM = "exit"
 CLOSE_EDITOR = "close"
 RESTART_PROGRAM = "restart"
-MAIN_MENU = "menu"
 # Colors
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -141,7 +140,6 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_e
 	clock = pygame.time.Clock()
 	edit_object_window = popup.EditObjectWindow(None, None)
 	selected_shape = None
-	main_menu_open = False
 	input_locked = False
 	resized_window = False
 	moused_over = True
@@ -230,19 +228,17 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_e
 			elif event == "Change level":
 				main_events.put(RESTART_PROGRAM)
 			elif event == "Quit":
-				main_events.put(CLOSE_PROGRAM)
+				main_events.put(CLOSE_PROGRAM, False)
 
 		if input_locked:
 			sleep(0.01)
-		else:
-			main_menu_open = False
 
 		# Proccess pygame events
 		for pyevent in pygame.event.get():
 
 			if pyevent.type == pygame.QUIT:
 				edit_object_window.close()
-				main_events.put(CLOSE_PROGRAM)
+				main_events.put(CLOSE_PROGRAM, True)
 
 			elif pyevent.type == pygame.ACTIVEEVENT:
 				if pyevent.state == 1:
@@ -257,9 +253,12 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_e
 				g.DUMMY_SURFACE = pygame.Surface(size, pygame.SRCALPHA, 32)
 				resized_window = True
 
-			elif pyevent.type == pygame.KEYDOWN and pyevent.key == pygame.K_ESCAPE and main_menu_open:
+			elif (
+					input_locked and pyevent.type == pygame.KEYDOWN
+					and pyevent.key in (pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_SPACE)
+			):
 				main_events.put(DONE)
-				main_menu_open, input_locked = False, False
+				input_locked = False
 				continue
 
 			if input_locked:
@@ -295,7 +294,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_e
 				if pyevent.button == 1:  # left click
 					if menu_button_rect.collidepoint(pyevent.pos):
 						edit_object_window.close()
-						main_events.put(MAIN_MENU, False)
+						main_events.put(popup.open_menu, False)
 						input_locked = True
 						continue
 
@@ -415,8 +414,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_e
 
 				if pyevent.key == pygame.K_ESCAPE:
 					edit_object_window.close()
-					main_events.put(MAIN_MENU, True)
-					main_menu_open = True
+					main_events.put(popup.open_menu, True)
 					input_locked = True
 					continue
 
@@ -680,24 +678,24 @@ def main():
 	lap = 0
 	while True:
 		lap += 1
-		test_program = run(f"{POLYCONVERTER} test", capture_output=True)
-		if test_program.returncode == GAMEPATH_ERROR_CODE:  # game install not found
-			popup.info("Problem", test_program.stdout.decode().strip())
+		program = run(f"{POLYCONVERTER} test", capture_output=True)
+		if program.returncode == GAMEPATH_ERROR_CODE:  # game install not found
+			popup.info("Problem", program.stdout.decode().strip())
 			sys.exit()
-		elif test_program.returncode == FILE_ERROR_CODE:  # as "test" is not a valid file
+		elif program.returncode == FILE_ERROR_CODE:  # as "test" is not a valid file
 			break  # All OK
 		else:
-			test_outputs = [test_program.stdout.decode().strip(), test_program.stderr.decode().strip()]
-			if lap == 1 and "dotnet" in test_outputs[1]:  # .NET not installed
-				test_dir = getcwd()
-				test_filelist = [f for f in listdir(test_dir) if isfile(pathjoin(test_dir, f))]
-				test_found = False
-				for file in test_filelist:
+			outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
+			if lap == 1 and "dotnet" in outputs[1]:  # .NET not installed
+				dir = getcwd()
+				filelist = [f for f in listdir(dir) if isfile(pathjoin(dir, f))]
+				found = False
+				for file in filelist:
 					if re.compile(r"PolyConverter(.+)?\.exe$").match(file):
 						POLYCONVERTER = file
-						test_found = True
+						found = True
 						break
-				if not test_found:
+				if not found:
 					popup.info("Problem",
 					           "It appears you don't have .NET installed.",
 					           "Please download the optional converter executable (which includes .NET) from "
@@ -706,7 +704,7 @@ def main():
 					sys.exit()
 			else:
 				popup.info("Error", "Unexpected converter error:",
-				           "\n".join([o for o in test_outputs if len(o) > 0]))
+				           "\n".join([o for o in outputs if len(o) > 0]))
 				sys.exit()
 
 	# Main loop
@@ -725,29 +723,27 @@ def main():
 		while not close_editor:
 			event, event_args = editor_events.get(True)
 
-			if event == MAIN_MENU:
+			# Main Menu
+			if event is popup.open_menu:
 				menu_window = popup.open_menu()
 				if event_args[0]:  # Ignore Escape key release
 					menu_window.read()
-
 				close_menu = False
 				while not close_menu:
 					try:
 						menu_event, menu_args = editor_events.get(False)
-					except Empty:
-						window_event, _ = menu_window.read(10)
-						if window_event != sg.TIMEOUT_KEY:
-							editor_events.put(window_event)
-					else:
 						if menu_event == RESTART_PROGRAM:
 							if popup.ok_cancel("You will lose any unsaved changes.") == "Ok":
 								close_menu, close_editor = True, True
 						elif menu_event == CLOSE_PROGRAM:
-							if popup.yes_no("Quit and lose any unsaved changes?") == "Yes":
+							if menu_args[0] or popup.yes_no("Quit and lose any unsaved changes?") == "Yes":
 								close_menu, close_editor, close_program = True, True, True
 						elif menu_event == DONE:
 							close_menu = True
-
+					except Empty:
+						window_event, _ = menu_window.read(10)
+						if window_event != sg.TIMEOUT_KEY:
+							editor_events.put(window_event)
 				if not close_editor:
 					editor_events.put(DONE)
 				menu_window.close()
@@ -756,13 +752,33 @@ def main():
 				menu_window = None
 				gc.collect()
 
-			elif event == RESTART_PROGRAM:
-				if popup.ok_cancel("You will lose any unsaved changes.") == "Ok":
-					close_editor = True
+			# Popup Notification
+			elif event is popup.notif:
+				popup_window = popup.notif(*event_args, read=False)
+				close_popup = False
+				while not close_popup:
+					try:
+						popup_event, popup_args = editor_events.get(False)
+						if popup_event == DONE:
+							close_popup = True
+						elif popup_event == CLOSE_PROGRAM:
+							close_popup, close_editor, close_program = True, True, True
+					except Empty:
+						window_event, _ = popup_window.read(10)
+						if window_event in ("Ok", "Escape:27"):
+							close_popup = True
+				editor_events.put(DONE)
+				popup_window.close()
+				popup_window.layout = None
+				# noinspection PyUnusedLocal
+				popup_window = None
+				gc.collect()
+
+			elif event == CLOSE_EDITOR:
+				close_editor = True
 
 			elif event == CLOSE_PROGRAM:
-				if popup.yes_no("Quit and lose any unsaved changes?") == "Yes":
-					close_editor, close_program = True, True
+				close_editor, close_program = True, True
 
 			elif callable(event):
 				event(*event_args)
