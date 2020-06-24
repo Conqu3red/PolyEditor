@@ -36,6 +36,7 @@ DONE = "done"
 CLOSE_PROGRAM = "exit"
 CLOSE_EDITOR = "close"
 RESTART_PROGRAM = "restart"
+ESCAPE_KEY = "Escape:27"
 # Colors
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -203,7 +204,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_e
 		elif input_locked:
 			if event == DONE:
 				input_locked = False
-			elif event == "Back to editor" or event == "Escape:27":
+			elif event == "Back to editor" or event == ESCAPE_KEY:
 				main_events.put(DONE)
 				input_locked = False
 			elif event == "Save":
@@ -687,8 +688,8 @@ def main():
 		else:
 			outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
 			if lap == 1 and "dotnet" in outputs[1]:  # .NET not installed
-				dir = getcwd()
-				filelist = [f for f in listdir(dir) if isfile(pathjoin(dir, f))]
+				currentdir = getcwd()
+				filelist = [f for f in listdir(currentdir) if isfile(pathjoin(currentdir, f))]
 				found = False
 				for file in filelist:
 					if re.compile(r"PolyConverter(.+)?\.exe$").match(file):
@@ -765,7 +766,7 @@ def main():
 							popup_result, close_editor, close_program = True, True, True
 					except Empty:
 						window_event, _ = popup_window.read(10)
-						if window_event in ("Ok", "Cancel", "Yes", "No", "Escape:27"):
+						if window_event in ("Ok", "Cancel", "Yes", "No", ESCAPE_KEY):
 							popup_result = window_event
 				editor_events.put(DONE, popup_result)
 				popup_window.close()
