@@ -1,6 +1,5 @@
 import gc
 import PySimpleGUI as sg
-import layout_objects as g
 from typing import *
 
 NOTIF_ANSWERS = (
