@@ -212,7 +212,7 @@ class WaterBlock(LayoutObject):
 
 	def render(self, display: Surface, camera: Vector, zoom: int, color=WHITE):
 		start = Vector(zoom * (self.pos.x - self.width / 2 + camera.x), zoom * -(self.height + camera.y))
-		end = start + (self.width, 0)
+		end = start + (zoom * self.width, 0)
 		pygame.draw.line(display, color, start, end, scale(WATER_EDGE_WIDTH, zoom))
 
 	@property

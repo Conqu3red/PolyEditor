@@ -29,6 +29,12 @@ ZOOM_MULT = 1.1
 ZOOM_MIN = 4
 ZOOM_MAX = 400
 SAVE_EVENT = pygame.USEREVENT + 1
+try:
+	KERNEL32 = WinDLL("kernel32")
+	USER32 = WinDLL("user32")
+except Exception:
+	KERNEL32 = None
+	USER32 = None
 
 # Events
 DONE = "done"
@@ -66,13 +72,6 @@ JSON_ERROR_CODE = 1
 CONVERSION_ERROR_CODE = 2
 FILE_ERROR_CODE = 3
 GAMEPATH_ERROR_CODE = 4
-
-try:
-	kernel32 = WinDLL("kernel32")
-	user32 = WinDLL("user32")
-except Exception:
-	kernel32 = None
-	user32 = None
 
 
 def load_level():
@@ -127,7 +126,7 @@ def load_level():
 def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor_events: SimpleQueue):
 	zoom = 20
 	size = Vector(BASE_SIZE)
-	camera = Vector(size.x / zoom / 2, -(size.y / zoom / 2 + 5))
+	camera = (size / zoom / 2 + (0, 5)).flip_y()
 	clock = pygame.time.Clock()
 	object_being_edited = None
 	selected_shape = None
@@ -169,9 +168,9 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 	if ICON is not None:
 		pygame.display.set_icon(pygame.image.load(ICON))
 	pygame.init()
-
-	if user32 is not None:  # Maximize
-		user32.ShowWindow(user32.GetForegroundWindow(), 3)
+	if USER32 is not None:  # Maximize
+		USER32.ShowWindow(USER32.GetForegroundWindow(), 3)
+		camera = (size / zoom / 2 + (0, 5)).flip_y()
 
 	menu_button_font = pygame.font.SysFont("Courier", 20, True)
 	menu_button = pygame.Surface(Vector(menu_button_font.size("Menu")) + (10, 6))
@@ -650,8 +649,8 @@ def main():
 	if TEMP_FILES:
 		print("Finished loading!")
 		sleep(0.5)
-		if user32 is not None:
-			user32.ShowWindow(kernel32.GetConsoleWindow(), 0)
+		if USER32 is not None:
+			USER32.ShowWindow(KERNEL32.GetConsoleWindow(), 0)
 
 	# Ensure the converter is working
 	lap = 0
@@ -765,8 +764,9 @@ def main():
 					object_editing_window = popup.EditObjectWindow(event.values)
 
 				elif event == UPDATE_OBJ_EDIT:
-					for key, val in event.values.items():
-						object_editing_window.inputs[key].update(str(val))
+					if object_editing_window:
+						for key, val in event.values.items():
+							object_editing_window.inputs[key].update(str(val))
 
 				elif event == CLOSE_OBJ_EDIT:
 					object_editing_window.close()
