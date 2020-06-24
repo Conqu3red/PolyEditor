@@ -4,7 +4,7 @@ import pygame.gfxdraw
 from pygame import Surface, Rect
 from pygame.mask import MaskType as Mask, Mask as mask_from_size, from_surface as mask_from_surface
 from typing import *
-from vector import Vector
+from math_objects import Vector
 
 HITBOX_RESOLUTION = 40
 DUMMY_SURFACE = Surface((0, 0))

@@ -18,9 +18,9 @@ from time import sleep
 from itertools import chain
 from subprocess import run
 
-import game_objects as g
 import popup_windows as popup
-from vector import Vector
+import layout_objects as g
+from math_objects import Vector
 from threading_objects import Thread, SimpleQueue, Empty
 
 # Window properties

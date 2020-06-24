@@ -1,6 +1,6 @@
 import gc
 import PySimpleGUI as sg
-import game_objects as g
+import layout_objects as g
 from typing import *
 
 POS_X, POS_Y, POS_Z = "X", "Y", "Z"
