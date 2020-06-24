@@ -23,6 +23,9 @@ class Event:
 	def __ne__(self, other):
 		return self.key != other
 
+	def __str__(self):
+		return f"({self.key}, {self.attributes}, {self.args})"
+
 
 class SimpleQueue:
 	"""A wrapper to two queues, in order to easily send events back and forth between threads"""

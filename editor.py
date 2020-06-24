@@ -127,7 +127,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 	object_editing_window = popup.EditObjectWindow(None, None)
 	editor_events.put(OPEN_OBJ_EDIT, window=object_editing_window)
 	selected_shape = None
-	input_locked = False
+	paused = False
 	resized_window = False
 
 	draw_points = False
@@ -209,20 +209,20 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 							if type(obj) is g.CustomShape:
 								obj.color = (values[popup.RGB_R], values[popup.RGB_G], values[popup.RGB_B])
 
-			elif input_locked:
+			elif paused:
 				if event == DONE:
-					input_locked = False
+					paused = False
 				elif event.key in ("Back to editor", ESCAPE_KEY):
 					editor_events.put(DONE)
-					input_locked = False
+					paused = False
 				elif event == "Save":
 					pygame.event.post(pygame.event.Event(SAVE_EVENT, {}))
 					editor_events.put(DONE)
-					input_locked = False
+					paused = False
 				elif event == "Toggle hitboxes":
 					draw_hitboxes = not draw_hitboxes
 					editor_events.put(DONE)
-					input_locked = False
+					paused = False
 				elif event == "Color scheme":
 					if bg_color == BACKGROUND_GRAY:
 						bg_color = BACKGROUND_BLUE
@@ -233,14 +233,11 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 						bg_color_2 = BACKGROUND_GRAY_GRID
 						fg_color = BLACK
 					editor_events.put(DONE)
-					input_locked = False
+					paused = False
 				elif event == "Change level":
 					editor_events.put(RESTART_PROGRAM)
 				elif event == "Quit":
 					editor_events.put(CLOSE_PROGRAM, force=False)
-
-		if input_locked:
-			sleep(1 / FPS)
 
 		# Proccess pygame events
 		for pyevent in pygame.event.get():
@@ -260,14 +257,14 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 				resized_window = True
 
 			elif (
-					input_locked and pyevent.type == pygame.KEYDOWN
+					paused and pyevent.type == pygame.KEYDOWN
 					and pyevent.key in (pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_SPACE)
 			):
 				editor_events.put(DONE)
-				input_locked = False
+				paused = False
 				continue
 
-			if input_locked:
+			if paused:
 				continue
 
 			elif pyevent.type == SAVE_EVENT:
@@ -281,11 +278,11 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 					output = program.stdout.decode().strip()
 					if len(output) == 0:
 						editor_events.put(popup.notif, "No new changes to apply.")
-						input_locked = True
+						paused = True
 					else:
 						if "backup" in program.stdout.decode():
 							editor_events.put(popup.notif, f"Applied changes to {layoutfile}!",
-							                f"(Copied original to {backupfile})")
+							                  f"(Copied original to {backupfile})")
 						else:
 							editor_events.put(popup.notif, f"Applied changes to {layoutfile}!", )
 				elif program.returncode == FILE_ERROR_CODE:  # failed to write file?
@@ -293,13 +290,13 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 				else:
 					outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
 					editor_events.put(popup.notif, f"Unexpected error while trying to save:",
-					                "\n".join([o for o in outputs if len(o) > 0]))
+					                  "\n".join([o for o in outputs if len(o) > 0]))
 
 			elif pyevent.type == pygame.MOUSEBUTTONDOWN:
 				if pyevent.button == 1:  # left click
 					if menu_button_rect.collidepoint(pyevent.pos):
-						editor_events.put(popup.open_menu, clicked=False)
-						input_locked = True
+						editor_events.put(popup.open_menu, clicked=True)
+						paused = True
 						continue
 
 					if draw_points:
@@ -418,8 +415,8 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 				move = False
 
 				if pyevent.key == pygame.K_ESCAPE:
-					editor_events.put(popup.open_menu, clicked=True)
-					input_locked = True
+					editor_events.put(popup.open_menu, clicked=False)
+					paused = True
 					continue
 
 				elif pyevent.key == pygame.K_LEFT:
@@ -532,7 +529,9 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 						editor_events.put(UPDATE_OBJ_EDIT,
 						                  values={popup.POS_X: hl_objs[0].pos.x, popup.POS_Y: hl_objs[0].pos.y})
 
-		if input_locked and not resized_window:
+		# Don't render while paused
+		if paused and not resized_window:
+			clock.tick(FPS)
 			continue
 
 		# Render background
@@ -693,7 +692,7 @@ def main():
 				pass
 			else:
 				# Main Menu
-				if event is popup.open_menu:
+				if event.key is popup.open_menu:
 					object_editing_window.close()
 					menu_window = popup.open_menu()
 					if not event.clicked:  # Ignore Escape key release
