@@ -1,3 +1,4 @@
+import gc
 import PySimpleGUI as sg
 import game_objects as g
 from typing import *
@@ -34,28 +35,48 @@ def info(title: str, *msg) -> Optional[str]:
 	"""Opens a window and returns when the user closes it or presses Ok"""
 	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(5, 1), pad=PAD)]]
 	window = sg.Window(title, layout, element_justification='center')
-	return window.read(close=True)[0]
+	result, _ = window.read(close=True)
+	window.layout = None
+	# noinspection PyUnusedLocal
+	window = None
+	gc.collect()
+	return result
 
 
 def notif(*msg: Any) -> str:
 	"""Opens a borderless window and returns when the user presses Ok"""
 	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(5, 1), pad=PAD)]]
 	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS)
-	return window.read(close=True)[0]
+	result, _ = window.read(close=True)
+	window.layout = None
+	# noinspection PyUnusedLocal
+	window = None
+	gc.collect()
+	return result
 
 
 def yes_no(*msg: Any) -> str:
 	"""Opens a borderless window and returns whether the user pressed Yes or No"""
 	layout = [[sg.Text(m)] for m in msg] + [[sg.Yes(size=(5, 1), pad=PAD), sg.No(size=(5, 1), pad=PAD)]]
 	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS)
-	return window.read(close=True)[0]
+	result, _ = window.read(close=True)
+	window.layout = None
+	# noinspection PyUnusedLocal
+	window = None
+	gc.collect()
+	return result
 
 
 def ok_cancel(*msg: Any) -> str:
 	"""Opens a borderless window and returns whether the user pressed Ok or Cancel"""
 	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(5, 1), pad=PAD), sg.Cancel(size=(8, 1), pad=PAD)]]
 	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS)
-	return window.read(close=True)[0]
+	result, _ = window.read(close=True)
+	window.layout = None
+	# noinspection PyUnusedLocal
+	window = None
+	gc.collect()
+	return result
 
 
 def selection(title: str, msg: Any, items: List[str]) -> Optional[str]:
@@ -67,9 +88,17 @@ def selection(title: str, msg: Any, items: List[str]) -> Optional[str]:
 		event, content = window.read()
 		if event == sg.WIN_CLOSED or event == "Escape:27":
 			window.close()
+			window.layout = None
+			# noinspection PyUnusedLocal
+			window = None
+			gc.collect()
 			return None
 		elif event == "Ok" or event == 0:
 			window.close()
+			window.layout = None
+			# noinspection PyUnusedLocal
+			window = None
+			gc.collect()
 			return content[0][0]
 		elif event == "Up:38" or event == "Left:37":
 			index = items.index(content[0][0]) - 1

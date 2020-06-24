@@ -8,6 +8,7 @@ import re
 import json
 import traceback
 import ctypes
+import gc
 import PySimpleGUI as sg
 from threading import Thread
 from queue import Queue, Empty
@@ -29,14 +30,13 @@ FPS = 60
 ZOOM_MULT = 1.1
 ZOOM_MIN = 4
 ZOOM_MAX = 400
-OPEN_MENU_EVENT = pygame.USEREVENT + 1
-SAVE_EVENT = pygame.USEREVENT + 2
+SAVE_EVENT = pygame.USEREVENT + 1
 # Program events
 DONE = "done"
-CLOSE_PROGRAM = "close"
+CLOSE_PROGRAM = "quit"
 CLOSE_EDITOR = "close"
 RESTART_PROGRAM = "restart"
-MAIN_MENU = "mainmenu"
+MAIN_MENU = "menu"
 # Colors
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -64,6 +64,25 @@ JSON_ERROR_CODE = 1
 CONVERSION_ERROR_CODE = 2
 FILE_ERROR_CODE = 3
 GAMEPATH_ERROR_CODE = 4
+
+
+class SimpleQueue:
+	"""A wrapper to two queues, in order to easily send events back and forth between threads"""
+	def __init__(self, get_queue=Queue(), put_queue=Queue()):
+		self.get_queue = get_queue
+		self.put_queue = put_queue
+
+	def get(self, block=False, timeout: float = None):
+		"""Remove and return an item from the queue. Will raise Empty if block is False and the queue is empty"""
+		return self.get_queue.get(block, timeout)
+
+	def put(self, event, *event_args):
+		"""Put an item into the queue"""
+		return self.put_queue.put((event, event_args))
+
+	def inverse(self):
+		"""Returns a SimpleQueue with the current get and put sub-queues but reversed"""
+		return SimpleQueue(self.put_queue, self.get_queue)
 
 
 def load_level():
@@ -97,7 +116,7 @@ def load_level():
 			outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
 			popup.info("Error", f"There was a problem converting {layoutfile} to json:",
 			           "\n".join([o for o in outputs if len(o) > 0]))
-			return
+			return None
 
 	with open(jsonfile) as openfile:
 		try:
@@ -106,31 +125,33 @@ def load_level():
 		except json.JSONDecodeError as error:
 			popup.info("Problem", "Couldn't open level:",
 			           f"Invalid syntax in line {error.lineno}, column {error.colno} of {jsonfile}")
-			return
+			return None
 		except ValueError:
 			popup.info("Problem", "Couldn't open level:",
 			           f"{jsonfile} is either incomplete or not actually a level")
-			return
+			return None
 
 	return layout, layoutfile, jsonfile, backupfile
 
 
-def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_put: Queue, main_get: Queue):
+def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_events: SimpleQueue):
 	zoom = 20
 	size = Vector(BASE_SIZE)
 	camera = Vector(size.x / zoom / 2, -(size.y / zoom / 2 + 5))
 	clock = pygame.time.Clock()
 	edit_object_window = popup.EditObjectWindow(None, None)
+	selected_shape = None
+	main_menu_open = False
 	input_locked = False
+	resized_window = False
+	moused_over = True
+
 	draw_points = False
 	draw_hitboxes = False
 	panning = False
 	selecting = False
 	moving = False
 	point_moving = False
-	moused_over = True
-	resized_window = False
-	selected_shape = None
 
 	mouse_pos = Vector(0, 0)
 	old_mouse_pos = Vector(0, 0)
@@ -173,25 +194,27 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_p
 
 		# Process events
 		try:
-			event = main_get.get(False)
+			event, event_args = main_events.get(False)
 		except Empty:
-			event = None
+			event, event_args = None, None
 
 		if event == CLOSE_EDITOR:
+			pygame.quit()
+			main_events.put(DONE)
 			return
 		elif input_locked:
 			if event == DONE:
 				input_locked = False
-			if event == "Back to editor" or event == "Escape:27":
-				main_put.put(DONE)
+			elif event == "Back to editor" or event == "Escape:27":
+				main_events.put(DONE)
 				input_locked = False
 			elif event == "Save":
 				pygame.event.post(pygame.event.Event(SAVE_EVENT, {}))
-				main_put.put(DONE)
+				main_events.put(DONE)
 				input_locked = False
 			elif event == "Toggle hitboxes":
 				draw_hitboxes = not draw_hitboxes
-				main_put.put(DONE)
+				main_events.put(DONE)
 				input_locked = False
 			elif event == "Color scheme":
 				if bg_color == BACKGROUND_GRAY:
@@ -202,20 +225,24 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_p
 					bg_color = BACKGROUND_GRAY
 					bg_color_2 = BACKGROUND_GRAY_GRID
 					fg_color = BLACK
-				main_put.put(DONE)
+				main_events.put(DONE)
 				input_locked = False
 			elif event == "Change level":
-				main_put.put(RESTART_PROGRAM)
+				main_events.put(RESTART_PROGRAM)
 			elif event == "Quit":
-				main_put.put(CLOSE_PROGRAM)
+				main_events.put(CLOSE_PROGRAM)
+
+		if input_locked:
 			sleep(0.01)
+		else:
+			main_menu_open = False
 
 		# Proccess pygame events
 		for pyevent in pygame.event.get():
 
 			if pyevent.type == pygame.QUIT:
 				edit_object_window.close()
-				main_put.put(CLOSE_PROGRAM)
+				main_events.put(CLOSE_PROGRAM)
 
 			elif pyevent.type == pygame.ACTIVEEVENT:
 				if pyevent.state == 1:
@@ -229,6 +256,11 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_p
 				display = pygame.display.set_mode(size, pygame.RESIZABLE)
 				g.DUMMY_SURFACE = pygame.Surface(size, pygame.SRCALPHA, 32)
 				resized_window = True
+
+			elif pyevent.type == pygame.KEYDOWN and pyevent.key == pygame.K_ESCAPE and main_menu_open:
+				main_events.put(DONE)
+				main_menu_open, input_locked = False, False
+				continue
 
 			if input_locked:
 				continue
@@ -244,24 +276,26 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_p
 				if program.returncode == SUCCESS_CODE:
 					output = program.stdout.decode().strip()
 					if len(output) == 0:
-						popup.notif("No new changes to apply.")
+						main_events.put(popup.notif, "No new changes to apply.")
+						input_locked = True
 					else:
 						if "backup" in program.stdout.decode():
-							popup.notif(f"Applied changes to {layoutfile}!", f"(Copied original to {backupfile})")
+							main_events.put(popup.notif, f"Applied changes to {layoutfile}!",
+							                f"(Copied original to {backupfile})")
 						else:
-							popup.notif(f"Applied changes to {layoutfile}!")
+							main_events.put(popup.notif, f"Applied changes to {layoutfile}!")
 				elif program.returncode == FILE_ERROR_CODE:  # failed to write file?
-					popup.notif("Couldn't save:", program.stdout.decode().strip())
+					main_events.put(popup.notif, "Couldn't save:", program.stdout.decode().strip())
 				else:
 					outputs = [program.stdout.decode().strip(), program.stderr.decode().strip()]
-					popup.notif(f"Unexpected error while trying to save:",
-					            "\n".join([o for o in outputs if len(o) > 0]))
+					main_events.put(popup.notif, f"Unexpected error while trying to save:",
+					                "\n".join([o for o in outputs if len(o) > 0]))
 
 			elif pyevent.type == pygame.MOUSEBUTTONDOWN:
 				if pyevent.button == 1:  # left click
 					if menu_button_rect.collidepoint(pyevent.pos):
 						edit_object_window.close()
-						main_put.put(MAIN_MENU)
+						main_events.put(MAIN_MENU, False)
 						input_locked = True
 						continue
 
@@ -381,7 +415,8 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_p
 
 				if pyevent.key == pygame.K_ESCAPE:
 					edit_object_window.close()
-					main_put.put(MAIN_MENU)
+					main_events.put(MAIN_MENU, True)
+					main_menu_open = True
 					input_locked = True
 					continue
 
@@ -675,57 +710,69 @@ def main():
 				sys.exit()
 
 	# Main loop
-	while True:
+	close_program = False
+	while not close_program:
+		# Tkinter windows (such as those from PySimpleGUI) desperately require to run in the main thread.
+		# As a result, we run the pygame-based editor in a secondary thread and interact between the two when needed.
 
-		editor_args = load_level()
-		if not editor_args:
+		if not (editor_args := load_level()):
 			continue
-
-		editor_get, editor_put = Queue(), Queue()
-		pygame_thread = Thread(target=editor, args=editor_args + (editor_get, editor_put), daemon=True)
+		editor_events = SimpleQueue()
+		pygame_thread = Thread(target=editor, args=editor_args + (editor_events.inverse(),), daemon=True)
 		pygame_thread.start()
-		editor_closed = False
-		while not editor_closed:
-			event = editor_get.get(True)
+
+		close_editor = False
+		while not close_editor:
+			event, event_args = editor_events.get(True)
+
 			if event == MAIN_MENU:
 				menu_window = popup.open_menu()
-				menu_window.read()
-				while True:
+				if event_args[0]:  # Ignore Escape key release
+					menu_window.read()
+
+				close_menu = False
+				while not close_menu:
 					try:
-						event = editor_get.get(False)
+						menu_event, menu_args = editor_events.get(False)
 					except Empty:
 						window_event, _ = menu_window.read(10)
 						if window_event != sg.TIMEOUT_KEY:
-							editor_put.put(window_event)
+							editor_events.put(window_event)
 					else:
-						if event == RESTART_PROGRAM:
+						if menu_event == RESTART_PROGRAM:
 							if popup.ok_cancel("You will lose any unsaved changes.") == "Ok":
-								editor_put.put(CLOSE_EDITOR)
-								menu_window.close()
-								editor_closed = True
-								break
-						elif event == CLOSE_PROGRAM:
+								close_menu, close_editor = True, True
+						elif menu_event == CLOSE_PROGRAM:
 							if popup.yes_no("Quit and lose any unsaved changes?") == "Yes":
-								editor_put.put(CLOSE_EDITOR)
-								menu_window.close()
-								pygame.quit()
-								sys.exit()
-						elif event == DONE:
-							menu_window.close()
-							break
+								close_menu, close_editor, close_program = True, True, True
+						elif menu_event == DONE:
+							close_menu = True
+
+				if not close_editor:
+					editor_events.put(DONE)
+				menu_window.close()
+				menu_window.layout = None
+				# noinspection PyUnusedLocal
+				menu_window = None
+				gc.collect()
+
 			elif event == RESTART_PROGRAM:
 				if popup.ok_cancel("You will lose any unsaved changes.") == "Ok":
-					editor_put.put(CLOSE_EDITOR)
-					editor_closed = True
+					close_editor = True
+
 			elif event == CLOSE_PROGRAM:
 				if popup.yes_no("Quit and lose any unsaved changes?") == "Yes":
-					editor_put.put(CLOSE_EDITOR)
-					pygame.quit()
-					sys.exit()
+					close_editor, close_program = True, True
+
+			elif callable(event):
+				event(*event_args)
+				editor_events.put(DONE)
+
 			else:
-				func, *args = event
-				func(*args)
-				editor_put.put(DONE)
+				print(f"Warning: Unrecognized editor event {event} {event_args}")
+
+		editor_events.put(CLOSE_EDITOR)
+		editor_events.get(True)
 
 
 if __name__ == "__main__":
