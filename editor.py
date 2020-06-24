@@ -698,6 +698,7 @@ def main():
 					menu_window = popup.open_menu()
 					if not event.clicked:  # Ignore Escape key release
 						menu_window.read()
+
 					close_menu = False
 					while not close_menu:
 						try:
@@ -713,12 +714,12 @@ def main():
 											break
 									except Empty:
 										pass
+								if answer == "Ok":
+									close_menu, close_editor = True, True
 								confirmation.close()
 								confirmation.layout = None
 								confirmation = None
 								gc.collect()
-								if answer == "Ok":
-									close_menu, close_editor = True, True
 
 							elif menu_event == CLOSE_PROGRAM:
 								if menu_event.force:
@@ -726,19 +727,19 @@ def main():
 								else:
 									confirmation = popup.yes_no("Quit and lose any unsaved changes?", read=False)
 									while (answer := confirmation.read(10)[0]) not in ("Yes", "No", ESCAPE_KEY):
-										try:
+										try:  # TODO: bind focus change of popups
 											menu_event = editor_events.get(block=False)
 											if menu_event == CLOSE_PROGRAM:
 												answer = "Yes"
 												break
 										except Empty:
 											pass
+									if answer == "Yes":
+										close_menu, close_editor, close_program = True, True, True
 									confirmation.close()
 									confirmation.layout = None
 									confirmation = None
 									gc.collect()
-									if answer == "Yes":
-										close_menu, close_editor, close_program = True, True, True
 
 							elif menu_event == DONE:
 								close_menu = True
@@ -747,6 +748,7 @@ def main():
 							window_event, _ = menu_window.read(10)
 							if window_event != sg.TIMEOUT_KEY:
 								editor_events.put(window_event)
+
 					if not close_editor:
 						editor_events.put(DONE)
 					menu_window.close()
