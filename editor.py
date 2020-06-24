@@ -110,7 +110,7 @@ def load_level():
 def main(layout, layoutfile, jsonfile, backupfile):
 	zoom = 20
 	size = Vector(BASE_SIZE)
-	camera = Vector(size[0] / zoom / 2, -(size[1] / zoom / 2 + 5))
+	camera = Vector(size.x / zoom / 2, -(size.y / zoom / 2 + 5))
 	clock = pygame.time.Clock()
 	edit_object_window = popup.EditObjectWindow(None, None)
 	draw_points = False
@@ -178,7 +178,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						edit_object_window._window.minimize()
 
 			elif event.type == pygame.VIDEORESIZE:
-				size = event.size
+				size = Vector(event.size)
 				display = pygame.display.set_mode(size, pygame.RESIZABLE)
 				g.DUMMY_SURFACE = pygame.Surface(size, pygame.SRCALPHA, 32)
 
@@ -319,10 +319,9 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						zoom = round(zoom * ZOOM_MULT)
 					else:
 						zoom += 1
-					if zoom > ZOOM_MAX:
-						zoom = ZOOM_MAX
+					zoom = min(zoom, ZOOM_MAX)
 					zoom_new_pos = true_mouse_pos()
-					camera = camera + zoom_new_pos - zoom_old_pos
+					camera += zoom_new_pos - zoom_old_pos
 
 				if event.button == 5:  # mousewheel down
 					zoom_old_pos = true_mouse_pos()
@@ -330,10 +329,9 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						zoom = round(zoom / ZOOM_MULT)
 					else:
 						zoom -= 1
-					if zoom < ZOOM_MIN:
-						zoom = ZOOM_MIN
+					zoom = max(zoom, ZOOM_MIN)
 					zoom_new_pos = true_mouse_pos()
-					camera = camera + zoom_new_pos - zoom_old_pos
+					camera += zoom_new_pos - zoom_old_pos
 
 			elif event.type == pygame.MOUSEBUTTONUP:
 
@@ -470,9 +468,9 @@ def main(layout, layoutfile, jsonfile, backupfile):
 				if move:
 					hl_objs = [o for o in selectable_objects() if o.selected]
 					for obj in hl_objs:
-						obj.pos = (obj.pos[0] + move_x, obj.pos[1] + move_y)
+						obj.pos += (move_x, move_y)
 					if len(hl_objs) == 0:
-						camera = [camera[0] - move_x, camera[1] - move_y]
+						camera -= (move_x, move_y)
 					elif edit_object_window and len(hl_objs) == 1 and edit_object_window.obj == hl_objs[0]:
 						edit_object_window.inputs[popup.POS_X].update(str(hl_objs[0].pos[0]))
 						edit_object_window.inputs[popup.POS_Y].update(str(hl_objs[0].pos[1]))
@@ -481,11 +479,11 @@ def main(layout, layoutfile, jsonfile, backupfile):
 		display.fill(bg_color)
 		block_size = zoom
 		line_width = g.scale(1, zoom)
-		shift = (round(camera[0] * zoom % block_size), round(camera[1] * zoom % block_size))
-		for x in range(shift[0], size[0], block_size):
-			pygame.draw.line(display, bg_color_2, (x, 0), (x, size[1]), line_width)
-		for y in range(-shift[1], size[1], block_size):
-			pygame.draw.line(display, bg_color_2, (0, y), (size[0], y), line_width)
+		shift = (camera * zoom % block_size).round()
+		for x in range(shift.x, size.x, block_size):
+			pygame.draw.line(display, bg_color_2, (x, 0), (x, size.y), line_width)
+		for y in range(-shift.y, size.y, block_size):
+			pygame.draw.line(display, bg_color_2, (0, y), (size.x, y), line_width)
 
 		# Move selection with mouse
 		if moving:
@@ -560,8 +558,10 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 		# Selecting shapes
 		if selecting:
-			rect = Vector(min(selecting_pos[0], mouse_pos[0]), min(selecting_pos[1], mouse_pos[1]),
-			              abs(mouse_pos[0] - selecting_pos[0]), abs(mouse_pos[1] - selecting_pos[1]))
+			rect = (min(selecting_pos[0], mouse_pos[0]),
+			        min(selecting_pos[1], mouse_pos[1]),
+			        abs(mouse_pos[0] - selecting_pos[0]),
+			        abs(mouse_pos[1] - selecting_pos[1]))
 			pygame.draw.rect(display, g.SELECT_COLOR, rect, 1)
 			mask = g.rect_hitbox_mask(rect, zoom)
 			for obj in selectable_objects():
@@ -572,7 +572,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 		# Display mouse position, zoom and fps
 		font = pygame.font.SysFont("Courier", 20)
-		pos_msg = f"[{round(true_mouse_pos()[0], 2):>6},{round(true_mouse_pos()[1], 2):>6}]"
+		pos_msg = f"[{round(true_mouse_pos().x, 2):>6},{round(true_mouse_pos().y, 2):>6}]"
 		pos_text = font.render(pos_msg, True, fg_color)
 		display.blit(pos_text, (2, 5))
 		font = pygame.font.SysFont("Courier", 16)
@@ -586,7 +586,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 		display.blit(fps_text, (size[0] - fps_size[0] - 5, 5))
 
 		# Display buttons
-		menu_button_rect = display.blit(menu_button, (10, size[1] - menu_button.get_size()[1] - 10))
+		menu_button_rect = display.blit(menu_button, (10, size.y - menu_button.get_size()[1] - 10))
 
 		pygame.display.flip()
 		if not edit_object_window or moused_over:  # Don't run the clock while other window is focused

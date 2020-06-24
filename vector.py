@@ -1,10 +1,8 @@
 import math
 from typing import *
 from itertools import zip_longest
-from operator import itemgetter
 
 Number = Union[int, float]
-NumberTuple = Tuple[Number, ...]
 
 
 def is_iterable(value):
@@ -49,33 +47,54 @@ class Vector(Tuple[Number, ...]):
 			pass
 		return self.__getattr__(index)
 
-	def __add__(self, other: NumberTuple) -> 'Vector':
+	def __add__(self, other: Sequence[Number]) -> 'Vector':
 		"""Element-wise addition"""
 		return Vector(a + b for a, b in zip_longest(self, other, fillvalue=0))
 
-	def __sub__(self, other: NumberTuple) -> 'Vector':
+	__radd__ = __add__
+
+	def __sub__(self, other: Sequence[Number]) -> 'Vector':
 		"""Element-wise substraction"""
 		return Vector(a - b for a, b in zip_longest(self, other, fillvalue=0))
 
-	def __mul__(self, other: Union[Number, Tuple[Number]]) -> 'Vector':
+	__rsub__ = __sub__
+
+	def __mul__(self, other: Union[Number, Sequence[Number]]) -> 'Vector':
 		"""Element-wise multiplication"""
 		if is_iterable(other):
 			return Vector(a * b for a, b in zip_longest(self, other, fillvalue=1))
 		return Vector(a * other for a in self)
 
-	def __truediv__(self, other: Union[Number, Tuple[Number]]) -> 'Vector':
+	__rmul__ = __mul__
+
+	def __truediv__(self, other: Union[Number, Sequence[Number]]) -> 'Vector':
 		"""Element-wise division"""
 		if is_iterable(other):
 			return Vector(a / b for a, b in zip_longest(self, other, fillvalue=1))
 		return Vector(a / other for a in self)
 
+	def __floordiv__(self, other: Union[Number, Sequence[Number]]) -> 'Vector':
+		"""Element-wise floor division"""
+		if is_iterable(other):
+			return Vector(a // b for a, b in zip_longest(self, other, fillvalue=1))
+		return Vector(a // other for a in self)
+
+	def __mod__(self, other: Union[Number, Sequence[Number]]) -> 'Vector':
+		"""Element-wise modulo"""
+		if is_iterable(other):
+			return Vector(a % b for a, b in zip_longest(self, other, fillvalue=1))
+		return Vector(a % other for a in self)
+
+	def __pow__(self, other: Union[Number, Sequence[Number]], mod=None) -> 'Vector':
+		"""Element-wise exponentiation"""
+		if is_iterable(other):
+			return Vector(pow(a, b, mod) for a, b in zip_longest(self, other, fillvalue=1))
+		return Vector(pow(a, other, mod) for a in self)
+
 	def __matmul__(self, other):
 		raise NotImplementedError("Cross product is left as an excercise for the reader :^)")
 
-	__radd__ = __add__
-	__rsub__ = __sub__
-	__rmul__ = __mul__
-	__rtruediv__ = __truediv__
+	__rmatmul__ = __matmul__
 
 	@property
 	def size(self):
@@ -94,15 +113,15 @@ class Vector(Tuple[Number, ...]):
 		"""Returns a new vector with all values rounded to integers"""
 		return Vector(round(a) for a in self)
 
-	def flip_x(self, origin: NumberTuple = (0, 0), only_if=True):
+	def flip_x(self, origin: Sequence[Number] = (0, 0), only_if=True):
 		"""Returns a new vector with the y coordinate inverted"""
 		return Vector(2 * origin[0] - self[0], self[1]) if only_if else self
 
-	def flip_y(self, origin: NumberTuple = (0, 0), only_if=True):
+	def flip_y(self, origin: Sequence[Number] = (0, 0), only_if=True):
 		"""Returns a new vector with the y coordinate inverted"""
 		return Vector(self[0], 2 * origin[1] - self[1]) if only_if else self
 
-	def rotate(self, angle: float, origin: NumberTuple = (0, 0), deg=True) -> 'Vector':
+	def rotate(self, angle: float, origin: Sequence[Number] = (0, 0), deg=True) -> 'Vector':
 		"""Rotate this point by a given angle counterclockwise in the Z axis"""
 		if deg:
 			angle = math.radians(angle)
@@ -111,7 +130,7 @@ class Vector(Tuple[Number, ...]):
 		y = math.sin(angle) * px + math.cos(angle) * py + origin[1]
 		return Vector(x, y) if self.size == 2 else Vector(x, y, self[2])
 
-	def flip(self, point: NumberTuple, angle: float, deg=True):
+	def flip(self, point: Sequence[Number], angle: float, deg=True):
 		"""Flip this point along an axis defined by a point and an angle"""
 		return self.rotate(-angle, point, deg).flip_x(point).rotate(angle, point, deg)
 

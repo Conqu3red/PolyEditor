@@ -41,7 +41,7 @@ PILLAR_COLOR = (195, 171, 149, 150)
 PILLAR_BORDER = (105, 98, 91, 150)
 PILLAR_BORDER_WIDTH = 1
 
-NumberTuple = Tuple[Union[int, float], ...]
+Number = Union[int, float]
 ClosestPoint = Tuple[Vector, float, int]
 
 
@@ -89,25 +89,23 @@ class SelectableObject(LayoutObject):
 
 	def render(self, display: Surface, camera: Vector, zoom: float, args=None):
 		self._last_zoom = zoom
-		self._last_camera = tuple(camera)
+		self._last_camera = camera
 
-	def collidepoint(self, point: Vector) -> bool:
-		size, center = self._hitbox.get_size(), self.pos[:2]
-		x = round((point[0] / self._last_zoom - self._last_camera[0] - center[0] + self._center_offset[0])
-		          * HITBOX_RESOLUTION + size[0] / 2)
-		y = round((point[1] / self._last_zoom + self._last_camera[1] + center[1] + self._center_offset[1])
-		          * HITBOX_RESOLUTION + size[1] / 2)
-		return self._hitbox.get_at((x, y)) if 0 <= x < size[0] and 0 <= y < size[1] else False
+	def collidepoint(self, point: Sequence[Number]) -> bool:
+		mask_size = Vector(self._hitbox.get_size())
+		point = Vector(point[:2]) / self._last_zoom - self._last_camera.flip_y() - self.pos[:2].flip_y()
+		point = ((point + self._center_offset) * HITBOX_RESOLUTION + mask_size / 2).round()
+		if 0 <= point.x < mask_size.x and 0 <= point.y < mask_size.y:
+			return bool(self._hitbox.get_at(point))
+		return False
 
-	def colliderect(self, rect: Vector, mask: Mask = None) -> bool:
-		size, center = self._hitbox.get_size(), self.pos[:2]
-		x = round((rect[0] / self._last_zoom - self._last_camera[0] - center[0] + self._center_offset[0])
-		          * HITBOX_RESOLUTION + size[0] / 2)
-		y = round((rect[1] / self._last_zoom + self._last_camera[1] + center[1] + self._center_offset[1])
-		          * HITBOX_RESOLUTION + size[1] / 2)
+	def colliderect(self, rect: Sequence[Number], mask: Mask = None) -> bool:
+		mask_size = Vector(self._hitbox.get_size())
+		point = Vector(rect[:2]) / self._last_zoom - self._last_camera.flip_y() - self.pos[:2].flip_y()
+		point = ((point + self._center_offset) * HITBOX_RESOLUTION + mask_size / 2).round()
 		if mask is None:
 			mask = rect_hitbox_mask(rect, self._last_zoom)
-		return bool(self._hitbox.overlap(mask, (x, y)))
+		return bool(self._hitbox.overlap(mask, point))
 
 
 LayoutT = TypeVar("LayoutT", bound=LayoutObject)
