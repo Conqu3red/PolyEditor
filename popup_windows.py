@@ -161,11 +161,11 @@ class EditObjectWindow:
 				self._layout.append(row)
 
 	def open(self):
-		"""Initializes and opens the window"""
+		"""Opens the window if it is not empty and not already open"""
+		if self.data is None or self._window is not None:
+			return
 		self._window = sg.Window("Object properties", self._layout, keep_on_top=True, element_justification="center",
 		                         alpha_channel=0.7, disable_minimize=True, return_keyboard_events=True)
-		self._window.read(timeout=0)
-		self._window.bind("<Leave>", "Leave")  # mouse leaves an element
 
 	def read(self, timeout: Optional[int] = None) -> Tuple[str, Dict[str, Any]]:
 		"""Returns the event name and a validated list of values when an event occurs"""
