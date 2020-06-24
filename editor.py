@@ -35,8 +35,8 @@ SAVE_EVENT = pygame.USEREVENT + 1
 DONE = "done"
 CLOSE_PROGRAM = "exit"
 CLOSE_EDITOR = "close"
-OPEN_OBJWINDOW = "openobj"
-CLOSE_OBJWINDOW = "closeobj"
+OPEN_OBJEDIT = "openobj"
+CLOSE_OBJEDIT = "closeobj"
 RESTART_PROGRAM = "restart"
 ESCAPE_KEY = "Escape:27"
 # Colors
@@ -141,8 +141,8 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_e
 	size = Vector(BASE_SIZE)
 	camera = Vector(size.x / zoom / 2, -(size.y / zoom / 2 + 5))
 	clock = pygame.time.Clock()
-	edit_object_window = popup.EditObjectWindow(None, None)
-	main_events.put(OPEN_OBJWINDOW, edit_object_window)
+	object_editing_window = popup.EditObjectWindow(None, None)
+	main_events.put(OPEN_OBJEDIT, object_editing_window)
 	selected_shape = None
 	input_locked = False
 	resized_window = False
@@ -205,9 +205,9 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_e
 				main_events.put(DONE)
 				return
 
-			elif edit_object_window:
+			elif object_editing_window:
 				if event == "Exit":
-					main_events.put(CLOSE_OBJWINDOW)
+					main_events.put(CLOSE_OBJEDIT)
 				else:
 					values = event_args[0]
 					hl_objs = [o for o in selectable_objects() if o.selected]
@@ -271,7 +271,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_e
 					moused_over = pyevent.gain == 1
 				if pyevent.state == 6:  # minimized
 					if not pyevent.gain:
-						main_events.put(CLOSE_OBJWINDOW)
+						main_events.put(CLOSE_OBJEDIT)
 						main_events.put(DONE)
 
 			elif pyevent.type == pygame.VIDEORESIZE:
@@ -341,7 +341,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_e
 									selected_shape = obj
 									for o in selectable_objects():
 										o.selected = False
-									main_events.put(CLOSE_OBJWINDOW)
+									main_events.put(CLOSE_OBJEDIT)
 									break
 					if not point_moving:
 						# Dragging and multiselect
@@ -355,10 +355,10 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_e
 										for o in selectable_objects():
 											o.selected = False
 									obj.selected = True
-									main_events.put(CLOSE_OBJWINDOW)
+									main_events.put(CLOSE_OBJEDIT)
 								elif holding_shift():
 									obj.selected = False
-									main_events.put(CLOSE_OBJWINDOW)
+									main_events.put(CLOSE_OBJEDIT)
 								break
 						if not (moving or point_moving):
 							panning = True
@@ -366,7 +366,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_e
 						old_mouse_pos = Vector(pyevent.pos)
 
 				if pyevent.button == 3:  # right click
-					main_events.put(CLOSE_OBJWINDOW)
+					main_events.put(CLOSE_OBJEDIT)
 					# Delete point
 					deleted_point = False
 					if draw_points:
@@ -425,7 +425,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_e
 
 				if pyevent.button == 3:  # right click
 					selecting = False
-					main_events.put(CLOSE_OBJWINDOW)
+					main_events.put(CLOSE_OBJEDIT)
 
 			elif pyevent.type == pygame.MOUSEMOTION:
 				mouse_pos = Vector(pyevent.pos)
@@ -497,7 +497,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_e
 						objects[type(new_obj)].append(new_obj)
 
 				elif pyevent.key == pygame.K_e:
-					# Popup window to edit properties
+					# Popup window to edit object properties
 					hl_objs = [o for o in selectable_objects() if o.selected]
 					for obj in hl_objs:
 						obj.selected = False
@@ -527,8 +527,8 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_e
 							values[popup.FLIP] = obj.flipped
 						elif isinstance(obj, g.Pillar):
 							values[popup.HEIGHT] = obj.height
-						edit_object_window = popup.EditObjectWindow(values, obj)
-						main_events.put(OPEN_OBJWINDOW, edit_object_window)
+						object_editing_window = popup.EditObjectWindow(values, obj)
+						main_events.put(OPEN_OBJEDIT, object_editing_window)
 					if len(hl_objs) > 1:
 						values = {}
 						for i in range(len(hl_objs)):
@@ -536,8 +536,8 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_e
 								values[popup.RGB_R] = hl_objs[i].color[0]
 								values[popup.RGB_G] = hl_objs[i].color[1]
 								values[popup.RGB_B] = hl_objs[i].color[2]
-								edit_object_window = popup.EditObjectWindow(values, hl_objs[i])
-								main_events.put(OPEN_OBJWINDOW, edit_object_window)
+								object_editing_window = popup.EditObjectWindow(values, hl_objs[i])
+								main_events.put(OPEN_OBJEDIT, object_editing_window)
 								break
 				# Move selection with keys
 				if move:
@@ -546,9 +546,9 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_e
 						obj.pos += (move_x, move_y)
 					if len(hl_objs) == 0:
 						camera -= (move_x, move_y)
-					elif edit_object_window and len(hl_objs) == 1 and edit_object_window.obj == hl_objs[0]:
-						edit_object_window.inputs[popup.POS_X].update(str(hl_objs[0].pos.x))
-						edit_object_window.inputs[popup.POS_Y].update(str(hl_objs[0].pos.y))
+					elif object_editing_window and len(hl_objs) == 1 and object_editing_window.obj == hl_objs[0]:
+						object_editing_window.inputs[popup.POS_X].update(str(hl_objs[0].pos.x))
+						object_editing_window.inputs[popup.POS_Y].update(str(hl_objs[0].pos.y))
 
 		if input_locked and not resized_window:
 			continue
@@ -568,9 +568,9 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, main_e
 			hl_objs = [o for o in selectable_objects() if o.selected]
 			for obj in hl_objs:
 				obj.pos += true_mouse_pos() - old_true_mouse_pos
-			if edit_object_window and len(hl_objs) == 1 and edit_object_window.obj == hl_objs[0]:
-				edit_object_window.inputs[popup.POS_X].update(str(hl_objs[0].pos.x))
-				edit_object_window.inputs[popup.POS_Y].update(str(hl_objs[0].pos.y))
+			if object_editing_window and len(hl_objs) == 1 and object_editing_window.obj == hl_objs[0]:
+				object_editing_window.inputs[popup.POS_X].update(str(hl_objs[0].pos.x))
+				object_editing_window.inputs[popup.POS_Y].update(str(hl_objs[0].pos.y))
 
 		true_mouse_change = true_mouse_pos() - old_true_mouse_pos
 		old_true_mouse_pos = true_mouse_pos()
@@ -702,18 +702,18 @@ def main():
 		pygame_thread = Thread(target=editor, args=editor_args + (editor_events.inverse(),), daemon=True)
 		pygame_thread.start()
 
-		edit_object_window = popup.EditObjectWindow(None, None)
+		object_editing_window = popup.EditObjectWindow(None, None)
 		close_editor = False
 		while not close_editor:
 			try:
-				event, event_args = editor_events.get(block=not edit_object_window)
+				event, event_args = editor_events.get(block=not object_editing_window)
 			except Empty:
 				pass
 			else:
 				# Main Menu
 				if event is popup.open_menu:
-					if edit_object_window:
-						edit_object_window.close()
+					if object_editing_window:
+						object_editing_window.close()
 					menu_window = popup.open_menu()
 					if event_args[0]:  # Ignore Escape key release
 						menu_window.read()
@@ -743,8 +743,8 @@ def main():
 
 				# Popup Notification
 				elif event in (popup.info, popup.notif, popup.yes_no, popup.ok_cancel):
-					if edit_object_window:
-						edit_object_window.close()
+					if object_editing_window:
+						object_editing_window.close()
 					popup_window = event(*event_args, read=False)
 					popup_result = None
 					while not popup_result:
@@ -765,14 +765,14 @@ def main():
 					popup_window = None
 					gc.collect()
 
-				elif event == OPEN_OBJWINDOW:
-					edit_object_window.close()
+				elif event == OPEN_OBJEDIT:
+					object_editing_window.close()
 					if event_args:
-						edit_object_window = event_args[0]
-					edit_object_window.open()
+						object_editing_window = event_args[0]
+					object_editing_window.open()
 
-				elif event == CLOSE_OBJWINDOW:
-					edit_object_window.close()
+				elif event == CLOSE_OBJEDIT:
+					object_editing_window.close()
 
 				elif event == CLOSE_EDITOR:
 					close_editor = True
@@ -787,8 +787,8 @@ def main():
 				else:
 					print(f"Warning: Unrecognized editor event {event} {event_args}")
 
-			if edit_object_window:
-				window_event, window_values = edit_object_window.read(10)
+			if object_editing_window:
+				window_event, window_values = object_editing_window.read(10)
 				if window_event != sg.TIMEOUT_KEY:
 					editor_events.put(window_event, window_values)
 
