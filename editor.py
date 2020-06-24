@@ -9,7 +9,6 @@ import json
 import traceback
 import ctypes
 import PySimpleGUI as sg
-from operator import add, sub
 from uuid import uuid4
 from copy import deepcopy
 from itertools import chain
@@ -20,6 +19,7 @@ from time import sleep
 
 import game_objects as g
 import popup_windows as popup
+from vector import Vector
 
 # Window properties
 BASE_SIZE = (1200, 600)
@@ -108,10 +108,9 @@ def load_level():
 
 
 def main(layout, layoutfile, jsonfile, backupfile):
-	moused_over = True
-	size = BASE_SIZE
 	zoom = 20
-	camera = [size[0] / zoom / 2, -(size[1] / zoom / 2 + 5)]
+	size = Vector(BASE_SIZE)
+	camera = Vector(size[0] / zoom / 2, -(size[1] / zoom / 2 + 5))
 	clock = pygame.time.Clock()
 	edit_object_window = popup.EditObjectWindow(None, None)
 	draw_points = False
@@ -120,28 +119,30 @@ def main(layout, layoutfile, jsonfile, backupfile):
 	selecting = False
 	moving = False
 	point_moving = False
+	moused_over = True
 	selected_shape = None
 
-	mouse_pos = (0, 0)
-	old_mouse_pos = (0, 0)
-	old_true_mouse_pos = (0, 0)
-	selecting_pos = (0, 0)
-	dragndrop_pos = (0, 0)
+	mouse_pos = Vector(0, 0)
+	old_mouse_pos = Vector(0, 0)
+	old_true_mouse_pos = Vector(0, 0)
+	selecting_pos = Vector(0, 0)
+	dragndrop_pos = Vector(0, 0)
 	bg_color = BACKGROUND_BLUE
 	bg_color_2 = BACKGROUND_BLUE_GRID
 	fg_color = WHITE
 
-	objects = {li.cls: li for li in [
+	object_lists = [
 		terrain_stretches := g.LayoutList(g.TerrainStretch, layout),
 		water_blocks := g.LayoutList(g.WaterBlock, layout),
 		custom_shapes := g.LayoutList(g.CustomShape, layout),
 		pillars := g.LayoutList(g.Pillar, layout),
 		anchors := g.LayoutList(g.Anchor, layout)
-	]}
+	]
+	objects = {li.cls: li for li in object_lists}
 
 	selectable_objects = lambda: tuple(chain(custom_shapes, pillars))
 	holding_shift = lambda: pygame.key.get_mods() & pygame.KMOD_SHIFT
-	true_mouse_pos = lambda: (mouse_pos[0] / zoom - camera[0], -mouse_pos[1] / zoom - camera[1])
+	true_mouse_pos = lambda: mouse_pos.flip_y() / zoom - camera
 
 	display = pygame.display.set_mode(size, pygame.RESIZABLE)
 	g.DUMMY_SURFACE = pygame.Surface(size, pygame.SRCALPHA, 32)
@@ -151,7 +152,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 	pygame.init()
 
 	menu_button_font = pygame.font.SysFont("Courier", 20, True)
-	menu_button = pygame.Surface(tuple(map(add, (10, 6), menu_button_font.size("Menu"))))
+	menu_button = pygame.Surface(Vector(menu_button_font.size("Menu")) + (10, 6))
 	menu_button.fill(BACKGROUND_BLUE_DARK)
 	pygame.draw.rect(menu_button, BLACK, menu_button.get_rect(), 1)
 	menu_button.blit(menu_button_font.render("Menu", True, WHITE), (5, 4))
@@ -276,7 +277,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 							if obj.collidepoint(event.pos):
 								if not holding_shift():
 									moving = True
-									dragndrop_pos = true_mouse_pos() if not obj.selected else None
+									dragndrop_pos = true_mouse_pos() if not obj.selected else Vector()
 								if not obj.selected:
 									if not holding_shift():  # clear other selections
 										for o in selectable_objects():
@@ -290,7 +291,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						if not (moving or point_moving):
 							panning = True
 							dragndrop_pos = true_mouse_pos()
-						old_mouse_pos = event.pos
+						old_mouse_pos = Vector(event.pos)
 
 				if event.button == 3:  # right click
 					edit_object_window.close()
@@ -309,30 +310,30 @@ def main(layout, layoutfile, jsonfile, backupfile):
 									break
 					if not deleted_point:
 						if not point_moving or moving or holding_shift():
-							selecting_pos = event.pos
+							selecting_pos = Vector(event.pos)
 							selecting = True
 
 				if event.button == 4:  # mousewheel up
-					old_pos = true_mouse_pos()
+					zoom_old_pos = true_mouse_pos()
 					if not holding_shift() and round(zoom * (ZOOM_MULT - 1)) >= 1:
 						zoom = round(zoom * ZOOM_MULT)
 					else:
 						zoom += 1
 					if zoom > ZOOM_MAX:
 						zoom = ZOOM_MAX
-					new_pos = true_mouse_pos()
-					camera = [camera[i] + new_pos[i] - old_pos[i] for i in range(2)]
+					zoom_new_pos = true_mouse_pos()
+					camera = camera + zoom_new_pos - zoom_old_pos
 
 				if event.button == 5:  # mousewheel down
-					old_pos = true_mouse_pos()
+					zoom_old_pos = true_mouse_pos()
 					if not holding_shift() and round(zoom / (ZOOM_MULT - 1)) >= 1:
 						zoom = round(zoom / ZOOM_MULT)
 					else:
 						zoom -= 1
 					if zoom < ZOOM_MIN:
 						zoom = ZOOM_MIN
-					new_pos = true_mouse_pos()
-					camera = [camera[i] + new_pos[i] - old_pos[i] for i in range(2)]
+					zoom_new_pos = true_mouse_pos()
+					camera = camera + zoom_new_pos - zoom_old_pos
 
 			elif event.type == pygame.MOUSEBUTTONUP:
 
@@ -342,7 +343,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 						selected_shape = None
 						point_moving = False
 					if (
-							not holding_shift() and dragndrop_pos is not None
+							not holding_shift() and dragndrop_pos
 							and ((not panning and dragndrop_pos != true_mouse_pos())
 							     or (panning and dragndrop_pos == true_mouse_pos()))
 					):
@@ -357,10 +358,9 @@ def main(layout, layoutfile, jsonfile, backupfile):
 					edit_object_window.close()
 
 			elif event.type == pygame.MOUSEMOTION:
-				mouse_pos = event.pos
+				mouse_pos = Vector(event.pos)
 				if panning:
-					camera[0] = camera[0] + (mouse_pos[0] - old_mouse_pos[0]) / zoom
-					camera[1] = camera[1] - (mouse_pos[1] - old_mouse_pos[1]) / zoom
+					camera += (mouse_pos - old_mouse_pos).flip_y() / zoom
 					old_mouse_pos = mouse_pos
 
 			elif event.type == pygame.KEYDOWN:
@@ -491,7 +491,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 		if moving:
 			hl_objs = [o for o in selectable_objects() if o.selected]
 			for obj in hl_objs:
-				obj.pos = tuple(obj.pos[i] + true_mouse_pos()[i] - old_true_mouse_pos[i] for i in range(2))
+				obj.pos += true_mouse_pos() - old_true_mouse_pos
 			if edit_object_window and len(hl_objs) == 1 and edit_object_window.obj == hl_objs[0]:
 				edit_object_window.inputs[popup.POS_X].update(str(hl_objs[0].pos[0]))
 				edit_object_window.inputs[popup.POS_Y].update(str(hl_objs[0].pos[1]))
@@ -513,12 +513,12 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			elif event == "Leave" or event == sg.TIMEOUT_KEY:
 				pass
 			else:
-				obj.pos = (values[popup.POS_X], values[popup.POS_Y], values[popup.POS_Z])
+				obj.pos = Vector(values[popup.POS_X], values[popup.POS_Y], values[popup.POS_Z])
 				if type(obj) is g.CustomShape:
-					obj.scale = (values[popup.SCALE_X], values[popup.SCALE_Y], values[popup.SCALE_Z])
-					obj.rotations = (values[popup.ROT_X], values[popup.ROT_Y], values[popup.ROT_Z])
+					obj.scale = Vector(values[popup.SCALE_X], values[popup.SCALE_Y], values[popup.SCALE_Z])
+					obj.rotations = Vector(values[popup.ROT_X], values[popup.ROT_Y], values[popup.ROT_Z])
+					obj.color = Vector(values[popup.RGB_R], values[popup.RGB_G], values[popup.RGB_B])
 					obj.flipped = values[popup.FLIP]
-					obj.color = (values[popup.RGB_R], values[popup.RGB_G], values[popup.RGB_B])
 					obj.calculate_hitbox()
 				elif type(obj) is g.Pillar:
 					obj.height = values[popup.HEIGHT]
@@ -536,7 +536,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 		else:
 			edit_object_window.close()
 
-		true_mouse_change = tuple(map(sub, true_mouse_pos(), old_true_mouse_pos))
+		true_mouse_change = true_mouse_pos() - old_true_mouse_pos
 		old_true_mouse_pos = true_mouse_pos()
 
 		# Render Objects
@@ -544,7 +544,7 @@ def main(layout, layoutfile, jsonfile, backupfile):
 			terrain.render(display, camera, zoom, fg_color)
 		for water in water_blocks:
 			water.render(display, camera, zoom, fg_color)
-		shape_args = g.ShapeRenderArgs(draw_points, mouse_pos, true_mouse_change, holding_shift(), draw_hitboxes)
+		shape_args = g.ShapeRenderArgs(draw_points, draw_hitboxes, holding_shift(), mouse_pos, true_mouse_change)
 		for shape in custom_shapes:
 			shape.render(display, camera, zoom, shape_args)
 		for shape in custom_shapes:
@@ -560,8 +560,8 @@ def main(layout, layoutfile, jsonfile, backupfile):
 
 		# Selecting shapes
 		if selecting:
-			rect = (min(selecting_pos[0], mouse_pos[0]), min(selecting_pos[1], mouse_pos[1]),
-			        abs(mouse_pos[0] - selecting_pos[0]), abs(mouse_pos[1] - selecting_pos[1]))
+			rect = Vector(min(selecting_pos[0], mouse_pos[0]), min(selecting_pos[1], mouse_pos[1]),
+			              abs(mouse_pos[0] - selecting_pos[0]), abs(mouse_pos[1] - selecting_pos[1]))
 			pygame.draw.rect(display, g.SELECT_COLOR, rect, 1)
 			mask = g.rect_hitbox_mask(rect, zoom)
 			for obj in selectable_objects():
@@ -612,7 +612,7 @@ if __name__ == "__main__":
 		sg.set_global_icon(ICON)
 
 		# Hide console at runtime. We enable it with PyInstaller so that the user knows it's doing something.
-		if TEMP_FILES is not None:
+		if TEMP_FILES:
 			print("Finished loading!")
 			sleep(0.5)
 			kernel32 = ctypes.WinDLL("kernel32")
@@ -654,9 +654,11 @@ if __name__ == "__main__":
 
 		# Meta loop
 		while True:
-			args = load_level()
-			if args is not None:
+			if args := load_level():
 				main(*args)
 
 	except Exception as e:
-		popup.info("Error", "An unexpected error occurred while running PolyEditor:", traceback.format_exc())
+		if TEMP_FILES:
+			popup.info("Error", "An unexpected error occurred while running PolyEditor:", traceback.format_exc())
+		else:
+			raise e

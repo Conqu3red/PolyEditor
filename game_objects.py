@@ -4,7 +4,7 @@ import pygame.gfxdraw
 from pygame import Surface, Rect
 from pygame.mask import MaskType as Mask, Mask as mask_from_size, from_surface as mask_from_surface
 from typing import *
-from operator import add
+from vector import Vector
 
 HITBOX_RESOLUTION = 40
 DUMMY_SURFACE = Surface((0, 0))
@@ -41,12 +41,8 @@ PILLAR_COLOR = (195, 171, 149, 150)
 PILLAR_BORDER = (105, 98, 91, 150)
 PILLAR_BORDER_WIDTH = 1
 
-Vector2 = Tuple[float, float]
-Vector3 = Tuple[float, float, float]
-Vector4 = Tuple[float, float, float, float]
-Vector = Union[Vector2, Vector3]
-Pos = Sequence[float]
-ClosestPoint = Tuple[Optional[Vector2], float, int]
+NumberTuple = Tuple[Union[int, float], ...]
+ClosestPoint = Tuple[Vector, float, int]
 
 
 def scale(min_width: int, zoom: int, factor=30) -> int:
@@ -54,87 +50,7 @@ def scale(min_width: int, zoom: int, factor=30) -> int:
 	return max(min_width, round(zoom / (factor / min_width)))
 
 
-def rotate(point: Vector, angle: float, origin: Vector = (0, 0), deg=True) -> Vector:
-	"""Rotate a point by a given angle counterclockwise around the origin"""
-	if deg:
-		angle = math.radians(angle)
-	px, py = point[0] - origin[0], point[1] - origin[1]
-	x = math.cos(angle) * px - math.sin(angle) * py + origin[0]
-	y = math.sin(angle) * px + math.cos(angle) * py + origin[1]
-	return (x, y) if len(point) == 2 else (x, y, point[2])
-
-
-def quaternion(x: float, y: float, z: float, deg=True) -> Vector4:
-	"""Converts euler angles to a quaternion
-	https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles"""
-	if deg:
-		x = math.radians(x)
-		y = math.radians(y)
-		z = math.radians(z)
-
-	cx = math.cos(x * 0.5)
-	sx = math.sin(x * 0.5)
-	cy = math.cos(y * 0.5)
-	sy = math.sin(y * 0.5)
-	cz = math.cos(z * 0.5)
-	sz = math.sin(z * 0.5)
-
-	qx = sx * cy * cz - cx * sy * sz
-	qy = cx * sy * cz + sx * cy * sz
-	qz = cx * cy * sz - sx * sy * cz
-	qw = cx * cy * cz + sx * sy * sz
-	return qx, qy, qz, qw
-
-
-def euler_angles(qx: float, qy: float, qz: float, qw: float, deg=True) -> Vector3:
-	"""Converts a quaternion to euler angles
-	https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles"""
-	sx_cy = 2 * (qw * qx + qy * qz)
-	cx_cy = 1 - 2 * (qx**2 + qy**1)
-	x = math.atan2(sx_cy, cx_cy)
-
-	sy = 2 * (qw * qy - qz * qx)
-	y = math.asin(sy) if -1 < sy < 1 else math.copysign(math.pi / 2, sy)
-
-	sz_cy = 2 * (qw * qz + qx * qy)
-	cz_cy = 1 - 2 * (qy**2 + qz**2)
-	z = math.atan2(sz_cy, cz_cy)
-
-	if deg:
-		x = math.degrees(x)
-		y = math.degrees(y)
-		z = math.degrees(z)
-	return x, y, z
-
-
-def closest_point(l1: Vector2, l2: Vector2, p: Vector2) -> Optional[Vector2]:
-	"""Finds the closest point on a line given a start and end point, and a point to check from."""
-	try:
-		s1 = (l2[1] - l1[1]) / (l2[0] - l1[0])
-		s2 = -1 / s1
-		a1 = (l1[1] - l1[0] * s1)
-		a2 = (p[1] - p[0] * s2)
-		x = -(a2 - a1) / (s2 - s1)
-		if l1[0] <= x <= l2[0] or l2[0] <= x <= l1[0]:
-			return x, s1 * x + a1
-		else:
-			return None
-	except ZeroDivisionError:
-		if l2[0] - l1[0] == 0: 
-			# Vertical line
-			if l1[1] <= p[1] <= l2[1] or l2[1] <= p[1] <= l1[1]:
-				return l1[0], p[1]
-			else:
-				return None
-		else:
-			# Horizontal Line
-			if l1[0] <= p[0] <= l2[0] or l2[0] <= p[0] <= l1[0]:
-				return p[0], l1[1]
-			else:
-				return None
-
-
-def rect_hitbox_mask(rect: Pos, zoom: int) -> Mask:
+def rect_hitbox_mask(rect: Sequence[float], zoom: int) -> Mask:
 	w, h = max(1, round(rect[2] / zoom * HITBOX_RESOLUTION)), max(1, round(rect[3] / zoom * HITBOX_RESOLUTION))
 	return mask_from_size((w, h), True)
 
@@ -146,7 +62,7 @@ class LayoutObject:
 	def __init__(self, dictionary):
 		self._dict = dictionary
 
-	def render(self, display: Surface, camera: Pos, zoom: int, args=None):
+	def render(self, display: Surface, camera: Vector, zoom: int, args=None):
 		raise NotImplementedError(f"{type(self).render}")
 
 	@property
@@ -154,14 +70,11 @@ class LayoutObject:
 		return self._dict
 
 	@property
-	def pos(self) -> Vector3:
-		return self._dict["m_Pos"]["x"], self._dict["m_Pos"]["y"], self._dict["m_Pos"]["z"]
+	def pos(self) -> Vector:
+		return Vector(self._dict["m_Pos"])
 	@pos.setter
 	def pos(self, value: Vector):
-		if len(value) == 2:
-			self._dict["m_Pos"] = {"x": value[0], "y": value[1], "z": self._dict["m_Pos"]["z"]}
-		else:
-			self._dict["m_Pos"] = {"x": value[0], "y": value[1], "z": value[2]}
+		value.to_dict(self._dict["m_Pos"])
 
 
 class SelectableObject(LayoutObject):
@@ -170,24 +83,24 @@ class SelectableObject(LayoutObject):
 		super().__init__(dictionary)
 		self.selected = False
 		self._hitbox: Optional[Mask] = None
-		self._center_offset: Vector2 = (0, 0)
+		self._center_offset = Vector(0, 0)
 		self._last_zoom: int = 1
-		self._last_camera: Vector2 = (0, 0)
+		self._last_camera = Vector(0, 0)
 
-	def render(self, display: Surface, camera: Pos, zoom: float, args=None):
+	def render(self, display: Surface, camera: Vector, zoom: float, args=None):
 		self._last_zoom = zoom
 		self._last_camera = tuple(camera)
 
-	def collidepoint(self, point: Vector2) -> bool:
-		size, center = self._hitbox.get_size(), self.pos
+	def collidepoint(self, point: Vector) -> bool:
+		size, center = self._hitbox.get_size(), self.pos[:2]
 		x = round((point[0] / self._last_zoom - self._last_camera[0] - center[0] + self._center_offset[0])
 		          * HITBOX_RESOLUTION + size[0] / 2)
 		y = round((point[1] / self._last_zoom + self._last_camera[1] + center[1] + self._center_offset[1])
 		          * HITBOX_RESOLUTION + size[1] / 2)
 		return self._hitbox.get_at((x, y)) if 0 <= x < size[0] and 0 <= y < size[1] else False
 
-	def colliderect(self, rect: Pos, mask: Mask = None) -> bool:
-		size, center = self._hitbox.get_size(), self.pos
+	def colliderect(self, rect: Vector, mask: Mask = None) -> bool:
+		size, center = self._hitbox.get_size(), self.pos[:2]
 		x = round((rect[0] / self._last_zoom - self._last_camera[0] - center[0] + self._center_offset[0])
 		          * HITBOX_RESOLUTION + size[0] / 2)
 		y = round((rect[1] / self._last_zoom + self._last_camera[1] + center[1] + self._center_offset[1])
@@ -241,7 +154,7 @@ class Anchor(LayoutObject):
 	def __init__(self, dictionary):
 		super().__init__(dictionary)
 
-	def render(self, display: Surface, camera: Pos, zoom: int, dynamic_anchor_ids=tuple()):
+	def render(self, display: Surface, camera: Vector, zoom: int, dynamic_anchor_ids=tuple()):
 		color = ANCHOR_COLOR
 		for dyn_anc_id in dynamic_anchor_ids:
 			if self.id == dyn_anc_id:
@@ -268,7 +181,7 @@ class TerrainStretch(LayoutObject):
 	def __init__(self, dictionary):
 		super().__init__(dictionary)
 
-	def render(self, display: Surface, camera: Pos, zoom: int, color=WHITE):
+	def render(self, display: Surface, camera: Vector, zoom: int, color=WHITE):
 		if self.width == TERRAIN_MAIN_WIDTH:  # main terrain
 			x = zoom * (self.pos[0] - (0 if self.flipped else self.width) + camera[0])
 		else:
@@ -298,7 +211,7 @@ class WaterBlock(LayoutObject):
 	def __init__(self, dictionary):
 		super().__init__(dictionary)
 
-	def render(self, display: Surface, camera: Pos, zoom: int, color=WHITE):
+	def render(self, display: Surface, camera: Vector, zoom: int, color=WHITE):
 		start = (zoom * (self.pos[0] - self.width/2 + camera[0]), zoom * -(self.height + camera[1]))
 		end = (zoom * (self.pos[0] + self.width/2 + camera[0]), zoom * -(self.height + camera[1]))
 		pygame.draw.line(display, color, start, end, scale(WATER_EDGE_WIDTH, zoom))
@@ -325,7 +238,7 @@ class Pillar(SelectableObject):
 		super().__init__(dictionary)
 		self.rect = Rect(0, 0, 0, 0)
 
-	def render(self, display: Surface, camera: Pos, zoom: int, draw_hitboxes=False):
+	def render(self, display: Surface, camera: Vector, zoom: int, draw_hitboxes=False):
 		super().render(display, camera, zoom)
 		self.rect = Rect(round(zoom * (self.pos[0] - PILLAR_WIDTH / 2 + camera[0])),
 		                 round(zoom * -(self.pos[1] + self.height + camera[1])),
@@ -360,12 +273,13 @@ class Pillar(SelectableObject):
 
 
 class ShapeRenderArgs:
-	def __init__(self, draw_points, mouse_pos, mouse_change, holding_shift, draw_hitboxes):
-		self.draw_points: bool = draw_points
-		self.mouse_pos: Vector2 = mouse_pos
-		self.mouse_change: Vector2 = mouse_change
-		self.holding_shift: bool = holding_shift
-		self.draw_hitboxes: bool = draw_hitboxes
+	def __init__(self, draw_points: bool, draw_hitboxes: bool, holding_shift: bool,
+	             mouse_pos: Vector, mouse_change: Vector):
+		self.draw_points = draw_points
+		self.mouse_pos = mouse_pos
+		self.mouse_change = mouse_change
+		self.holding_shift = holding_shift
+		self.draw_hitboxes = draw_hitboxes
 		self.top_point: Optional[CustomShapePoint] = None
 		self.selected_point: Optional[CustomShapePoint] = None
 		self.moused_over_point: Optional[CustomShapePoint] = None
@@ -380,7 +294,7 @@ class CustomShape(SelectableObject):
 		self.point_hitboxes: List[CustomShapePoint] = []
 		self.anchors: List[Anchor] = []
 		self.selected_point_index: Optional[int] = None
-		self.add_point_closest: ClosestPoint = (None, 0, 0)
+		self.add_point_closest: ClosestPoint = (Vector(), 0, 0)
 		self.add_point_hitbox = Rect(0, 0, 0, 0)
 		if anchors:
 			for dyn_anc_id in self.dynamic_anchor_ids:
@@ -402,13 +316,10 @@ class CustomShape(SelectableObject):
 
 		# Adjust center
 		basepos = self.pos
-		center = (leftmost + width / 2 + basepos[0], topmost + height / 2 + basepos[1])
+		center = Vector(leftmost + width / 2 + basepos[0], topmost + height / 2 + basepos[1])
 		if align_center:
-			self._dict["m_Pos"]["x"] = center[0]
-			self._dict["m_Pos"]["y"] = center[1]
-			points_base = [(point[0] + basepos[0] - center[0], point[1] + basepos[1] - center[1])
-			               for point in points_base]
-			self.points = points_base
+			center.to_dict(self._dict["m_Pos"])
+			self.points = (points_base := [point + basepos - center for point in points_base])
 			leftmost, rightmost = [x + basepos[0] - center[0] for x in (leftmost, rightmost)]
 			topmost, bottommost = [y + basepos[1] - center[1] for y in (topmost, bottommost)]
 			self._center_offset = (0, 0)
@@ -423,13 +334,12 @@ class CustomShape(SelectableObject):
 		pygame.draw.polygon(surface, BLACK, points_hitbox)
 		self._hitbox = mask_from_surface(surface)
 
-	def render(self, display: Surface, camera: Pos, zoom: int, args: ShapeRenderArgs = None):
+	def render(self, display: Surface, camera: Vector, zoom: int, args: ShapeRenderArgs = None):
 		"""Draws the shape on the screen and calculates attributes like bounding_box.
 		It also searches for a single point to be selected, which is saved to the args object."""
 		super().render(display, camera, zoom)
-		points_pixels = [(round(zoom * (self.pos[0] + point[0] + camera[0])),
-		                  round(zoom * -(self.pos[1] + point[1] + camera[1])))
-		                 for point in self.points]
+		basepos = self.pos[:2]
+		points_pixels = [zoom * (point + basepos + camera).flip_y() for point in self.points]
 		border_color = tuple(self.color[i] * 0.75 for i in range(3))
 		pygame.gfxdraw.filled_polygon(display, points_pixels, self.color)
 		pygame.gfxdraw.aapolygon(display, points_pixels, border_color)
@@ -472,20 +382,19 @@ class CustomShape(SelectableObject):
 			center_end = (center_start[0] + center_width, center_start[1])
 			pygame.draw.line(display, HITBOX_COLOR, center_start, center_end, center_width)
 
-	def render_points(self, display: Surface, camera: Pos, zoom: int, args: ShapeRenderArgs):
+	def render_points(self, display: Surface, camera: Vector, zoom: int, args: ShapeRenderArgs):
 		"""Draws dots for the shape's points and performs operations related to selecting and moving them.
 		It also searches for the top point to display, which is saved to the args object."""
 		if not args.draw_points:
 			return
-		points = self.points
-		points_pixels = [(round(zoom * (self.pos[0] + point[0] + camera[0])),
-		                  round(zoom * -(self.pos[1] + point[1] + camera[1])))
-		                 for point in self.points]
+		points, basepos = self.points, self.pos[:2]
+		points_pixels = [zoom * (point + basepos + camera).flip_y() for point in self.points]
+
 		# Move point if a point is selected
-		for i, point in enumerate(points):
+		for i in range(len(points)):
 			if i == self.selected_point_index:
 				newpoints = list(points)
-				newpoints[i] = tuple(map(add, point, args.mouse_change))
+				newpoints[i] += args.mouse_change
 				points = newpoints
 				self.points = tuple(newpoints)
 				break
@@ -497,35 +406,30 @@ class CustomShape(SelectableObject):
 				point.render(display, POINT_COLOR, round(zoom * POINT_RADIUS))
 		# Show overlay of where a point will be added
 		if args.selected_point is None and args.holding_shift and self.bounding_box.collidepoint(*args.mouse_pos):
-			closest: ClosestPoint = (None, zoom / 7, -1)
+			closest: ClosestPoint = (Vector(), zoom / 7, -1)
 			for i in range(len(points)):
 				ni = 0 if i + 1 == len(points) else i + 1
-				_point = closest_point(points_pixels[i], points_pixels[ni], args.mouse_pos)
+				_point = args.mouse_pos.closest_point(points_pixels[i], points_pixels[ni])
 				if not _point:
 					continue
 				distance = math.sqrt((_point[0] - args.mouse_pos[0]) ** 2 + (_point[1] - args.mouse_pos[1]) ** 2)
 				if distance < closest[1]:
-					closest = (_point, distance, ni)
-			if closest[0] is not None:
+					closest = (_point.round(), distance, ni)
+			if closest[0]:
 				self.add_point_closest = closest
 				self.add_point_hitbox = pygame.draw.circle(
-					DUMMY_SURFACE, 0,
-					(round(closest[0][0]), round(closest[0][1])), round(zoom * PIN_RADIUS / 1.7), 0
-				)
+					DUMMY_SURFACE, 0, (closest[0].round()), round(zoom * PIN_RADIUS / 1.7), 0)
 				pygame.gfxdraw.aacircle(
-					display, round(closest[0][0]), round(closest[0][1]), round(zoom * PIN_RADIUS / 1.7),
-					ADD_POINT_COLOR)
+					display, closest[0][0], closest[0][1], round(zoom * PIN_RADIUS / 1.7), ADD_POINT_COLOR)
 				pygame.gfxdraw.filled_circle(
-					display, round(closest[0][0]), round(closest[0][1]), round(zoom * PIN_RADIUS / 1.7),
-					ADD_POINT_COLOR)
+					display, closest[0][0], closest[0][1], round(zoom * PIN_RADIUS / 1.7), ADD_POINT_COLOR)
 		# Update hitbox and move center to actual center
 		if self.selected_point_index is not None:
 			self.calculate_hitbox(True)
 
-	def add_point(self, index: int, point: Vector2):
+	def add_point(self, index: int, point: Vector):
 		points = list(self.points)
-		points.insert(index, (point[0] / self._last_zoom - self._last_camera[0] - self.pos[0],
-		                      -(point[1] / self._last_zoom) - self._last_camera[1] - self.pos[1]))
+		points.insert(index, (point / self._last_zoom).flip_y() - self._last_camera - self.pos)
 		self.points = points
 		self.selected_point_index = None
 		self.calculate_hitbox(True)
@@ -539,34 +443,29 @@ class CustomShape(SelectableObject):
 
 	@SelectableObject.pos.setter
 	def pos(self, value: Vector):
-		change = (value[0] - self.pos[0], value[1] - self.pos[1])
+		change = value - self.pos
 		SelectableObject.pos.__set__(self, value)
 		for pin in self.static_pins:
-			pin["x"] += change[0]
-			pin["y"] += change[1]
+			(Vector(pin) + change).to_dict(pin)
 		for anchor in self.anchors:
-			anchor.pos = (anchor.pos[0] + change[0], anchor.pos[1] + change[1])
+			anchor.pos += change
 
 	@property
-	def rotations(self) -> Vector3:
+	def rotations(self) -> Vector:
 		"""Rotation degrees in the X, Y, and Z axis, calculated from a quaternion"""
-		rot = self._dict["m_Rot"]
-		return euler_angles(rot["x"], rot["y"], rot["z"], rot["w"])
+		return Vector(self._dict["m_Rot"]).euler_angles()
 	@rotations.setter
-	def rotations(self, values: Vector3):
+	def rotations(self, values: Vector):
 		old_rotz = self.rotation
-		q = quaternion(*values)
-		self._dict["m_Rot"] = {"x": q[0], "y": q[1], "z": q[2], "w": q[3]}
+		values.quaternion().to_dict(self._dict["m_Rot"])
 		self._dict["m_RotationDegrees"] = values[2]
 		change = self.rotation - old_rotz
 		if abs(change) > 0.000001:
-			basepos = self.pos
+			basepos = self.pos[:2]
 			for pin in self.static_pins:
-				newpin = rotate((pin["x"], pin["y"]), change, basepos)
-				pin["x"] = newpin[0]
-				pin["y"] = newpin[1]
+				Vector(pin).rotate(change, basepos).to_dict(pin)
 			for anchor in self.anchors:
-				anchor.pos = rotate(anchor.pos, change, basepos)
+				anchor.pos = anchor.pos.rotate(change, basepos)
 
 	@property
 	def rotation(self) -> float:
@@ -585,44 +484,32 @@ class CustomShape(SelectableObject):
 		old_flipped = self._dict["m_Flipped"]
 		self._dict["m_Flipped"] = value
 		if old_flipped != value:
-			basepos = self.pos
+			basepos = self.pos[:2]
 			for pin in self.static_pins:
-				newpin = rotate((pin["x"], pin["y"]), -self.rotation, basepos)
-				newpin = (2 * basepos[0] - newpin[0], newpin[1])
-				newpin = rotate(newpin, self.rotation, basepos)
-				pin["x"] = newpin[0]
-				pin["y"] = newpin[1]
+				Vector(pin).flip(basepos, self.rotation).to_dict(pin)
 			for anchor in self.anchors:
-				newanchorpos = rotate(anchor.pos, -self.rotation, basepos)
-				newanchorpos = (2 * basepos[0] - newanchorpos[0], newanchorpos[1])
-				newanchorpos = rotate(newanchorpos, self.rotation, basepos)
-				anchor.pos = newanchorpos
+				anchor.pos = anchor.pos.flip(basepos, self.rotation)
 
 	@property
-	def scale(self) -> Vector3:
-		return self._dict["m_Scale"]["x"], self._dict["m_Scale"]["y"], self._dict["m_Scale"]["z"]
+	def scale(self) -> Vector:
+		return Vector(self._dict["m_Scale"])
 	@scale.setter
 	def scale(self, value: Vector):
 		old_scale = self.scale
-		if len(value) == 2:
-			self._dict["m_Scale"] = {"x": value[0], "y": value[1], "z": self._dict["m_Scale"]["z"]}
-		else:
-			self._dict["m_Scale"] = {"x": value[0], "y": value[1], "z": value[2]}
+		value.to_dict(self._dict["m_Scale"])
 		change = (value[0] / old_scale[0], value[1] / old_scale[1])
 		if abs(change[0] - 1) > 0.000001 or abs(change[1] - 1) > 0.000001:
-			basepos = self.pos
+			basepos, rot = self.pos[:2], self.rotation
 			for pin in self.static_pins:
-				pin["x"] = ((pin["x"] - basepos[0]) * change[0] + basepos[0])
-				pin["y"] = ((pin["y"] - basepos[1]) * change[1] + basepos[1])
+				((Vector(pin).rotate(-rot, basepos) - basepos) * change + basepos).rotate(rot, basepos).to_dict(pin)
 			for anchor in self.anchors:
-				anchor.pos = (((anchor.pos[0] - basepos[0]) * change[0] + basepos[0]),
-				              ((anchor.pos[1] - basepos[1]) * change[1] + basepos[1]))
+				anchor.pos = ((anchor.pos.rotate(-rot, basepos) - basepos) * change + basepos).rotate(rot, basepos)
 
 	@property
-	def color(self) -> Tuple[int, ...]:
-		return tuple(round(v*255) for v in self._dict["m_Color"].values())
+	def color(self) -> Vector:
+		return Vector(round(v*255) for v in self._dict["m_Color"].values())
 	@color.setter
-	def color(self, value: Tuple[int, ...]):
+	def color(self, value: Vector):
 		if len(value) == 3:
 			self._dict["m_Color"] = {"r": value[0] / 255, "g": value[1] / 255, "b": value[2] / 255,
 			                         "a": self._dict["m_Color"]["a"]}
@@ -630,23 +517,15 @@ class CustomShape(SelectableObject):
 			self._dict["m_Color"] = {"r": value[0]/255, "g": value[1]/255, "b": value[2]/255, "a": value[3]/255}
 
 	@property
-	def points(self) -> Tuple[Vector2, ...]:
-		pts = []
+	def points(self) -> Tuple[Vector, ...]:
 		pts_scale = self.scale
-		for p in self._dict["m_PointsLocalSpace"]:
-			point = (p["x"] * pts_scale[0], p["y"] * pts_scale[1])
-			if self.flipped:
-				point = (-point[0], point[1])
-			point = rotate(point, self.rotation)
-			pts.append(point)
-		return tuple(pts)
+		values = self._dict["m_PointsLocalSpace"]
+		return tuple((Vector(p) * pts_scale).flip_x(only_if=self.flipped).rotate(self.rotation) for p in values)
 	@points.setter
-	def points(self, values: Tuple[Vector2, ...]):
-		values = [rotate(p, -self.rotation) for p in values]
+	def points(self, values: Sequence[Vector]):
 		pts_scale = self.scale
-		if self.flipped:
-			values = [(-p[0], p[1]) for p in values]
-		self._dict["m_PointsLocalSpace"] = [{"x": p[0] / pts_scale[0], "y": p[1] / pts_scale[1]} for p in values]
+		pts = [(p.rotate(-self.rotation).flip_x(only_if=self.flipped) / pts_scale).to_dict() for p in values]
+		self._dict["m_PointsLocalSpace"] = pts
 
 	@property
 	def static_pins(self) -> List[Dict[str, float]]:
@@ -664,8 +543,8 @@ class CustomShape(SelectableObject):
 
 
 class CustomShapePoint:
-	def __init__(self, pos, index, radius):
-		self.pos = pos
+	def __init__(self, pos: Vector, index: int, radius: float):
+		self.pos = pos.round()
 		self.index = index
 		self.radius = radius
 
