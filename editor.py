@@ -126,7 +126,7 @@ def load_level():
 def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor_events: SimpleQueue):
 	zoom = 20
 	size = Vector(BASE_SIZE)
-	camera = (size / zoom / 2 + (0, 5)).flip_y()
+	camera = Vector(0, 0)
 	clock = pygame.time.Clock()
 	object_being_edited = None
 	selected_shape = None
@@ -163,14 +163,18 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 	true_mouse_pos = lambda: mouse_pos.flip_y() / zoom - camera
 
 	display = pygame.display.set_mode(size, pygame.RESIZABLE)
-	lay.DUMMY_SURFACE = pygame.Surface(size, pygame.SRCALPHA, 32)
 	pygame.display.set_caption("PolyEditor")
 	if ICON is not None:
 		pygame.display.set_icon(pygame.image.load(ICON))
 	pygame.init()
 	if USER32 is not None:  # Maximize
 		USER32.ShowWindow(USER32.GetForegroundWindow(), 3)
-		camera = (size / zoom / 2 + (0, 5)).flip_y()
+		for pyevent in pygame.event.get():
+			if pyevent.type == pygame.VIDEORESIZE:
+				size = Vector(pyevent.size)
+				display = pygame.display.set_mode(size, pygame.RESIZABLE)
+	lay.DUMMY_SURFACE = pygame.Surface(size, pygame.SRCALPHA, 32)
+	camera = (size / zoom / 2 + (0, 10)).flip_y()
 
 	menu_button_font = pygame.font.SysFont("Courier", 20, True)
 	menu_button = pygame.Surface(Vector(menu_button_font.size("Menu")) + (10, 6))
