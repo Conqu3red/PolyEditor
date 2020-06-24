@@ -39,7 +39,6 @@ OPEN_OBJ_EDIT = "openobj"
 UPDATE_OBJ_EDIT = "updateobj"
 CLOSE_OBJ_EDIT = "closeobj"
 RESTART_PROGRAM = "restart"
-ESCAPE_KEY = "Escape:27"
 
 # Colors
 WHITE = (255, 255, 255)
@@ -212,7 +211,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 			elif paused:
 				if event == DONE:
 					paused = False
-				elif event.key in ("Back to editor", ESCAPE_KEY):
+				elif event.key in ("Back to editor", popup.ESCAPE_KEY, popup.FOCUS_OUT):
 					editor_events.put(DONE)
 					paused = False
 				elif event == "Save":
@@ -696,8 +695,8 @@ def main():
 				if event.key is popup.open_menu:
 					object_editing_window.close()
 					menu_window = popup.open_menu()
-					if not event.clicked:  # Ignore Escape key release
-						menu_window.read()
+					# if not event.clicked:  # Ignore Escape key release
+					# 	menu_window.read()
 
 					close_menu = False
 					while not close_menu:
@@ -705,47 +704,18 @@ def main():
 							menu_event = editor_events.get(block=False)
 
 							if menu_event == RESTART_PROGRAM:
-								confirmation = popup.ok_cancel("You will lose any unsaved changes.", read=False)
-								while (answer := confirmation.read(10)[0]) not in ("Ok", "Cancel", ESCAPE_KEY):
-									try:
-										menu_event = editor_events.get(block=False)
-										if menu_event == CLOSE_PROGRAM:
-											close_menu, close_editor, close_program = True, True, True
-											break
-									except Empty:
-										pass
-								if answer == "Ok":
+								if popup.ok_cancel("You will lose any unsaved changes.") == "Ok":
 									close_menu, close_editor = True, True
-								confirmation.close()
-								confirmation.layout = None
-								confirmation = None
-								gc.collect()
 
 							elif menu_event == CLOSE_PROGRAM:
-								if menu_event.force:
+								if menu_event.force or popup.yes_no("Quit and lose any unsaved changes?") == "Yes":
 									close_menu, close_editor, close_program = True, True, True
-								else:
-									confirmation = popup.yes_no("Quit and lose any unsaved changes?", read=False)
-									while (answer := confirmation.read(10)[0]) not in ("Yes", "No", ESCAPE_KEY):
-										try:  # TODO: bind focus change of popups
-											menu_event = editor_events.get(block=False)
-											if menu_event == CLOSE_PROGRAM:
-												answer = "Yes"
-												break
-										except Empty:
-											pass
-									if answer == "Yes":
-										close_menu, close_editor, close_program = True, True, True
-									confirmation.close()
-									confirmation.layout = None
-									confirmation = None
-									gc.collect()
 
 							elif menu_event == DONE:
 								close_menu = True
 
 						except Empty:
-							window_event, _ = menu_window.read(10)
+							window_event = menu_window.read(10)[0]
 							if window_event != sg.TIMEOUT_KEY:
 								editor_events.put(window_event)
 
@@ -756,7 +726,7 @@ def main():
 					menu_window = None
 					gc.collect()
 
-				# Popup Notification
+				# Popup Message
 				elif event.key in (popup.info, popup.notif, popup.yes_no, popup.ok_cancel):
 					object_editing_window.close()
 					popup_window = event.key(*event.args, read=False)
@@ -765,12 +735,13 @@ def main():
 						try:
 							popup_event = editor_events.get(block=False)
 							if popup_event == DONE:
-								popup_result = True
+								break
 							elif popup_event == CLOSE_PROGRAM:
-								popup_result, close_editor, close_program = True, True, True
+								close_editor, close_program = True, True
+								break
 						except Empty:
-							window_event, _ = popup_window.read(10)
-							if window_event in ("Ok", "Cancel", "Yes", "No", ESCAPE_KEY):
+							window_event = popup_window.read(10)[0]
+							if window_event in popup.NOTIF_ANSWERS:
 								popup_result = window_event
 					editor_events.put(DONE, result=popup_result)
 					popup_window.close()

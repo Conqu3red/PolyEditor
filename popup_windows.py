@@ -3,6 +3,11 @@ import PySimpleGUI as sg
 import layout_objects as g
 from typing import *
 
+NOTIF_ANSWERS = (
+	OK := "Ok", CANCEL := "Cancel", YES := "Yes", NO := "No",
+	FOCUS_OUT := "FocusOut", ESCAPE_KEY := ""
+)
+
 POS_X, POS_Y, POS_Z = "X", "Y", "Z"
 WIDTH, HEIGHT = "Width", "Height"
 SCALE_X, SCALE_Y, SCALE_Z = "Scale X", "Scale Y", "Scale Z"
@@ -27,7 +32,8 @@ NOTIF_OPTIONS = {
 	"keep_on_top": True,
 	"grab_anywhere": True,
 	"margins": (0, 0),
-	"element_justification": "center"
+	"element_justification": "center",
+	"return_keyboard_events": True
 }
 
 
@@ -48,43 +54,55 @@ def info(title: str, *msg, read=True) -> Union[str, sg.Window]:
 def notif(*msg: Any, read=True) -> Union[str, sg.Window]:
 	"""Opens a borderless window and returns when the user presses Ok"""
 	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(5, 1), pad=PAD)]]
-	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS, return_keyboard_events=not read)
+	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS)
+	window.read(0)
+	window.bind("<FocusOut>", "FocusOut")
 	if not read:
 		return window
-	result, _ = window.read(close=True)
+	while (answer := window.read()[0]) not in NOTIF_ANSWERS:
+		pass
+	window.close()
 	window.layout = None
 	# noinspection PyUnusedLocal
 	window = None
 	gc.collect()
-	return result
+	return answer
 
 
 def yes_no(*msg: Any, read=True) -> Union[str, sg.Window]:
 	"""Opens a borderless window and returns whether the user pressed Yes or No"""
 	layout = [[sg.Text(m)] for m in msg] + [[sg.Yes(size=(5, 1), pad=PAD), sg.No(size=(5, 1), pad=PAD)]]
-	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS, return_keyboard_events=not read)
+	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS)
+	window.read(0)
+	window.bind("<FocusOut>", "FocusOut")
 	if not read:
 		return window
-	result, _ = window.read(close=True)
+	while (answer := window.read()[0]) not in NOTIF_ANSWERS:
+		pass
+	window.close()
 	window.layout = None
 	# noinspection PyUnusedLocal
 	window = None
 	gc.collect()
-	return result
+	return answer
 
 
 def ok_cancel(*msg: Any, read=True) -> Union[str, sg.Window]:
 	"""Opens a borderless window and returns whether the user pressed Ok or Cancel"""
 	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(5, 1), pad=PAD), sg.Cancel(size=(8, 1), pad=PAD)]]
-	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS, return_keyboard_events=not read)
+	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS)
+	window.read(0)
+	window.bind("<FocusOut>", "FocusOut")
 	if not read:
 		return window
-	result, _ = window.read(close=True)
+	while (answer := window.read()[0]) not in NOTIF_ANSWERS:
+		pass
+	window.close()
 	window.layout = None
 	# noinspection PyUnusedLocal
 	window = None
 	gc.collect()
-	return result
+	return answer
 
 
 def selection(title: str, msg: Any, items: List[str]) -> Optional[str]:
@@ -134,7 +152,10 @@ def open_menu() -> sg.Window:
 		 [sg.Text(controls, justification="left", pad=((0, 0), (0, 15)))]],
 		**FRAME_OPTIONS
 	)
-	return sg.Window("", [[frame]], return_keyboard_events=True, no_titlebar=True, keep_on_top=True, margins=(0, 0))
+	window = sg.Window("", [[frame]], return_keyboard_events=True, no_titlebar=True, keep_on_top=True, margins=(0, 0))
+	window.read(0)
+	window.bind("<FocusOut>", "FocusOut")
+	return window
 
 
 class EditObjectWindow:
