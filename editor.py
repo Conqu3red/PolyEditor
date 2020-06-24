@@ -210,7 +210,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 			elif paused:
 				if event == DONE:
 					paused = False
-				elif event.key in ("Back to editor", popup.ESCAPE_KEY, popup.FOCUS_OUT):
+				elif event.key in ("Back to editor", popup.ESCAPE, popup.FOCUS_OUT):
 					editor_events.put(DONE)
 					paused = False
 				elif event == "Save":

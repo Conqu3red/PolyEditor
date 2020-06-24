@@ -5,7 +5,7 @@ from typing import *
 
 NOTIF_ANSWERS = (
 	OK := "Ok", CANCEL := "Cancel", YES := "Yes", NO := "No",
-	FOCUS_OUT := "FocusOut", ESCAPE_KEY := ""
+	FOCUS_OUT := "FocusOut", ESCAPE := chr(27)
 )
 
 POS_X, POS_Y, POS_Z = "X", "Y", "Z"
