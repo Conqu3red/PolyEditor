@@ -8,7 +8,6 @@ import re
 import json
 import traceback
 import ctypes
-import gc
 import PySimpleGUI as sg
 from os import getcwd, listdir
 from os.path import isfile, join as pathjoin, getmtime as lastmodified
@@ -721,10 +720,7 @@ def main():
 
 					if not close_editor:
 						editor_events.put(DONE)
-					menu_window.close()
-					menu_window.layout = None
-					menu_window = None
-					gc.collect()
+					popup.safe_close(menu_window)
 
 				# Popup Message
 				elif event.key in (popup.info, popup.notif, popup.yes_no, popup.ok_cancel):
@@ -744,10 +740,7 @@ def main():
 							if window_event in popup.NOTIF_ANSWERS:
 								popup_result = window_event
 					editor_events.put(DONE, result=popup_result)
-					popup_window.close()
-					popup_window.layout = None
-					popup_window = None
-					gc.collect()
+					popup.safe_close(popup_window)
 
 				elif event == OPEN_OBJ_EDIT:
 					object_editing_window.close()

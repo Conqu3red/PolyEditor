@@ -37,18 +37,23 @@ NOTIF_OPTIONS = {
 }
 
 
+def safe_close(window: sg.Window):
+	"""Closes and disposes of a window in a way that won't cause tkinter-related threading errors"""
+	window.close()
+	window.layout = None
+	window.TKroot = None
+	gc.collect()
+
+
 def info(title: str, *msg, read=True) -> Union[str, sg.Window]:
 	"""Opens a window and returns when the user closes it or presses Ok"""
 	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(5, 1), pad=PAD)]]
 	window = sg.Window(title, layout, element_justification='center', return_keyboard_events=not read)
 	if not read:
 		return window
-	result, _ = window.read(close=True)
-	window.layout = None
-	# noinspection PyUnusedLocal
-	window = None
-	gc.collect()
-	return result
+	answer = window.read()[0]
+	safe_close(window)
+	return answer
 
 
 def notif(*msg: Any, read=True) -> Union[str, sg.Window]:
@@ -61,11 +66,7 @@ def notif(*msg: Any, read=True) -> Union[str, sg.Window]:
 		return window
 	while (answer := window.read()[0]) not in NOTIF_ANSWERS:
 		pass
-	window.close()
-	window.layout = None
-	# noinspection PyUnusedLocal
-	window = None
-	gc.collect()
+	safe_close(window)
 	return answer
 
 
@@ -79,11 +80,7 @@ def yes_no(*msg: Any, read=True) -> Union[str, sg.Window]:
 		return window
 	while (answer := window.read()[0]) not in NOTIF_ANSWERS:
 		pass
-	window.close()
-	window.layout = None
-	# noinspection PyUnusedLocal
-	window = None
-	gc.collect()
+	safe_close(window)
 	return answer
 
 
@@ -97,11 +94,7 @@ def ok_cancel(*msg: Any, read=True) -> Union[str, sg.Window]:
 		return window
 	while (answer := window.read()[0]) not in NOTIF_ANSWERS:
 		pass
-	window.close()
-	window.layout = None
-	# noinspection PyUnusedLocal
-	window = None
-	gc.collect()
+	safe_close(window)
 	return answer
 
 
@@ -242,6 +235,7 @@ class EditObjectWindow:
 		return event, self.data
 
 	def close(self):
+		"""Closes and disposes of the window"""
 		if self._window is not None:
 			self._window.close()
 			self._window.layout = None
