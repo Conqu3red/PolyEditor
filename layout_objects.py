@@ -51,6 +51,7 @@ def scale(min_width: int, zoom: int, factor=30) -> int:
 
 
 def rect_hitbox_mask(rect: Sequence[float], zoom: int) -> Mask:
+	"""Creates a filled rectangular mask for use with hitbox collision checks"""
 	w, h = max(1, round(rect[2] / zoom * HITBOX_RESOLUTION)), max(1, round(rect[3] / zoom * HITBOX_RESOLUTION))
 	return mask_from_size((w, h), True)
 

@@ -18,7 +18,7 @@ from itertools import chain
 from subprocess import run
 
 import popup_windows as popup
-import layout_objects as g
+import layout_objects as lay
 from math_objects import Vector
 from threading_objects import Thread, SimpleQueue, Empty
 
@@ -145,11 +145,11 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 	fg_color = WHITE
 
 	object_lists = [
-		terrain_stretches := g.LayoutList(g.TerrainStretch, layout),
-		water_blocks := g.LayoutList(g.WaterBlock, layout),
-		custom_shapes := g.LayoutList(g.CustomShape, layout),
-		pillars := g.LayoutList(g.Pillar, layout),
-		anchors := g.LayoutList(g.Anchor, layout)
+		terrain_stretches := lay.LayoutList(lay.TerrainStretch, layout),
+		water_blocks := lay.LayoutList(lay.WaterBlock, layout),
+		custom_shapes := lay.LayoutList(lay.CustomShape, layout),
+		pillars := lay.LayoutList(lay.Pillar, layout),
+		anchors := lay.LayoutList(lay.Anchor, layout)
 	]
 	objects = {li.cls: li for li in object_lists}
 
@@ -158,7 +158,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 	true_mouse_pos = lambda: mouse_pos.flip_y() / zoom - camera
 
 	display = pygame.display.set_mode(size, pygame.RESIZABLE)
-	g.DUMMY_SURFACE = pygame.Surface(size, pygame.SRCALPHA, 32)
+	lay.DUMMY_SURFACE = pygame.Surface(size, pygame.SRCALPHA, 32)
 	pygame.display.set_caption("PolyEditor")
 	if ICON is not None:
 		pygame.display.set_icon(pygame.image.load(ICON))
@@ -194,17 +194,17 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 					if len(hl_objs) == 1:
 						obj = hl_objs[0]
 						obj.pos = Vector(values[popup.POS_X], values[popup.POS_Y], values[popup.POS_Z])
-						if isinstance(obj, g.CustomShape):
+						if isinstance(obj, lay.CustomShape):
 							obj.scale = Vector(values[popup.SCALE_X], values[popup.SCALE_Y], values[popup.SCALE_Z])
 							obj.rotations = Vector(values[popup.ROT_X], values[popup.ROT_Y], values[popup.ROT_Z])
 							obj.color = Vector(values[popup.RGB_R], values[popup.RGB_G], values[popup.RGB_B])
 							obj.flipped = values[popup.FLIP]
 							obj.calculate_hitbox()
-						elif isinstance(obj, g.Pillar):
+						elif isinstance(obj, lay.Pillar):
 							obj.height = values[popup.HEIGHT]
 					else:  # Multiple objects
 						for obj in hl_objs:
-							if isinstance(obj, g.CustomShape):
+							if isinstance(obj, lay.CustomShape):
 								obj.color = (values[popup.RGB_R], values[popup.RGB_G], values[popup.RGB_B])
 
 			elif paused:
@@ -251,7 +251,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 			elif pyevent.type == pygame.VIDEORESIZE:
 				size = Vector(pyevent.size)
 				display = pygame.display.set_mode(size, pygame.RESIZABLE)
-				g.DUMMY_SURFACE = pygame.Surface(size, pygame.SRCALPHA, 32)
+				lay.DUMMY_SURFACE = pygame.Surface(size, pygame.SRCALPHA, 32)
 				resized_window = True
 
 			elif (
@@ -445,7 +445,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 				elif pyevent.key == pygame.K_d:
 					# Delete selected
 					for obj in [o for o in selectable_objects() if o.selected]:
-						if isinstance(obj, g.CustomShape):
+						if isinstance(obj, lay.CustomShape):
 							for dyn_anc_id in obj.dynamic_anchor_ids:
 								for anchor in [a for a in anchors]:
 									if anchor.id == dyn_anc_id:
@@ -458,7 +458,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 						new_obj = type(old_obj)(deepcopy(old_obj.dictionary))
 						old_obj.selected = False
 						new_obj.selected = True
-						if isinstance(old_obj, g.CustomShape):
+						if isinstance(old_obj, lay.CustomShape):
 							new_anchors = []
 							for i in range(len(old_obj.dynamic_anchor_ids)):
 								for anchor in [a for a in anchors if a.id == old_obj.dynamic_anchor_ids[i]]:
@@ -490,7 +490,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 						values = {popup.POS_X: obj.pos.x,
 						          popup.POS_Y: obj.pos.y,
 						          popup.POS_Z: obj.pos.z}
-						if isinstance(obj, g.CustomShape):
+						if isinstance(obj, lay.CustomShape):
 							rot = obj.rotations
 							values[popup.SCALE_X] = obj.scale.x
 							values[popup.SCALE_Y] = obj.scale.y
@@ -502,14 +502,14 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 							values[popup.RGB_G] = obj.color[1]
 							values[popup.RGB_B] = obj.color[2]
 							values[popup.FLIP] = obj.flipped
-						elif isinstance(obj, g.Pillar):
+						elif isinstance(obj, lay.Pillar):
 							values[popup.HEIGHT] = obj.height
 						object_editing_window = popup.EditObjectWindow(values, obj)
 						editor_events.put(OPEN_OBJ_EDIT, window=object_editing_window)
 					elif len(hl_objs) > 1:
 						values = {}
 						for i in range(len(hl_objs)):
-							if isinstance(hl_objs[i], g.CustomShape):
+							if isinstance(hl_objs[i], lay.CustomShape):
 								values[popup.RGB_R] = hl_objs[i].color[0]
 								values[popup.RGB_G] = hl_objs[i].color[1]
 								values[popup.RGB_B] = hl_objs[i].color[2]
@@ -535,7 +535,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 		# Render background
 		display.fill(bg_color)
 		block_size = zoom
-		line_width = g.scale(1, zoom)
+		line_width = lay.scale(1, zoom)
 		shift = (camera * zoom % block_size).round()
 		for x in range(shift.x, size.x, block_size):
 			pygame.draw.line(display, bg_color_2, (x, 0), (x, size.y), line_width)
@@ -559,14 +559,14 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 			terrain.render(display, camera, zoom, fg_color)
 		for water in water_blocks:
 			water.render(display, camera, zoom, fg_color)
-		shape_args = g.ShapeRenderArgs(draw_points, draw_hitboxes, holding_shift(), mouse_pos, true_mouse_change)
+		shape_args = lay.ShapeRenderArgs(draw_points, draw_hitboxes, holding_shift(), mouse_pos, true_mouse_change)
 		for shape in custom_shapes:
 			shape.render(display, camera, zoom, shape_args)
 		for shape in custom_shapes:
 			shape.render_points(display, camera, zoom, shape_args)
 		if shape_args.top_point is not None:
-			color = g.HIGHLIGHT_COLOR if shape_args.selected_point is not None else g.POINT_COLOR
-			shape_args.top_point.render(display, color, round(zoom * g.POINT_SELECTED_RADIUS))
+			color = lay.HIGHLIGHT_COLOR if shape_args.selected_point is not None else lay.POINT_COLOR
+			shape_args.top_point.render(display, color, round(zoom * lay.POINT_SELECTED_RADIUS))
 		for pillar in pillars:
 			pillar.render(display, camera, zoom, draw_hitboxes)
 		dyn_anc_ids = list(chain(*[shape.dynamic_anchor_ids for shape in custom_shapes]))
@@ -579,8 +579,8 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 			        min(selecting_pos.y, mouse_pos.y),
 			        abs(mouse_pos.x - selecting_pos.x),
 			        abs(mouse_pos.y - selecting_pos.y))
-			pygame.draw.rect(display, g.SELECT_COLOR, rect, 1)
-			mask = g.rect_hitbox_mask(rect, zoom)
+			pygame.draw.rect(display, lay.SELECT_COLOR, rect, 1)
+			mask = lay.rect_hitbox_mask(rect, zoom)
 			for obj in selectable_objects():
 				if not holding_shift():
 					obj.selected = obj.colliderect(rect, mask)
