@@ -45,6 +45,6 @@ class SimpleQueue:
 		"""Put an event into the queue"""
 		self.put_queue.put(Event(key, *args, **attributes))
 
-	def inverse(self) -> 'SimpleQueue':
+	def swapped(self) -> 'SimpleQueue':
 		"""Returns a SimpleQueue with the current inner get and put queues but swapped"""
 		return SimpleQueue(self.put_queue, self.get_queue)

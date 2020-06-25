@@ -16,6 +16,7 @@ from copy import deepcopy
 from time import sleep
 from itertools import chain
 from subprocess import run
+from typing import *
 
 import popup_windows as popup
 import layout_objects as lay
@@ -74,7 +75,7 @@ FILE_ERROR_CODE = 3
 GAMEPATH_ERROR_CODE = 4
 
 
-def load_level():
+def load_level() -> Optional[Tuple[dict, str, str, str]]:
 	currentdir = getcwd()
 	filelist = [f for f in listdir(currentdir) if isfile(pathjoin(currentdir, f))]
 	levellist = [match.group(1) for f in filelist if (match := FILE_REGEX.match(f))]
@@ -128,11 +129,8 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 	size = Vector(BASE_SIZE)
 	camera = Vector(0, 0)
 	clock = pygame.time.Clock()
-	object_being_edited = None
-	selected_shape = None
 	paused = False
 	resized_window = False
-
 	draw_points = False
 	draw_hitboxes = False
 	panning = False
@@ -144,6 +142,8 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 	old_true_mouse_pos = Vector(0, 0)
 	selecting_pos = Vector(0, 0)
 	dragndrop_pos = Vector(0, 0)
+	object_being_edited: Optional[lay.SelectableObject] = None
+	selected_shape: Optional[lay.CustomShape] = None
 	bg_color = BACKGROUND_BLUE
 	bg_color_2 = BACKGROUND_BLUE_GRID
 	fg_color = WHITE
@@ -155,7 +155,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 		pillars := lay.LayoutList(lay.Pillar, layout),
 		anchors := lay.LayoutList(lay.Anchor, layout)
 	]
-	objects = {li.cls: li for li in object_lists}
+	objects: Dict[Type[lay.LayoutObject], lay.LayoutList] = {li.cls: li for li in object_lists}
 
 	selectable_objects = lambda: tuple(chain(custom_shapes, pillars))
 	holding_shift = lambda: pygame.key.get_mods() & pygame.KMOD_SHIFT
@@ -698,7 +698,7 @@ def main():
 		if not (editor_args := load_level()):
 			continue
 		editor_events = SimpleQueue()
-		pygame_thread = Thread(target=editor, args=editor_args + (editor_events.inverse(),), daemon=True)
+		pygame_thread = Thread(target=editor, args=(*editor_args, editor_events.swapped()), daemon=True)
 		pygame_thread.start()
 
 		object_editing_window = popup.EditObjectWindow(None)
