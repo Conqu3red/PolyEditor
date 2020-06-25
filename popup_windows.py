@@ -1,11 +1,7 @@
 import gc
 import PySimpleGUI as sg
+import threading_objects as ev
 from typing import *
-
-NOTIF_ANSWERS = (
-	OK := "Ok", CANCEL := "Cancel", YES := "Yes", NO := "No",
-	FOCUS_OUT := "FocusOut", ESCAPE := chr(27)
-)
 
 POS_X, POS_Y, POS_Z = "X", "Y", "Z"
 WIDTH, HEIGHT = "Width", "Height"
@@ -60,10 +56,10 @@ def notif(*msg: Any, read=True) -> Union[str, sg.Window]:
 	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(5, 1), pad=PAD)]]
 	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS)
 	window.read(0)
-	window.bind("<FocusOut>", "FocusOut")
+	window.bind("<FocusOut>", ev.FOCUS_OUT)
 	if not read:
 		return window
-	while (answer := window.read()[0]) not in NOTIF_ANSWERS:
+	while (answer := window.read()[0]) not in ev.NOTIF_ANSWERS:
 		pass
 	safe_close(window)
 	return answer
@@ -74,10 +70,10 @@ def yes_no(*msg: Any, read=True) -> Union[str, sg.Window]:
 	layout = [[sg.Text(m)] for m in msg] + [[sg.Yes(size=(5, 1), pad=PAD), sg.No(size=(5, 1), pad=PAD)]]
 	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS)
 	window.read(0)
-	window.bind("<FocusOut>", "FocusOut")
+	window.bind("<FocusOut>", ev.FOCUS_OUT)
 	if not read:
 		return window
-	while (answer := window.read()[0]) not in NOTIF_ANSWERS:
+	while (answer := window.read()[0]) not in ev.NOTIF_ANSWERS:
 		pass
 	safe_close(window)
 	return answer
@@ -88,10 +84,10 @@ def ok_cancel(*msg: Any, read=True) -> Union[str, sg.Window]:
 	layout = [[sg.Text(m)] for m in msg] + [[sg.Ok(size=(5, 1), pad=PAD), sg.Cancel(size=(8, 1), pad=PAD)]]
 	window = sg.Window("", [[sg.Frame("", layout, **FRAME_OPTIONS)]], **NOTIF_OPTIONS)
 	window.read(0)
-	window.bind("<FocusOut>", "FocusOut")
+	window.bind("<FocusOut>", ev.FOCUS_OUT)
 	if not read:
 		return window
-	while (answer := window.read()[0]) not in NOTIF_ANSWERS:
+	while (answer := window.read()[0]) not in ev.NOTIF_ANSWERS:
 		pass
 	safe_close(window)
 	return answer
@@ -105,18 +101,10 @@ def selection(title: str, msg: Any, items: List[str]) -> Optional[str]:
 	while True:
 		event, content = window.read()
 		if event == sg.WIN_CLOSED or event == "Escape:27":
-			window.close()
-			window.layout = None
-			# noinspection PyUnusedLocal
-			window = None
-			gc.collect()
+			safe_close(window)
 			return None
 		elif event == "Ok" or event == 0:
-			window.close()
-			window.layout = None
-			# noinspection PyUnusedLocal
-			window = None
-			gc.collect()
+			safe_close(window)
 			return content[0][0]
 		elif event == "Up:38" or event == "Left:37":
 			index = items.index(content[0][0]) - 1
@@ -134,19 +122,19 @@ def open_menu() -> sg.Window:
 	           "C: Clone selected\nD: Delete selected\nS: Save changes"
 	frame = sg.Frame(
 		"",
-		[[sg.Button("Back to editor", size=(28, 1), pad=((15, 15), (15, 3)))],
-		 [sg.Button("Save", size=(28, 1), pad=(5, 3))],
-		 [sg.Button("Toggle hitboxes", size=(13, 1), pad=(5, 3)),
-		  sg.Button("Color scheme", size=(13, 1), pad=(5, 3))],
-		 [sg.Button("Change level", size=(13, 1), pad=(5, 12)),
-		  sg.Button("Quit", size=(13, 1), pad=(5, 12))],
+		[[sg.Button(ev.MENU_RETURN, size=(28, 1), pad=((15, 15), (15, 3)))],
+		 [sg.Button(ev.MENU_SAVE, size=(28, 1), pad=(5, 3))],
+		 [sg.Button(ev.MENU_HITBOXES, size=(13, 1), pad=(5, 3)),
+		  sg.Button(ev.MENU_COLORS, size=(13, 1), pad=(5, 3))],
+		 [sg.Button(ev.MENU_CHANGE_LEVEL, size=(13, 1), pad=(5, 12)),
+		  sg.Button(ev.MENU_QUIT, size=(13, 1), pad=(5, 12))],
 		 [sg.Text("Controls", size=(27, 1), justification="center", relief=sg.RELIEF_RIDGE, border_width=4)],
 		 [sg.Text(controls, justification="left", pad=((0, 0), (0, 15)))]],
 		**FRAME_OPTIONS
 	)
 	window = sg.Window("", [[frame]], return_keyboard_events=True, no_titlebar=True, keep_on_top=True, margins=(0, 0))
 	window.read(0)
-	window.bind("<FocusOut>", "FocusOut")
+	window.bind("<FocusOut>", ev.FOCUS_OUT)
 	return window
 
 
