@@ -21,7 +21,7 @@ from typing import *
 
 import popup_windows as popup
 import layout_objects as lay
-import threading_objects as ev
+import editor_events as ev
 from math_objects import Vector
 
 # Window properties

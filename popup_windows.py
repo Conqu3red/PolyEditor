@@ -1,6 +1,6 @@
 import gc
 import PySimpleGUI as sg
-import threading_objects as ev
+import editor_events as ev
 from typing import *
 
 POS_X, POS_Y, POS_Z = "X", "Y", "Z"
