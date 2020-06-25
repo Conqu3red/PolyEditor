@@ -116,7 +116,7 @@ def load_level() -> Optional[Tuple[dict, str, str, str]]:
 	return layout, layoutfile, jsonfile, backupfile
 
 
-def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, events: ev.EventLane):
+def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, events: ev.EventCommunicator):
 	zoom = 20
 	size = Vector(BASE_SIZE)
 	camera = Vector(0, 0)
@@ -687,7 +687,7 @@ def main():
 
 		# We run the pygame-based editor in a secondary thread and any additional windows here in the main thread.
 		# It has to be in that order because tkinter can't run unless it's in the main thread
-		events = ev.EventLane()
+		events = ev.EventCommunicator()
 		pygame_thread = threading.Thread(target=editor, args=(*editor_args, events.flipped()), daemon=True)
 		pygame_thread.start()
 

@@ -54,7 +54,7 @@ class EditorEvent:
 		return f"({self.key}, {self.attributes}, {self.args})"
 
 
-class EventLane:
+class EventCommunicator:
 	"""A wrapper to two queues, in order to send discrete events back and forth between two threads"""
 	def __init__(self, read_queue=Queue(), send_queue=Queue()):
 		self.read_queue = read_queue
@@ -74,6 +74,6 @@ class EventLane:
 		"""Create an EditorEvent and put it in the send_queue"""
 		self.send_queue.put(EditorEvent(key, *args, **attributes))
 
-	def flipped(self) -> 'EventLane':
+	def flipped(self) -> 'EventCommunicator':
 		"""Returns an EventLane with the same queues as this one but swapped"""
-		return EventLane(self.send_queue, self.read_queue)
+		return EventCommunicator(self.send_queue, self.read_queue)
