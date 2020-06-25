@@ -12,7 +12,11 @@ class Event:
 		self.args = args
 
 	def __getattr__(self, item: str):
-		return self.attributes[item]
+		try:
+			return self.attributes[item]
+		except KeyError:
+			pass
+		raise AttributeError(f"This event of key {self.key} has no attribute {item}")
 
 	def __getitem__(self, item: int):
 		return self.args[item]

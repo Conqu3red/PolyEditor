@@ -197,11 +197,11 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 				editor_events.put(DONE)
 				return
 
-			elif object_being_edited:
+			if object_being_edited:
 				if event == "Exit":
 					object_being_edited = None
 					editor_events.put(CLOSE_OBJ_EDIT)
-				else:
+				elif hasattr(event, "values"):
 					values = event.values
 					hl_objs = [o for o in selectable_objects() if o.selected]
 					if len(hl_objs) == 1:
@@ -220,7 +220,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 							if isinstance(obj, lay.CustomShape):
 								obj.color = (values[popup.RGB_R], values[popup.RGB_G], values[popup.RGB_B])
 
-			elif paused:
+			if paused:
 				if event == DONE:
 					paused = False
 				elif event.key in ("Back to editor", popup.ESCAPE, popup.FOCUS_OUT):
