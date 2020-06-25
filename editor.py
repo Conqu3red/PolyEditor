@@ -139,7 +139,6 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 	selecting = False
 	moving = False
 	point_moving = False
-
 	mouse_pos = Vector(0, 0)
 	old_mouse_pos = Vector(0, 0)
 	old_true_mouse_pos = Vector(0, 0)
@@ -162,12 +161,13 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 	holding_shift = lambda: pygame.key.get_mods() & pygame.KMOD_SHIFT
 	true_mouse_pos = lambda: mouse_pos.flip_y() / zoom - camera
 
+	# Start pygame
 	display = pygame.display.set_mode(size, pygame.RESIZABLE)
 	pygame.display.set_caption("PolyEditor")
-	if ICON is not None:
+	if ICON:
 		pygame.display.set_icon(pygame.image.load(ICON))
 	pygame.init()
-	if USER32 is not None:  # Maximize
+	if USER32:  # Maximize
 		USER32.ShowWindow(USER32.GetForegroundWindow(), 3)
 		for pyevent in pygame.event.get():
 			if pyevent.type == pygame.VIDEORESIZE:
@@ -183,7 +183,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 	menu_button.blit(menu_button_font.render("Menu", True, WHITE), (5, 4))
 	menu_button_rect = None
 
-	# Pygame loop
+	# Editor loop
 	while True:
 
 		# Process program events
@@ -630,9 +630,9 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, editor
 		clock.tick(FPS)
 
 
-# noinspection PyUnusedLocal
 def main():
 	global POLYCONVERTER
+
 	# PySimpleGUI
 	sg.LOOK_AND_FEEL_TABLE["PolyEditor"] = {
 		"BACKGROUND": "#1F2E3F",
@@ -653,7 +653,7 @@ def main():
 	if TEMP_FILES:
 		print("Finished loading!")
 		sleep(0.5)
-		if USER32 is not None:
+		if USER32:
 			USER32.ShowWindow(KERNEL32.GetConsoleWindow(), 0)
 
 	# Ensure the converter is working
@@ -803,8 +803,8 @@ def main():
 if __name__ == "__main__":
 	try:
 		main()
-	except Exception as e:
+	except Exception as main_exception:
 		if TEMP_FILES:
 			popup.info("Error", "An unexpected error occurred while running PolyEditor:", traceback.format_exc())
 		else:
-			raise e
+			raise main_exception
