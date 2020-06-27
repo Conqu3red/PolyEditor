@@ -148,6 +148,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, events
 		anchors := lay.LayoutList(lay.Anchor, layout)
 	]
 	objects: Dict[Type[lay.LayoutObject], lay.LayoutList] = {li.cls: li for li in object_lists}
+	bridge = lay.Bridge(layout)
 
 	selectable_objects = lambda: tuple(chain(custom_shapes, pillars))
 	holding_shift = lambda: pygame.key.get_mods() & pygame.KMOD_SHIFT
@@ -578,6 +579,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, events
 			shape_args.top_point.render(display, color, round(zoom * lay.POINT_SELECTED_RADIUS))
 		for pillar in pillars:
 			pillar.render(display, camera, zoom, draw_hitboxes)
+		bridge.render(display, camera, zoom)
 		dyn_anc_ids = list(chain(*[shape.dynamic_anchor_ids for shape in custom_shapes]))
 		for anchor in anchors:
 			anchor.render(display, camera, zoom, dyn_anc_ids)

@@ -3,7 +3,9 @@ import pygame
 import pygame.gfxdraw
 from pygame import Surface, Rect
 from pygame.mask import MaskType as Mask, Mask as mask_from_size, from_surface as mask_from_surface
+from itertools import chain
 from typing import *
+
 from math_objects import Vector
 
 HITBOX_RESOLUTION = 40
@@ -554,3 +556,76 @@ class CustomShapePoint:
 	def collidepoint(self, point: Sequence[Number]):
 		point = Vector(point)
 		return math.sqrt((point.x - self.pos.x) ** 2 + (point.y - self.pos.y) ** 2) <= self.radius
+
+
+class Bridge:
+	def __init__(self, layout: dict):
+		self._dict = layout["m_Bridge"]
+		self.joints = self.get_joints()
+		self.pieces = tuple(BridgePiece(p, self.joints) for p in self._dict["m_BridgeEdges"])
+
+	def get_joints(self) -> Dict[str, Vector]:
+		"""A dictionary of vertex IDs and their positions"""
+		return {j["m_Guid"]: Vector(j["m_Pos"])[:2]
+		        for j in chain(self._dict["m_BridgeJoints"], self._dict["m_Anchors"])}
+
+	def render(self, display: Surface, camera: Vector, zoom: int, render_bridge=True):
+		if not render_bridge:
+			return
+		for i, piece in enumerate(self.pieces):
+			try:
+				start = (zoom * (piece.start + camera).flip_y()).round()
+				end = (zoom * (piece.end + camera).flip_y()).round()
+			except KeyError:
+				print(f"Warning: Missing joint/anchor in bridge piece #{i}")
+			else:
+				pygame.draw.line(display, piece.color, start, end, scale(piece.base_width, zoom))
+
+
+class BridgePiece:
+	material_names = (
+		None,
+		"Road", "ReinforcedRoad", "Wood",
+		"Steel", "Hydraulic", "Rope",
+		"Cable", "8", "Spring"
+	)
+	material_colors = (
+		None,
+		(93, 67, 53), (175, 98, 31), (227, 176, 110),
+		(186, 93, 97), (9, 102, 214), (143, 96, 23),
+		(47, 47, 52), (0, 0, 0), (247, 220, 0)
+	)
+	material_widths = (
+		None,
+		3, 3, 2,
+		2, 3, 1,
+		1, 2, 2
+	)
+
+	def __init__(self, dictionary: dict, joints: dict):
+		self._dict = dictionary
+		self._joints = joints
+
+	@property
+	def material(self) -> int:
+		"""The type of this piece, as a number"""
+		return self._dict["m_Material"]
+
+	@property
+	def color(self) -> Tuple[int, int, int]:
+		return self.material_colors[self.material]
+
+	@property
+	def base_width(self) -> int:
+		return self.material_widths[self.material]
+
+	@property
+	def start(self) -> Vector:
+		"""Starting vertex of this piece"""
+		return self._joints[self._dict["m_NodeA_Guid"]]
+
+	@property
+	def end(self) -> Vector:
+		"""Ending vertex of this piece"""
+		return self._joints[self._dict["m_NodeB_Guid"]]
+
