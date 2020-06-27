@@ -29,6 +29,10 @@ ANCHOR_COLOR = (235, 0, 50)
 DYNAMIC_ANCHOR_COLOR = (222, 168, 62)
 ANCHOR_BORDER = (0, 0, 0)
 
+JOINT_RADIUS = 0.14
+JOINT_COLOR = (244, 233, 0)
+JOINT_BORDER = (0, 0, 0)
+
 PIN_RADIUS = 0.125
 STATIC_PIN_COLOR = (0, 0, 0)
 
@@ -561,13 +565,23 @@ class CustomShapePoint:
 class Bridge:
 	def __init__(self, layout: dict):
 		self._dict = layout["m_Bridge"]
-		self.joints = self.get_joints()
-		self.pieces = tuple(BridgePiece(p, self.joints) for p in self._dict["m_BridgeEdges"])
 
-	def get_joints(self) -> Dict[str, Vector]:
+	@property
+	def joints(self) -> Dict[str, Vector]:
 		"""A dictionary of vertex IDs and their positions"""
 		return {j["m_Guid"]: Vector(j["m_Pos"])[:2]
 		        for j in chain(self._dict["m_BridgeJoints"], self._dict["m_Anchors"])}
+
+	@property
+	def non_anchor_joints(self):
+		"""A dictionary of vertex IDs and their positions"""
+		return {j["m_Guid"]: Vector(j["m_Pos"])[:2] for j in self._dict["m_BridgeJoints"]}
+
+	@property
+	def pieces(self) -> Tuple['BridgePiece']:
+		"""A list of the bridge's pieces"""
+		joints = self.joints
+		return tuple(BridgePiece(p, joints) for p in self._dict["m_BridgeEdges"])
 
 	def render(self, display: Surface, camera: Vector, zoom: int, render_bridge=True):
 		if not render_bridge:
@@ -579,7 +593,13 @@ class Bridge:
 			except KeyError:
 				print(f"Warning: Missing joint/anchor in bridge piece #{i}")
 			else:
-				pygame.draw.line(display, piece.color, start, end, scale(piece.base_width, zoom))
+				# We don't know how to make it antialiased
+				pygame.draw.line(display, piece.color, start, end, max(1, round(zoom * piece.base_width)))
+		for joint in self.non_anchor_joints.values():
+			radius = round(zoom * JOINT_RADIUS)
+			pos = (zoom * (joint + camera).flip_y()).round()
+			pygame.gfxdraw.filled_circle(display, pos.x, pos.y, radius, JOINT_COLOR)
+			pygame.gfxdraw.aacircle(display, pos.x, pos.y, radius, JOINT_BORDER)
 
 
 class BridgePiece:
@@ -593,13 +613,13 @@ class BridgePiece:
 		None,
 		(93, 67, 53), (175, 98, 31), (227, 176, 110),
 		(186, 93, 97), (9, 102, 214), (143, 96, 23),
-		(47, 47, 52), (0, 0, 0), (247, 220, 0)
+		(47, 47, 52), (0, 0, 0), (208, 175, 0)
 	)
 	material_widths = (
 		None,
-		3, 3, 2,
-		2, 3, 1,
-		1, 2, 2
+		0.16, 0.16, 0.10,
+		0.14, 0.14, 0.08,
+		0.06, 0.14, 0.16
 	)
 
 	def __init__(self, dictionary: dict, joints: dict):
