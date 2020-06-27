@@ -84,7 +84,10 @@ class LayoutObject:
 		value.to_dict(self._dict["m_Pos"])
 
 	def __repr__(self):
-		return str(self._dict)
+		return self._dict
+
+	def __str__(self):
+		return str(self.__repr__())
 
 
 class SelectableObject(LayoutObject):
@@ -672,5 +675,8 @@ class BridgePiece:
 		return self._joints[self.end_joint]
 
 	def __repr__(self):
-		return str(self._dict)
+		return self._dict
+
+	def __str__(self):
+		return str(self.__repr__())
 
