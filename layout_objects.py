@@ -83,6 +83,9 @@ class LayoutObject:
 	def pos(self, value: Vector):
 		value.to_dict(self._dict["m_Pos"])
 
+	def __repr__(self):
+		return str(self._dict)
+
 
 class SelectableObject(LayoutObject):
 	"""A LayoutObject that can be selected and moved around"""
@@ -567,6 +570,10 @@ class Bridge:
 		self._dict = layout["m_Bridge"]
 
 	@property
+	def dictionary(self) -> dict:
+		return self._dict
+
+	@property
 	def joints(self) -> Dict[str, Vector]:
 		"""A dictionary of vertex IDs and their positions"""
 		return {j["m_Guid"]: Vector(j["m_Pos"])[:2]
@@ -581,7 +588,12 @@ class Bridge:
 	def pieces(self) -> Tuple['BridgePiece']:
 		"""A list of the bridge's pieces"""
 		joints = self.joints
-		return tuple(BridgePiece(p, joints) for p in self._dict["m_BridgeEdges"])
+		return tuple(BridgePiece(p, joints) for p in self.pieces_raw)
+
+	@property
+	def pieces_raw(self) -> List[dict]:
+		"""The raw list of piece dictionaries"""
+		return self._dict["m_BridgeEdges"]
 
 	def render(self, display: Surface, camera: Vector, zoom: int, render_bridge=True):
 		if not render_bridge:
@@ -591,7 +603,7 @@ class Bridge:
 				start = (zoom * (piece.start + camera).flip_y()).round()
 				end = (zoom * (piece.end + camera).flip_y()).round()
 			except KeyError:
-				print(f"Warning: Missing joint/anchor in bridge piece #{i}")
+				pass
 			else:
 				# We don't know how to make it antialiased
 				pygame.draw.line(display, piece.color, start, end, max(1, round(zoom * piece.base_width)))
@@ -640,12 +652,25 @@ class BridgePiece:
 		return self.material_widths[self.material]
 
 	@property
+	def start_joint(self) -> str:
+		"""Starting joint ID of this piece"""
+		return self._dict["m_NodeA_Guid"]
+
+	@property
+	def end_joint(self) -> str:
+		"""Ending joint ID of this piece"""
+		return self._dict["m_NodeB_Guid"]
+
+	@property
 	def start(self) -> Vector:
 		"""Starting vertex of this piece"""
-		return self._joints[self._dict["m_NodeA_Guid"]]
+		return self._joints[self.start_joint]
 
 	@property
 	def end(self) -> Vector:
 		"""Ending vertex of this piece"""
-		return self._joints[self._dict["m_NodeB_Guid"]]
+		return self._joints[self.end_joint]
+
+	def __repr__(self):
+		return str(self._dict)
 
