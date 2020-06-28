@@ -4,6 +4,7 @@ import pygame.gfxdraw
 from pygame import Surface, Rect
 from pygame.mask import MaskType as Mask, Mask as mask_from_size, from_surface as mask_from_surface
 from itertools import chain
+from copy import deepcopy
 from typing import *
 
 from math_objects import Vector
@@ -65,6 +66,45 @@ def rect_hitbox_mask(rect: Sequence[float], zoom: int) -> Mask:
 	"""Creates a filled rectangular mask for use with hitbox collision checks"""
 	w, h = max(1, round(rect[2] / zoom * HITBOX_RESOLUTION)), max(1, round(rect[3] / zoom * HITBOX_RESOLUTION))
 	return mask_from_size((w, h), True)
+
+
+class LayoutHistory(list):
+	"""A history of layouts to undo and redo actions"""
+
+	def __init__(self):
+		super().__init__()
+		self.current = 0
+		self.max_length = 10
+
+	def append(self, layout):
+		"""Adds an element to the history at the current position, erasing future elements"""
+		if self.current < len(self) - 1:
+			for i in range(len(self) - 1 - self.current):
+				self.pop()
+		super().append(deepcopy(layout))
+		if len(self) > self.max_length:
+			self.pop(0)
+		self.current = len(self) - 1
+		print(f"History: {len(self)} - Current: {self.current}")
+
+	def previous(self):
+		"""Moves the history backwards and returns the new current element"""
+		if len(self) == 0:
+			return None
+		self.current = max(0, self.current - 1)
+		return self[self.current]
+
+	def next(self):
+		"""Moves the history forwards and returns the new current element"""
+		if len(self) == 0:
+			return None
+		self.current = min(len(self) - 1, self.current + 1)
+		return self[self.current]
+
+	@property
+	def uptodate(self):
+		"""Whether the current element in history is the latest"""
+		return self.current == len(self) - 1
 
 
 class LayoutObject:

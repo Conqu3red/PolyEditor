@@ -152,8 +152,11 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, events
 	objects: Dict[Type[lay.LayoutObject], lay.LayoutList] = {li.cls: li for li in object_lists}
 	bridge = lay.Bridge(layout)
 
+	history = lay.LayoutHistory()
+
 	selectable_objects = lambda: tuple(chain(custom_shapes, pillars))
 	holding_shift = lambda: pygame.key.get_mods() & pygame.KMOD_SHIFT
+	holding_ctrl = lambda: pygame.key.get_mods() & pygame.KMOD_CTRL
 	true_mouse_pos = lambda: mouse_pos.flip_y() / zoom - camera
 
 	# Start pygame
@@ -309,12 +312,14 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, events
 								clicked_point = [p.collidepoint(pyevent.pos) for p in obj.point_hitboxes]
 								if holding_shift() and obj.add_point_hitbox:
 									if obj.add_point_hitbox.collidepoint(pyevent.pos):
+										history.append(layout)
 										obj.add_point(obj.add_point_closest[2], obj.add_point_closest[0])
 										obj.selected_point_index = obj.add_point_closest[2]
 										point_moving = True
 										selected_shape = obj
 										break
 								elif True in clicked_point:
+									history.append(layout)
 									point_moving = True
 									obj.selected_point_index = clicked_point.index(True)
 									selected_shape = obj
@@ -328,6 +333,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, events
 						for obj in reversed(selectable_objects()):
 							if obj.collidepoint(pyevent.pos):
 								if not holding_shift():
+									history.append(layout)
 									moving = True
 									dragndrop_pos = true_mouse_pos() if not obj.selected else Vector()
 								if not obj.selected:
@@ -453,9 +459,39 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, events
 				elif pyevent.key == pygame.K_h:
 					draw_hitboxes = not draw_hitboxes
 
+				elif pyevent.key == pygame.K_z and holding_ctrl():
+					if holding_shift():  # redo
+						otherlayout = history.next()
+					else:  # undo
+						if history.uptodate:
+							history.append(layout)
+						otherlayout = history.previous()
+					if otherlayout is not None:
+						layout = otherlayout
+						object_lists = [
+							terrain_stretches := lay.LayoutList(lay.TerrainStretch, layout),
+							water_blocks := lay.LayoutList(lay.WaterBlock, layout),
+							platforms := lay.LayoutList(lay.Platform, layout),
+							ramps := lay.LayoutList(lay.Ramp, layout),
+							custom_shapes := lay.LayoutList(lay.CustomShape, layout),
+							pillars := lay.LayoutList(lay.Pillar, layout),
+							anchors := lay.LayoutList(lay.Anchor, layout)
+						]
+						objects: Dict[Type[lay.LayoutObject], lay.LayoutList] = {li.cls: li for li in object_lists}
+						bridge = lay.Bridge(layout)
+						panning = False
+						moving = False
+						selecting = False
+						point_moving = False
+						object_being_edited = None
+						events.send(ev.CLOSE_OBJ_EDIT)
+
 				elif pyevent.key == pygame.K_d:
 					# Delete selected
-					for obj in [o for o in selectable_objects() if o.selected]:
+					selected = [o for o in selectable_objects() if o.selected]
+					if selected:
+						history.append(layout)
+					for obj in selected:
 						if isinstance(obj, lay.CustomShape):
 							for dyn_anc_id in obj.dynamic_anchor_ids:
 								for anchor in [a for a in anchors]:
@@ -465,7 +501,10 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, events
 
 				elif pyevent.key == pygame.K_c:
 					# Copy Selected
-					for old_obj in [o for o in selectable_objects() if o.selected]:
+					selected = [o for o in selectable_objects() if o.selected]
+					if selected:
+						history.append(layout)
+					for old_obj in selected:
 						new_obj = type(old_obj)(deepcopy(old_obj.dictionary))
 						old_obj.selected = False
 						new_obj.selected = True
@@ -517,6 +556,7 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, events
 						elif isinstance(obj, lay.Pillar):
 							values[popup.HEIGHT] = obj.height
 						object_being_edited = obj
+						history.append(layout)
 						events.send(ev.OPEN_OBJ_EDIT, values=values)
 					elif len(hl_objs) > 1:
 						values = {}
@@ -526,14 +566,17 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, events
 								values[popup.RGB_G] = hl_objs[i].color[1]
 								values[popup.RGB_B] = hl_objs[i].color[2]
 								object_being_edited = hl_objs[i]
+								history.append(layout)
 								events.send(ev.OPEN_OBJ_EDIT, values=values)
 								break
 				# Move selection with keys
 				if move:
 					hl_objs = [o for o in selectable_objects() if o.selected]
+					if hl_objs:
+						history.append(layout)
 					for obj in hl_objs:
 						obj.pos += (move_x, move_y)
-					if len(hl_objs) == 0:
+					if not hl_objs:
 						camera -= (move_x, move_y)
 					elif object_being_edited and len(hl_objs) == 1 and object_being_edited == hl_objs[0]:
 						events.send(ev.UPDATE_OBJ_EDIT,
