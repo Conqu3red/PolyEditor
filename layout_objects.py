@@ -42,6 +42,11 @@ TERRAIN_BASE_HEIGHT = 5.0
 TERRAIN_BORDER_WIDTH = 2
 WATER_EDGE_WIDTH = 1
 
+PLATFORM_THICKNESS = 0.20
+PLATFORM_COLOR_1 = (197, 134, 93)
+PLATFORM_COLOR_2 = (150, 112, 84)
+RAMP_MAX_LEG_SEPARATION = 6.0
+
 PILLAR_WIDTH = 1.0
 PILLAR_COLOR = (195, 171, 149, 150)
 PILLAR_BORDER = (105, 98, 91, 150)
@@ -240,6 +245,102 @@ class WaterBlock(LayoutObject):
 	@height.setter
 	def height(self, value: float):
 		self._dict["m_Height"] = value
+
+
+class Platform(LayoutObject):
+	list_name = "m_Platforms"
+
+	def __init__(self, dictionary):
+		super().__init__(dictionary)
+
+	def render(self, display: Surface, camera: Vector, zoom: int, args=None):
+		offset = Vector(-self.width / 2, 0)
+		start = (zoom * (self.pos + offset + camera).flip_y()).round()
+		end = start + (round(zoom * self.width), 0)
+		thickness = max(1, round(zoom * PLATFORM_THICKNESS))
+		# Legs
+		if abs(self.height) > 0.000001:
+			height = round(zoom * self.height) * (1 if self.flipped else -1)
+			offset = round(zoom * PLATFORM_THICKNESS / 2)
+			leg1_start, leg1_end = start + (offset, 0), start - (-offset, height)
+			leg2_start, leg2_end = end + (-offset, 0), end - (offset, height)
+			pygame.draw.line(display, PLATFORM_COLOR_2, leg1_start, leg1_end, thickness)
+			pygame.draw.line(display, PLATFORM_COLOR_2, leg2_start, leg2_end, thickness)
+		# Platform
+		pygame.draw.line(display, PLATFORM_COLOR_1, start, end, thickness)
+
+	@property
+	def width(self) -> float:
+		return self._dict["m_Width"]
+	@width.setter
+	def width(self, value: float):
+		self._dict["m_Width"] = value
+
+	@property
+	def height(self) -> float:
+		return self._dict["m_Height"]
+	@height.setter
+	def height(self, value: float):
+		self._dict["m_Height"] = value
+
+	@property
+	def flipped(self) -> bool:
+		return self._dict["m_Flipped"]
+	@flipped.setter
+	def flipped(self, value: bool):
+		self._dict["m_Flipped"] = value
+
+
+class Ramp(LayoutObject):
+	list_name = "m_Ramps"
+
+	def __init__(self, dictionary):
+		super().__init__(dictionary)
+
+	def render(self, display: Surface, camera: Vector, zoom: int, args=None):
+		points = self.points
+		thickness = round(zoom * PLATFORM_THICKNESS)
+		# Legs
+		width = points[-1].x - points[0].x
+		if not self.hide_legs and abs(width) > 0.01:
+			base_y = min(p.y for p in points) - self.leg_height - PLATFORM_THICKNESS
+			leg_separation = width / (width // RAMP_MAX_LEG_SEPARATION)
+			last_leg_x = 1000
+			for i in range(len(points)):
+				current = points[i]
+				if abs(current.x - last_leg_x) >= leg_separation or i == len(points) - 1:
+					last_leg_x = current.x
+					leg_a = (zoom * (points[i] + camera).flip_y()).round()
+					leg_b = Vector(leg_a.x, -zoom * (base_y + camera.y)).round()
+					if abs(leg_a.y - leg_b.y) > thickness * 1.5:
+						pygame.draw.line(display, PLATFORM_COLOR_2, leg_a, leg_b, thickness)
+		# Ramp
+		for i in range(len(points) - 1):
+			point_a = (zoom * (points[i] + camera).flip_y()).round()
+			point_b = (zoom * (points[i+1] + camera).flip_y()).round()
+			# We don't know how to make it antialiased
+			pygame.draw.line(display, PLATFORM_COLOR_1, point_a, point_b, thickness)
+
+	@property
+	def points(self) -> Tuple[Vector, ...]:
+		return tuple(Vector(p) for p in self._dict["m_LinePoints"])
+	@points.setter
+	def points(self, values: Sequence[Vector]):
+		self._dict["m_LinePoints"] = [p.to_dict() for p in values]
+
+	@property
+	def leg_height(self) -> float:
+		return self._dict["m_Height"]
+	@leg_height.setter
+	def leg_height(self, value: float):
+		self._dict["m_Height"] = value
+
+	@property
+	def hide_legs(self) -> bool:
+		return self._dict["m_HideLegs"]
+	@hide_legs.setter
+	def hide_legs(self, value: bool):
+		self._dict["m_HideLegs"] = value
 
 
 class Pillar(SelectableObject):

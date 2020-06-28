@@ -143,6 +143,8 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, events
 	object_lists = [
 		terrain_stretches := lay.LayoutList(lay.TerrainStretch, layout),
 		water_blocks := lay.LayoutList(lay.WaterBlock, layout),
+		platforms := lay.LayoutList(lay.Platform, layout),
+		ramps := lay.LayoutList(lay.Ramp, layout),
 		custom_shapes := lay.LayoutList(lay.CustomShape, layout),
 		pillars := lay.LayoutList(lay.Pillar, layout),
 		anchors := lay.LayoutList(lay.Anchor, layout)
@@ -569,6 +571,10 @@ def editor(layout: dict, layoutfile: str, jsonfile: str, backupfile: str, events
 			terrain.render(display, camera, zoom, fg_color)
 		for water in water_blocks:
 			water.render(display, camera, zoom, fg_color)
+		for platform in platforms:
+			platform.render(display, camera, zoom)
+		for ramp in ramps:
+			ramp.render(display, camera, zoom)
 		shape_args = lay.ShapeRenderArgs(draw_points, draw_hitboxes, holding_shift(), mouse_pos, true_mouse_change)
 		for shape in custom_shapes:
 			shape.render(display, camera, zoom, shape_args)
